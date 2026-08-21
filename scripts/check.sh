@@ -76,6 +76,22 @@ step "shellcheck (warnings and above)"
 # shellcheck disable=SC2046  # deliberate splitting into one argument per file
 shellcheck -S warning $(sources '*.sh')
 
+step "the install pair can read the build files"
+# Everything install.sh and uninstall.sh work out before they touch anything:
+# the two program names, the entry, the icon. All of it is read out of the
+# build files rather than written down twice, which is right, and it means a
+# line written differently there stops the pair. That happened once, and
+# nothing here noticed, because no gate ever asked.
+(
+    PROJECT_ROOT="$ROOT"
+    export PROJECT_ROOT
+    # shellcheck source=scripts/_style.sh
+    . "$ROOT/scripts/_style.sh"
+    # shellcheck source=scripts/_paths.sh
+    . "$ROOT/scripts/_paths.sh"
+    printf '  %s\n' "$PANEL" "$SETTINGS" "$DESKTOP_ID.desktop" "$ICON_NAME.svg"
+)
+
 step "configure and build"
 cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build "$BUILD_DIR" -j"$(nproc)"

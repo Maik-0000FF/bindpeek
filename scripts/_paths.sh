@@ -53,8 +53,13 @@ SETTINGS="$PROJECT_NAME-editor"
 # as derived on purpose: the two names above are checked against it below, so a
 # rename in the build file that did not reach this file stops the script rather
 # than half installing.
+#
+# The name is taken and the rest of the line thrown away, because there are two
+# shapes of that line: the sources on the lines below, or a list handed in on
+# the same line. A pattern that insisted on the first shape once stopped the
+# install of a tree that built perfectly well.
 mapfile -t PROGRAMS < <(
-    sed -n 's/^add_executable(\([A-Za-z0-9_-]\{1,\}\)$/\1/p' \
+    sed -n 's/^add_executable(\([A-Za-z0-9_-]\{1,\}\).*$/\1/p' \
         "$_SRC_BUILD_FILE" 2>/dev/null
 )
 
