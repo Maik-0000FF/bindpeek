@@ -48,8 +48,13 @@ if(NOT BINDPEEK_ICON_NAME)
   message(FATAL_ERROR "The Icon= key in ${BINDPEEK_DESKTOP_SOURCE} is empty")
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Qml Quick Widgets DBus
-                              LinguistTools)
+# 6.7 at least, and said here rather than found out in the middle of the build.
+# Two things this uses arrived after 6.4: the light/dark setting Qt reports
+# itself, and the form of qt_add_translations that takes more than one target.
+# On an older Qt the second fails with a message about a target called TARGETS,
+# which says nothing about what is actually wrong. This says it.
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Network Qml Quick Widgets
+                                  DBus LinguistTools)
 
 # wlr-layer-shell binding for Qt. The overlay has to be a layer surface to get
 # exclusive keyboard focus from the compositor.
@@ -88,38 +93,19 @@ add_subdirectory(src)
 # lrelease compiles them, and the .qm files are baked into the binary under the
 # resource prefix main.cpp loads from. A language is added by adding a .ts file
 # here, no code change.
-# One call, one target named, and every source of both programs handed to it.
-#
-# The plural form, qt_add_translations(TARGETS a b ...), is younger than the
-# oldest Qt this is meant to build on: there the function takes one target and
-# nothing else, and the word TARGETS is read as the name of a target that does
-# not exist. Naming one target and listing the sources works on both, and it is
-# the listing that matters here anyway: the refresh must see the QML, which is
-# no target's source, and it must see the other program's files, or every
-# string of that program would be dropped as gone.
-#
-# What comes out is handed over as files rather than baked into the one target
-# named, because both programs need it.
-qt_add_translations(bindpeek
-  SOURCES ${BINDPEEK_QML_SOURCES} ${BINDPEEK_CXX_SOURCES}
+qt_add_translations(
+  TARGETS bindpeek bindpeek-editor
+  # Named explicitly, see the list in src/CMakeLists.txt: lupdate builds its
+  # project from the targets' sources, and QML is not one of them. Without this
+  # a refresh finds no qsTr() at all and marks every interface string obsolete
+  # in one go.
+  SOURCES ${BINDPEEK_QML_SOURCES}
   TS_FILES translations/bindpeek_de.ts
   # A string whose source is gone is dropped rather than carried along as a
-  # vanished entry. This call is the only thing that writes the catalogue, so
+  # vanished entry. This target is the only thing that writes the catalogue, so
   # such an entry can never come back and is only noise in the next diff.
   LUPDATE_OPTIONS -no-obsolete
-  QM_FILES_OUTPUT_VARIABLE BINDPEEK_QM_FILES
 )
-
-# The compiled catalogue into both binaries, under the prefix both load from.
-# BASE is where lrelease put the files, so the name inside the resource is the
-# bare bindpeek_de.qm the loader asks for.
-foreach(_bindpeek_program bindpeek bindpeek-editor)
-  qt_add_resources(${_bindpeek_program} "i18n"
-    PREFIX "/i18n"
-    BASE "${CMAKE_CURRENT_BINARY_DIR}"
-    FILES ${BINDPEEK_QM_FILES}
-  )
-endforeach()
 
 enable_testing()
 add_subdirectory(tests)
