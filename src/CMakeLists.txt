@@ -31,9 +31,16 @@ list(REMOVE_DUPLICATES _bindpeek_qml)
 list(TRANSFORM _bindpeek_qml PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(BINDPEEK_QML_SOURCES ${_bindpeek_qml} PARENT_SCOPE)
 
+# The C++ half of the same errand, exported at the end of this file once the
+# three lists exist. Handed to the catalogue rather than left to be found: the
+# refresh is driven from one target, and without this it would see that
+# target's sources alone and drop every string of the other as gone.
+
 # The backends live in a library of their own, so the tests can exercise them
 # without a window and without a running session.
-add_library(bindpeek_sources STATIC
+# Named once and used twice, like the QML above: the library is built from this
+# list, and the translation catalogue is refreshed from it.
+set(BINDPEEK_LIB_SOURCES
   Compositor.cpp
   Settings.cpp
   Source.cpp
@@ -41,10 +48,13 @@ add_library(bindpeek_sources STATIC
   SourceHyprland.cpp
 )
 
+add_library(bindpeek_sources STATIC ${BINDPEEK_LIB_SOURCES})
+
 # The KDE backend and the library it needs, together or not at all. Anything
 # that asks whether it is there asks this one definition, so a build without it
 # cannot end up with the backend named somewhere and missing elsewhere.
 if(BINDPEEK_WITH_KDE)
+  list(APPEND BINDPEEK_LIB_SOURCES SourceKde.cpp)
   target_sources(bindpeek_sources PRIVATE SourceKde.cpp)
   target_link_libraries(bindpeek_sources PRIVATE KF6::ConfigCore)
   target_compile_definitions(bindpeek_sources PUBLIC BINDPEEK_WITH_KDE)
@@ -58,7 +68,7 @@ target_link_libraries(bindpeek_sources
   PRIVATE Qt6::Network
 )
 
-add_executable(bindpeek
+set(BINDPEEK_PANEL_SOURCES
   main.cpp
   # For the one sentence that describes the program: --help and the about
   # dialog have to say the same thing.
@@ -69,6 +79,8 @@ add_executable(bindpeek
   SystemScheme.cpp
   OverlayController.cpp
 )
+
+add_executable(bindpeek ${BINDPEEK_PANEL_SOURCES})
 
 target_link_libraries(bindpeek PRIVATE
   bindpeek_sources
@@ -97,12 +109,19 @@ install(TARGETS bindpeek RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # A second program rather than a mode of the first. It has to keep running when
 # the overlay is off, because its tray icon is how the overlay gets switched
 # back on.
-add_executable(bindpeek-editor
+set(BINDPEEK_EDITOR_SOURCES
   editor/main.cpp
   editor/SettingsModel.cpp
   editor/OverlayProcess.cpp
   editor/TrayWait.cpp
+  # Appearance is shared with the overlay so the preview and the real panel are
+  # driven by the same code.
+  Appearance.cpp
+  AppInfo.cpp
+  SystemScheme.cpp
 )
+
+add_executable(bindpeek-editor ${BINDPEEK_EDITOR_SOURCES})
 
 target_include_directories(bindpeek-editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 target_link_libraries(bindpeek-editor PRIVATE
@@ -119,9 +138,6 @@ target_link_libraries(bindpeek-editor PRIVATE
   Qt6::Widgets
 )
 
-# Appearance is shared with the overlay so the preview and the real panel are
-# driven by the same code.
-target_sources(bindpeek-editor PRIVATE Appearance.cpp AppInfo.cpp SystemScheme.cpp)
 
 # No BASE here: the aliases then follow the paths as written, which gives
 # /qml/editor/Editor.qml and /qml/Theme.qml. Editor.qml reaches its shared
@@ -161,3 +177,16 @@ install(FILES ${BINDPEEK_DESKTOP_SOURCE}
 install(FILES ${CMAKE_SOURCE_DIR}/assets/logo-mark-black.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
         RENAME ${BINDPEEK_ICON_NAME}.svg)
+
+# The C++ sources of both programs and of the library they share, absolute, for
+# the translations call in the parent directory. Assembled from the very lists
+# the targets are built from, so a file added to a program is a file the
+# catalogue sees.
+set(_bindpeek_cxx
+  ${BINDPEEK_LIB_SOURCES}
+  ${BINDPEEK_PANEL_SOURCES}
+  ${BINDPEEK_EDITOR_SOURCES}
+)
+list(REMOVE_DUPLICATES _bindpeek_cxx)
+list(TRANSFORM _bindpeek_cxx PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+set(BINDPEEK_CXX_SOURCES ${_bindpeek_cxx} PARENT_SCOPE)
