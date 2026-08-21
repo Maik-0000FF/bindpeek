@@ -57,6 +57,21 @@ concurrency:
     && github.sha || 'shared' }}
   cancel-in-progress: true
 
+# Every step runs under bash, said out loud rather than left to the default.
+#
+# Inside a container the service picks the shell itself, and on the two
+# Debian-based images it picked `sh`, which there is dash. The lists in
+# scripts/_packages.sh are shell arrays, which dash has no syntax for, so those
+# two lanes died on the first line that reads them while the other four passed:
+#
+#   scripts/_packages.sh: Syntax error: "(" unexpected (expecting ";;")
+#
+# Naming the shell also settles the flags: bash here runs with pipefail, so a
+# step whose first command in a pipe fails is a step that fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: ubuntu-24.04
