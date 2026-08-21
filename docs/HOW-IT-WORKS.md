@@ -67,7 +67,8 @@ make it a bystander:
 
 This is also the one hard requirement: `wlr-layer-shell` is a Wayland protocol
 that every wlroots-based compositor implements, as do Hyprland, KWin and niri,
-and GNOME/Mutter does not. On a session without it, bindpeek says which session
+and GNOME/Mutter does not, nor Cinnamon, whose compositor is a fork of Mutter.
+On a session without it, bindpeek says which session
 it found and what is missing, rather than coming up as an ordinary window with a
 title bar.
 

@@ -40,7 +40,7 @@ dependencies_for() {
         arch)
             DEPENDENCIES=(cmake ninja pkgconf gcc
                 qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools
-                layer-shell-qt libevdev kconfig)
+                layer-shell-qt libevdev)
             ;;
         debian)
             DEPENDENCIES=(cmake ninja-build pkg-config g++
@@ -49,22 +49,48 @@ dependencies_for() {
                 qml6-module-qtquick qml6-module-qtquick-controls
                 qml6-module-qtquick-layouts qml6-module-qtquick-templates
                 qml6-module-qtquick-window qml6-module-qtqml-workerscript
-                liblayershellqtinterface-dev libevdev-dev libkf6config-dev)
+                liblayershellqtinterface-dev libevdev-dev)
             ;;
         fedora)
             DEPENDENCIES=(cmake ninja-build gcc-c++ pkgconf
                 qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel
                 qt6-qtwayland qt6-qttools-devel qt6-linguist
-                layer-shell-qt-devel libevdev-devel kf6-kconfig-devel)
+                layer-shell-qt-devel libevdev-devel)
             ;;
         suse)
             DEPENDENCIES=(cmake ninja gcc-c++ pkgconf-pkg-config
                 qt6-base-devel qt6-declarative-devel qt6-svg-devel qt6-wayland
                 qt6-linguist-devel
-                layer-shell-qt6-devel libevdev-devel kf6-kconfig-devel)
+                layer-shell-qt6-devel libevdev-devel)
             ;;
         *)
             DEPENDENCIES=()
+            return 1
+            ;;
+    esac
+}
+
+# What is wanted but not needed, into $OPTIONAL.
+#
+# KDE's own configuration library, which reads the shortcut file the way KDE
+# writes it. Only one backend out of three uses it, and only on a desktop that
+# has KDE Plasma 6 to begin with: a distribution that does not package the
+# framework has no Plasma 6 to read either. Kept apart from the list above so
+# that a family without it still builds, without the KDE backend, rather than
+# not at all.
+#
+# The name is not the same everywhere and it is not everywhere: Ubuntu 24.04
+# and what is built on it carry no KF6 at all.
+#
+# shellcheck disable=SC2034
+# OPTIONAL is read by whoever called this.
+optional_dependencies_for() {
+    case "$DISTRO" in
+        arch) OPTIONAL=(kconfig) ;;
+        debian) OPTIONAL=(libkf6config-dev) ;;
+        fedora | suse) OPTIONAL=(kf6-kconfig-devel) ;;
+        *)
+            OPTIONAL=()
             return 1
             ;;
     esac

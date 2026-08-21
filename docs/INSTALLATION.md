@@ -31,9 +31,16 @@ itself on its first start.
 
 **The packages needed to build them** are whatever your distribution calls
 CMake, Ninja, pkg-config, a C++20 compiler, Qt 6 (base, declarative, svg,
-wayland and the Linguist tools), layer-shell-qt, libevdev and KDE's KConfig
-framework. On Debian and its derivatives the QML runtime modules come as
-packages of their own and are in the list as well.
+wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
+derivatives the QML runtime modules come as packages of their own and are in
+the list as well.
+
+**One more that is wanted rather than needed**: KDE's KConfig framework, which
+only the KDE backend uses. It is listed and installed alongside the others, but
+where a distribution does not carry it the script says so and carries on, and
+the build leaves that one backend out. Ubuntu 24.04 and everything built on it
+are such a case; they have no KDE Plasma 6 either, so nothing is lost there
+that could have been used.
 
 The names differ per family and they live in exactly one place,
 `scripts/_packages.sh`, which is the file the script reads and the file the
@@ -159,11 +166,12 @@ sudo usermod -aG input "$USER"   # then log out and back in
 
 What has to be installed first, under whatever your distribution calls it:
 CMake, Ninja, pkg-config, a C++20 compiler, Qt 6 (base, declarative, svg,
-wayland and the Linguist tools), layer-shell-qt, libevdev, and KDE's KConfig
-framework. On Debian and its derivatives the QML runtime modules are packaged
-separately and are needed as well; `scripts/_packages.sh` has the exact list for
-all four families, and it is the same list the script and the automated checks
-install.
+wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
+derivatives the QML runtime modules are packaged separately and are needed as
+well. KDE's KConfig framework is wanted on top of that and the build says so if
+it is missing, leaving out the KDE backend and nothing else.
+`scripts/_packages.sh` has the exact names for all four families, and it is the
+same file the script and the automated checks read.
 
 ## Autostart under a bare compositor
 

@@ -50,8 +50,9 @@ shortcut still fires when you complete it.
 > [!NOTE]
 > The panel is a `wlr-layer-shell` surface, which is what lets it float above
 > everything without taking the focus. Every wlroots-based compositor carries
-> that protocol, and so do Hyprland, KWin and niri, but **not GNOME/Mutter**
-> and not X11. On a session without it, bindpeek says so and stops instead of
+> that protocol, and so do Hyprland, KWin and niri, but **not GNOME/Mutter**,
+> not Cinnamon, whose compositor is a fork of Mutter, and not X11. On a session
+> without it, bindpeek says so and stops instead of
 > coming up as an ordinary window. `--list` works anywhere.
 
 ## Documentation
@@ -151,10 +152,14 @@ a comment above every line. Both are read live. See
   which the panel deliberately never takes. The modifiers are therefore read
   from the event devices below the compositor, and that is what the group
   grants. See **[How It Works](docs/HOW-IT-WORKS.md)** for what it means.
-- Qt 6, layer-shell-qt, libevdev and KDE's KConfig framework. `install.sh`
-  installs them for you, and shows every package by name before it does. What
-  that comes to on your distribution:
-  [What gets installed](docs/INSTALLATION.md#what-gets-installed).
+- Qt 6, layer-shell-qt and libevdev. `install.sh` installs them for you, and
+  shows every package by name before it does. What that comes to on your
+  distribution: [What gets installed](docs/INSTALLATION.md#what-gets-installed).
+- For the KDE backend only, KDE's KConfig framework. Where a distribution does
+  not carry it, and Ubuntu 24.04 and everything built on it do not, bindpeek
+  builds without that one backend and says so. Nothing else is affected, and a
+  system without the framework has no KDE Plasma 6 whose shortcuts there would
+  be to read.
 
 Reading the shortcuts themselves is a second question, and there the answer is
 narrower: mango, Hyprland or KDE Plasma. On any other compositor the panel can

@@ -178,6 +178,16 @@ jobs:
           printf '  %s\n' "${DEPENDENCIES[@]}"
           install_packages "${DEPENDENCIES[@]}"
 
+          # The package the KDE backend wants, installed where it exists. A
+          # family that has none, or a release too old to carry it, builds
+          # without that backend rather than not at all, and this lane is where
+          # that is proved rather than assumed.
+          if optional_dependencies_for && [ "${#OPTIONAL[@]}" -ne 0 ]; then
+            printf 'optional: %s\n' "${OPTIONAL[@]}"
+            install_packages "${OPTIONAL[@]}" ||
+              echo "not available here, building without the KDE backend"
+          fi
+
       - name: Configure
         run: cmake -B build -G Ninja ${{ matrix.cmake_extra }}
 
@@ -532,6 +542,9 @@ jobs:
           . scripts/_packages.sh
           dependencies_for
           install_packages "${DEPENDENCIES[@]}"
+          if optional_dependencies_for && [ "${#OPTIONAL[@]}" -ne 0 ]; then
+            install_packages "${OPTIONAL[@]}" || true
+          fi
 
       - name: Configure
         # -O1 rather than none: the sanitizers need some optimization to reach

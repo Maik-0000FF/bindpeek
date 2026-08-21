@@ -98,6 +98,9 @@ if ! dependencies_for; then
         "things this needs."
     exit 1
 fi
+# What is wanted on top of that, and may not exist here at all.
+optional_dependencies_for || OPTIONAL=()
+
 MISSING=()
 for package in "${DEPENDENCIES[@]}"; do
     if is_installed "$package"; then
@@ -108,19 +111,44 @@ for package in "${DEPENDENCIES[@]}"; do
     fi
 done
 
-if [ "${#MISSING[@]}" -ne 0 ]; then
+MISSING_OPTIONAL=()
+for package in "${OPTIONAL[@]}"; do
+    if is_installed "$package"; then
+        item yes "$package (for the KDE backend)"
+    else
+        item no "$package (for the KDE backend)"
+        MISSING_OPTIONAL+=("$package")
+    fi
+done
+
+if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
     echo
     # The one question a run with nobody at the keyboard still answers with
     # yes: installing what is needed to build is the whole errand, and it adds
     # to the machine rather than changing what it allows.
-    ask "Install the ${#MISSING[@]} missing package(s)? [Y/n]"
+    ask "Install the $((${#MISSING[@]} + ${#MISSING_OPTIONAL[@]})) missing package(s)? [Y/n]"
     case "$REPLY" in
         [Nn]*)
             fail "Nothing to build with."
             exit 1
             ;;
     esac
-    install_packages "${MISSING[@]}"
+    if [ "${#MISSING[@]}" -ne 0 ]; then
+        install_packages "${MISSING[@]}"
+    fi
+    # Separately, and a failure here is not the end of the run. On a
+    # distribution that does not carry the framework at all, the package
+    # manager answers that it knows no such package, and the right thing then
+    # is to build without the backend rather than to stop: what is left out is
+    # the reading of KDE's shortcuts, and a system without the framework has no
+    # KDE Plasma 6 whose shortcuts there would be to read.
+    for package in "${MISSING_OPTIONAL[@]}"; do
+        if ! install_packages "$package"; then
+            warn "$package is not available here." \
+                "Building without the KDE backend. Everything else works;" \
+                "only a KDE Plasma session could not be read."
+        fi
+    done
     ok "installed"
 else
     ok "all present"
