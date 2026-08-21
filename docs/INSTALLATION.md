@@ -16,8 +16,11 @@ cd bindpeek
 ./install.sh
 ```
 
-Supported families: Arch, Debian/Ubuntu/Linux Mint, Fedora, openSUSE, including
-the usual derivatives of each.
+Supported families: Arch, Debian/Ubuntu, Fedora, openSUSE, including the usual
+derivatives of each, on a release carrying Qt 6.7 or newer. On the Debian side
+that is Ubuntu 26.04 and Debian trixie upwards. An older release stops at the
+configure step and says which Qt it found, rather than failing later with
+something that reads like a fault in the code.
 
 ### What gets installed
 
@@ -30,8 +33,8 @@ question, and `~/.config/bindpeek/bindpeek.conf`, which the program writes for
 itself on its first start.
 
 **The packages needed to build them** are whatever your distribution calls
-CMake, Ninja, pkg-config, a C++20 compiler, Qt 6 (base, declarative, svg,
-wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
+CMake, Ninja, pkg-config, a C++20 compiler, Qt 6.7 or newer (base,
+declarative, svg, wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
 derivatives the QML runtime modules come as packages of their own and are in
 the list as well.
 

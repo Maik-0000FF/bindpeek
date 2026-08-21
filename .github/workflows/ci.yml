@@ -96,16 +96,8 @@ jobs:
             image: archlinux:base-devel
             bootstrap: pacman -Syu --noconfirm git clang
             cmake_extra: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          - distro: Ubuntu 24.04
-            image: ubuntu:24.04
-            bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
-            cmake_extra: ''
-          - distro: Linux Mint 22
-            # Mint ships the Ubuntu packages plus repositories of its own. The
-            # build uses nothing but the Ubuntu ones, so this lane catches what
-            # is Mint's alone, a renamed package or a differently written
-            # /etc/os-release, while the lane above covers the toolchain.
-            image: linuxmintd/mint22-amd64
+          - distro: Ubuntu 26.04
+            image: ubuntu:26.04
             bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
             cmake_extra: ''
           - distro: Fedora
@@ -132,21 +124,15 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
 
     steps:
-      - name: Use the mirror in the same datacenter (Ubuntu, Mint)
+      - name: Use the mirror in the same datacenter (Ubuntu)
         # The runners live on Azure, and the Ubuntu mirror hosted there sits on
         # the same network, so it is neither slow nor overloaded. The content
         # is the same signed archive. The // in the match keeps a second run
         # from rewriting a URL that is already pointing there.
-        #
-        # Three files because the two distributions keep their sources in
-        # different places, and the one that carries the Ubuntu archives on
-        # Mint is named after Mint. Only the two Ubuntu hosts are rewritten, so
-        # Mint's own repository, which sits in the same file, is left alone.
-        if: startsWith(matrix.image, 'ubuntu') || startsWith(matrix.image, 'linuxmintd')
+        if: startsWith(matrix.image, 'ubuntu')
         run: |
           for f in /etc/apt/sources.list \
-                   /etc/apt/sources.list.d/ubuntu.sources \
-                   /etc/apt/sources.list.d/official-package-repositories.list; do
+                   /etc/apt/sources.list.d/ubuntu.sources; do
             [ -f "$f" ] && sed -i \
               -e 's|//archive.ubuntu.com|//azure.archive.ubuntu.com|g' \
               -e 's|//security.ubuntu.com|//azure.archive.ubuntu.com|g' \
@@ -249,8 +235,8 @@ jobs:
           - distro: Arch Linux
             image: archlinux:base-devel
             bootstrap: pacman -Syu --noconfirm sudo git
-          - distro: Ubuntu 24.04
-            image: ubuntu:24.04
+          - distro: Ubuntu 26.04
+            image: ubuntu:26.04
             bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates sudo git
           - distro: Fedora
             image: fedora:42

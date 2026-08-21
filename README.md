@@ -12,7 +12,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 [![NixOS](https://img.shields.io/badge/NixOS-Flake-5277C3?logo=nixos&logoColor=white)](#nix--nixos)
 ![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=arch-linux&logoColor=white)
 ![Ubuntu/Debian](https://img.shields.io/badge/Ubuntu%2FDebian-E95420?logo=ubuntu&logoColor=white)
-![Linux Mint](https://img.shields.io/badge/Linux%20Mint-87CF3E?logo=linuxmint&logoColor=white)
 ![Fedora](https://img.shields.io/badge/Fedora-294172?logo=fedora&logoColor=white)
 ![openSUSE](https://img.shields.io/badge/openSUSE-73BA25?logo=opensuse&logoColor=white)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/Maik-0000FF)
@@ -67,7 +66,7 @@ shortcut still fires when you complete it.
 
 ## Quick Start
 
-### Arch · Debian/Ubuntu · Linux Mint · Fedora · openSUSE
+### Arch · Debian/Ubuntu · Fedora · openSUSE
 
 ```bash
 git clone https://github.com/Maik-0000FF/bindpeek.git
@@ -152,9 +151,15 @@ a comment above every line. Both are read live. See
   which the panel deliberately never takes. The modifiers are therefore read
   from the event devices below the compositor, and that is what the group
   grants. See **[How It Works](docs/HOW-IT-WORKS.md)** for what it means.
-- Qt 6, layer-shell-qt and libevdev. `install.sh` installs them for you, and
-  shows every package by name before it does. What that comes to on your
-  distribution: [What gets installed](docs/INSTALLATION.md#what-gets-installed).
+- Qt 6.7 or newer, layer-shell-qt and libevdev. `install.sh` installs them for
+  you, and shows every package by name before it does. What that comes to on
+  your distribution:
+  [What gets installed](docs/INSTALLATION.md#what-gets-installed).
+- A release recent enough to carry that Qt. On the Debian side that means
+  Ubuntu 26.04 or newer and Debian trixie or newer; the automated checks build
+  and install on Arch, Ubuntu 26.04, Fedora and openSUSE Tumbleweed on every
+  push. Older releases are not held back on purpose, they simply carry a Qt
+  this was not written against.
 - For the KDE backend only, KDE's KConfig framework. Where a distribution does
   not carry it, and Ubuntu 24.04 and everything built on it do not, bindpeek
   builds without that one backend and says so. Nothing else is affected, and a
