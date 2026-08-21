@@ -1,0 +1,30 @@
+[ActivityManager]
+_k_friendly_name=Activity Manager
+switch-to-activity-00000000-0000-0000-0000-000000000000=none,none,Switch to activity "Default"
+
+[KDE Keyboard Layout Switcher]
+Switch to Last-Used Keyboard Layout=Meta+Alt+L,Meta+Alt+L,Switch to the last-used keyboard layout
+_k_friendly_name=Keyboard Layout Switcher
+
+[kmix]
+_k_friendly_name=Audio Volume
+decrease_volume_small=Shift+Volume Down,Shift+Volume Down,Decrease volume by 1 %
+increase_volume=Volume Up,Volume Up,Increase volume
+mic_mute=Microphone Mute\tMeta+Volume Mute,Microphone Mute\tMeta+Volume Mute,Mute microphone
+push_to_talk=none,none,Push to talk
+
+[ksmserver]
+Lock Session=Screensaver\tCtrl+Alt+L,,
+Log Out=Ctrl+Alt+Del,Ctrl+Alt+Del,Show logout dialog
+_k_friendly_name=Session Management
+
+[kwin]
+Activate Window Demanding Attention=Meta+Ctrl+A,Meta+Ctrl+A,Activate window demanding attention\\, wherever it is
+Adjust Volume=Meta+Comma,Meta+Comma,Adjust volume by ±5 %
+Cycle Overview=none,none,Cycle through Overview and Grid View
+Zoom In=Meta++,Meta++,Zoom in
+_k_friendly_name=Window Management
+
+[plasmashell]
+_k_friendly_name=Plasma
+activate application launcher=Meta\tAlt+F1,Meta\tAlt+F1,Activate application launcher

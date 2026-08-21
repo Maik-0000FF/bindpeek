@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The entry starts the editor, never the overlay directly. The editor brings
+# the overlay up itself unless the tray switched it off, and the overlay has
+# nothing to show on its own: it waits for a held modifier, so a menu entry of
+# its own would look like a program that starts and does nothing.
+#
+# Comment is the sentence main.cpp gives to --help, word for word, and its
+# German is the one from the catalogue. The desktop database reads a static
+# file and cannot call the catalogue, so both are spelled out here; keeping
+# them identical is what stops a menu from saying something else than --help.
+[Desktop Entry]
+Type=Application
+Name=bindpeek
+GenericName=Shortcut cheat sheet
+GenericName[de]=Kürzel-Spickzettel
+Comment=Shows the shortcuts assigned in the running session.
+Comment[de]=Zeigt die belegten Tastenkürzel der laufenden Sitzung.
+Exec=bindpeek-editor
+Icon=bindpeek
+Terminal=false
+Categories=Utility;
+Keywords=shortcut;shortcuts;keybinding;keybindings;cheatsheet;hotkey;
+Keywords[de]=Kürzel;Tastenkürzel;Tastenbelegung;Spickzettel;
+StartupNotify=false

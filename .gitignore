@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Build. One pattern rather than a line per directory: the checks in
+# scripts/check.sh run over every file in the tree that is not ignored, so a
+# build directory forgotten here is swept into them and fails the run over its
+# own generated headers.
+/build*/
+/result
+/result-*
+compile_commands.json
+
+# Personal notes and helpers, never in the repository
+/.private/

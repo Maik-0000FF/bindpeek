@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  performance-*,
+  -performance-no-int-to-ptr,
+  -performance-enum-size
+WarningsAsErrors: '*'
+HeaderFilterRegex: '/bindpeek/(src|tests)/.*\.h$'
+FormatStyle: none

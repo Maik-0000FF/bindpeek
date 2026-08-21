@@ -1,0 +1,565 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# What runs on every push: the two programs are built and tested in a container
+# of each supported distribution, the install and uninstall scripts are run
+# through end to end as a person would run them, the suite runs again under the
+# address and behaviour sanitizers, and the gates that can be run locally are
+# run again here with the toolchain the flake pins.
+#
+# The point of the distribution containers is the package names. They exist in
+# one place, scripts/_packages.sh, and the lanes below install exactly that
+# list rather than one of their own: a name that is wrong on one distribution
+# fails here rather than in front of somebody who was only trying to install
+# the program.
+#
+# A weekly run repeats all of it against the rolling images, so drift shows up
+# while nothing is being worked on: a Qt bump on Tumbleweed, a renamed package
+# on Debian, a new Fedora base.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # GitHub's cron is UTC only. Mondays at 08:00 UTC is 10:00 in Berlin
+    # through the summer and 09:00 through the winter. A scheduled run only
+    # ever fires on the default branch.
+    - cron: '0 8 * * 1'
+
+permissions:
+  contents: read
+
+# One run per branch at a time. A second push while the first is still going
+# makes the first answer a question nobody is asking any more, and thirteen
+# lanes is a lot of machine to spend on it.
+#
+# Not on the two branches that are kept. A run there is the record that a
+# commit was good, and a commit that never got an answer has no record at all.
+#
+# What holds that open is the name of the group, not the switch below. A run
+# waiting its turn is taken away by the next one to queue whatever the switch
+# says, so keeping the switch off would protect the run that happens to be
+# going and drop the one behind it. Giving every commit on those branches a
+# group of its own leaves nothing to take away: each keeps its own run.
+#
+# The kind of event is in the name as well, and only that keeps the weekly run
+# safe. It fires on the branch that is kept and carries the commit at its head,
+# so without this it would share a group with a push of that same commit and
+# one of the two would take the other away, minutes before the run that exists
+# to look at exactly that commit with fresh eyes.
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{
+    (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    && github.sha || 'shared' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    name: ${{ matrix.distro }}
+    # Without one of these a job may sit for six hours, which is what the
+    # service allows by default. These lanes wait on package mirrors, and a
+    # mirror that has stopped answering should cost minutes, not an afternoon.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            bootstrap: pacman -Syu --noconfirm git
+            cmake_extra: ''
+          - distro: Arch Linux (Clang)
+            # The same image as the lane above; only the compiler differs.
+            # Clang warns about things GCC does not and the other way round,
+            # and running the suite under both doubles what the test binaries
+            # are compiled against.
+            image: archlinux:base-devel
+            bootstrap: pacman -Syu --noconfirm git clang
+            cmake_extra: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+            cmake_extra: ''
+          - distro: Linux Mint 22
+            # Mint ships the Ubuntu packages plus repositories of its own. The
+            # build uses nothing but the Ubuntu ones, so this lane catches what
+            # is Mint's alone, a renamed package or a differently written
+            # /etc/os-release, while the lane above covers the toolchain.
+            image: linuxmintd/mint22-amd64
+            bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+            cmake_extra: ''
+          - distro: Fedora
+            image: fedora:42
+            bootstrap: dnf install -y git
+            cmake_extra: ''
+          - distro: openSUSE
+            # The Tumbleweed base image carries busybox-gawk, which the Qt 6
+            # development packages refuse to sit next to. Swapping it for the
+            # real one up front keeps the install below free of a question
+            # nobody is there to answer. A desktop has gawk already.
+            image: opensuse/tumbleweed
+            bootstrap: zypper --non-interactive install --force-resolution git gawk
+            cmake_extra: ''
+
+    container:
+      image: ${{ matrix.image }}
+
+    env:
+      # Already root in a container, so the installing command needs nothing in
+      # front of it. Empty rather than unset: the helper only fills in "sudo"
+      # where nobody has said otherwise.
+      PACKAGE_SUDO: ''
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - name: Use the mirror in the same datacenter (Ubuntu, Mint)
+        # The runners live on Azure, and the Ubuntu mirror hosted there sits on
+        # the same network, so it is neither slow nor overloaded. The content
+        # is the same signed archive. The // in the match keeps a second run
+        # from rewriting a URL that is already pointing there.
+        #
+        # Three files because the two distributions keep their sources in
+        # different places, and the one that carries the Ubuntu archives on
+        # Mint is named after Mint. Only the two Ubuntu hosts are rewritten, so
+        # Mint's own repository, which sits in the same file, is left alone.
+        if: startsWith(matrix.image, 'ubuntu') || startsWith(matrix.image, 'linuxmintd')
+        run: |
+          for f in /etc/apt/sources.list \
+                   /etc/apt/sources.list.d/ubuntu.sources \
+                   /etc/apt/sources.list.d/official-package-repositories.list; do
+            [ -f "$f" ] && sed -i \
+              -e 's|//archive.ubuntu.com|//azure.archive.ubuntu.com|g' \
+              -e 's|//security.ubuntu.com|//azure.archive.ubuntu.com|g' \
+              "$f"
+          done
+          true
+
+      - name: Bootstrap
+        # Only what is needed to get the checkout and, on one lane, the second
+        # compiler. Everything else comes from the list in the repository,
+        # which is the thing being tested.
+        run: ${{ matrix.bootstrap }}
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Dependencies
+        # The same two files install.sh uses, so this proves the list a person
+        # would get, not a copy of it kept in this workflow.
+        run: |
+          . scripts/_distro.sh
+          detect_distro_info
+          . scripts/_packages.sh
+          if ! dependencies_for; then
+            echo "no package list for family '$DISTRO'"
+            exit 1
+          fi
+          echo "family: $DISTRO ($DISTRO_LABEL)"
+          printf '  %s\n' "${DEPENDENCIES[@]}"
+          install_packages "${DEPENDENCIES[@]}"
+
+      - name: Configure
+        run: cmake -B build -G Ninja ${{ matrix.cmake_extra }}
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Both programs are there
+        # A missing Qt or layer-shell package does not have to break the build:
+        # a target can be skipped and the job stay green while the thing it was
+        # meant to produce is absent.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          . scripts/_paths.sh
+          missing=0
+          for f in "build/src/$PANEL" "build/src/$SETTINGS"; do
+            if [ -f "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "missing: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Both programs can be started
+        # An unresolved library is not a build error, it is a program that dies
+        # the moment somebody runs it. "not found" in the loader's output is
+        # what that looks like from here.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          . scripts/_paths.sh
+          unresolved=0
+          for f in "build/src/$PANEL" "build/src/$SETTINGS"; do
+            echo "=== $f"
+            if ldd "$f" | grep 'not found'; then
+              unresolved=1
+            fi
+          done
+          exit $unresolved
+
+  install-uninstall:
+    # The two scripts, run the way somebody would run them, in a container of
+    # each family. Both refuse to run as root, so a user is made for them and
+    # given sudo without a password, which is also what lets them run with
+    # nobody there to answer: every question falls through to the answer it
+    # offers, and the ones that would widen what the machine allows hold back.
+    runs-on: ubuntu-24.04
+    name: install + uninstall (${{ matrix.distro }})
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            bootstrap: pacman -Syu --noconfirm sudo git
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            bootstrap: apt-get update && apt-get install -y --no-install-recommends ca-certificates sudo git
+          - distro: Fedora
+            image: fedora:42
+            bootstrap: dnf install -y sudo git
+          - distro: openSUSE
+            image: opensuse/tumbleweed
+            bootstrap: zypper --non-interactive install --force-resolution sudo git gawk
+
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+
+    steps:
+      - name: Bootstrap
+        run: ${{ matrix.bootstrap }}
+
+      - name: A user to run them as
+        # The root line is there for Tumbleweed, whose sudoers ships without a
+        # rule for root, so the outer `sudo -u tester` would fail. The kept
+        # variable carries the flag that stops Debian's package tools asking
+        # about a timezone in the middle of the install.
+        run: |
+          useradd -m -s /bin/bash tester
+          {
+            echo "root   ALL=(ALL) NOPASSWD:ALL"
+            echo "tester ALL=(ALL) NOPASSWD:ALL"
+            echo 'Defaults env_keep += "DEBIAN_FRONTEND"'
+          } >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Hand the checkout to that user
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: install.sh
+        run: |
+          sudo -u tester -H env DEBIAN_FRONTEND=noninteractive \
+            bash -c "cd '$GITHUB_WORKSPACE' && ./install.sh"
+
+      - name: What it installed is there
+        # The four paths are asked of the same file the scripts ask, so a
+        # rename in the build files cannot leave this step looking for
+        # yesterday's names. The icon is among them on purpose: it is the last
+        # line of the manifest cmake writes, and that file ends without a
+        # newline, so a removal that reads it carelessly leaves exactly this
+        # file behind.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          . scripts/_paths.sh
+          missing=0
+          for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
+                   "$INSTALL_DESKTOP" "$INSTALL_ICON"; do
+            if [ -e "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "missing: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: uninstall.sh
+        run: |
+          sudo -u tester -H env DEBIAN_FRONTEND=noninteractive \
+            bash -c "cd '$GITHUB_WORKSPACE' && ./uninstall.sh"
+
+      - name: Nothing of it is left
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          . scripts/_paths.sh
+          left=0
+          for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
+                   "$INSTALL_DESKTOP" "$INSTALL_ICON"; do
+            if [ -e "$f" ]; then
+              echo "left behind: $f"
+              left=1
+            else
+              echo "gone: $f"
+            fi
+          done
+          exit $left
+
+  answered-install:
+    # The same pair once more, on one distribution, with somebody answering.
+    #
+    # Every question is put to the terminal, so a run with none can only take
+    # the answer each question offers, and the branches that do something are
+    # never walked: writing the autostart entry, taking it away again, adding
+    # the group. Here the run is given a terminal of its own and a stream of
+    # yeses is sat at it, which is the only way to reach those branches without
+    # a person. One distribution is enough for that; what differs between them
+    # is packaging, and the lanes above cover it.
+    runs-on: ubuntu-24.04
+    name: install + uninstall, answered
+    timeout-minutes: 45
+    container:
+      image: archlinux:base-devel
+      options: --user root
+
+    steps:
+      - name: Bootstrap
+        # util-linux carries the program that hands out the terminal, and it
+        # is in this image already.
+        run: pacman -Syu --noconfirm sudo git
+
+      - name: A user to run them as
+        run: |
+          useradd -m -s /bin/bash tester
+          {
+            echo "root   ALL=(ALL) NOPASSWD:ALL"
+            echo "tester ALL=(ALL) NOPASSWD:ALL"
+          } >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Hand the checkout to that user
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: install.sh, with every question answered yes
+        # An answer a second, for as long as it takes, and the reason is worth
+        # writing down.
+        #
+        # The terminal's input queue holds a few kilobytes. Answers produced
+        # faster than they are read pile up in the program handing out the
+        # terminal, in its own memory: measured at two gigabytes in just over a
+        # second, and then the run is killed for it, in the middle of whatever
+        # the script was doing. Cutting the stream short instead trades that
+        # for a different way to hang: only the first question after the end
+        # gets an answer of "nobody there", every one after it waits for input
+        # that is never coming, and the job burns its whole clock. A slow
+        # stream that never ends has neither problem.
+        #
+        # No clock of its own on this one. What it does is what the build lanes
+        # do, packages and a compile from nothing, and any budget written here
+        # would be a second guess at how long that takes on a mirror nobody has
+        # measured. The job has a clock, it was set for this, and a second
+        # tighter one only turns a slow Monday into a red run. The two steps
+        # after this take seconds and are held to fifteen minutes, where the
+        # difference between slow and stuck is not a guess.
+        run: |
+          # No directory change: a step starts in the checkout and sudo keeps
+          # it, so the script is where it already is.
+          sudo -u tester -H bash -c \
+            'while :; do echo y; sleep 1; done | script -qec ./install.sh /dev/null'
+
+      - name: The answers were acted on
+        # Both of the things a yes here asks for: the entry that starts the
+        # tray with the session, and the group the panel cannot read the
+        # keyboard without. Both names are asked of the same file the scripts
+        # ask, rather than written out again.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          # The same two the script itself saw. sudo clears the environment,
+          # so the run worked from an unset XDG_CONFIG_HOME; a runner that
+          # set one would otherwise send this step looking somewhere else.
+          HOME=/home/tester
+          XDG_CONFIG_HOME=
+          export HOME XDG_CONFIG_HOME
+          . scripts/_paths.sh
+          fail=0
+          if [ -f "$AUTOSTART_ENTRY" ]; then
+            echo "ok: $AUTOSTART_ENTRY"
+          else
+            echo "missing: $AUTOSTART_ENTRY"
+            fail=1
+          fi
+          if id -nG tester | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
+            echo "ok: tester is in the $INPUT_GROUP group"
+          else
+            echo "missing: tester was not added to the $INPUT_GROUP group"
+            fail=1
+          fi
+          exit $fail
+
+      - name: install.sh again, answering no
+        # The other half of that question, and the only way to reach it: a no
+        # takes away an entry that is there, which is how somebody turns the
+        # autostart off again. Nothing else is asked this time round, the
+        # packages being installed already and the group being held already.
+        run: |
+          # Killed ten seconds after being asked, if it comes to that. No
+          # --foreground: that flag exists to leave the children of the
+          # command alone, and the children here are the two halves of a
+          # pipe. Measured, it lets both of them outlive the step.
+          timeout -k 10 900 sudo -u tester -H bash -c \
+            'while :; do echo n; sleep 1; done | script -qec ./install.sh /dev/null'
+
+      - name: The no took the entry away
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          # The same two the script itself saw. sudo clears the environment,
+          # so the run worked from an unset XDG_CONFIG_HOME; a runner that
+          # set one would otherwise send this step looking somewhere else.
+          HOME=/home/tester
+          XDG_CONFIG_HOME=
+          export HOME XDG_CONFIG_HOME
+          . scripts/_paths.sh
+          if [ -e "$AUTOSTART_ENTRY" ]; then
+            echo "left behind: $AUTOSTART_ENTRY"
+            exit 1
+          fi
+          echo "gone: $AUTOSTART_ENTRY"
+
+      - name: Something to lose
+        # Two things the removal is meant to take away, put back first.
+        #
+        # The settings, because the one question in the pair that throws
+        # anything away asks about them, and it can only be answered where
+        # there are some. And the autostart entry, because the no above took it
+        # away: without putting it back, the removal would walk past an entry
+        # that is not there and nothing would ever check that it can take one
+        # away. Written from the installed file, the way the install writes it.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          # The same two the script itself saw. sudo clears the environment,
+          # so the run worked from an unset XDG_CONFIG_HOME; a runner that
+          # set one would otherwise send this step looking somewhere else.
+          HOME=/home/tester
+          XDG_CONFIG_HOME=
+          export HOME XDG_CONFIG_HOME
+          . scripts/_paths.sh
+          sudo -u tester -H mkdir -p "$SETTINGS_DIR" "$(dirname "$AUTOSTART_ENTRY")"
+          sudo -u tester -H touch "$SETTINGS_DIR/$PANEL.conf"
+          sudo -u tester -H cp "$INSTALL_DESKTOP" "$AUTOSTART_ENTRY"
+          ls -la "$SETTINGS_DIR" "$(dirname "$AUTOSTART_ENTRY")"
+
+      - name: uninstall.sh, with every question answered yes
+        run: |
+          # Killed ten seconds after being asked, if it comes to that. No
+          # --foreground: that flag exists to leave the children of the
+          # command alone, and the children here are the two halves of a
+          # pipe. Measured, it lets both of them outlive the step.
+          timeout -k 10 900 sudo -u tester -H bash -c \
+            'while :; do echo y; sleep 1; done | script -qec ./uninstall.sh /dev/null'
+
+      - name: The yes was acted on there too
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          # The same two the script itself saw. sudo clears the environment,
+          # so the run worked from an unset XDG_CONFIG_HOME; a runner that
+          # set one would otherwise send this step looking somewhere else.
+          HOME=/home/tester
+          XDG_CONFIG_HOME=
+          export HOME XDG_CONFIG_HOME
+          . scripts/_paths.sh
+          left=0
+          for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
+                   "$INSTALL_DESKTOP" "$INSTALL_ICON" \
+                   "$AUTOSTART_ENTRY" "$SETTINGS_DIR"; do
+            if [ -e "$f" ]; then
+              echo "left behind: $f"
+              left=1
+            else
+              echo "gone: $f"
+            fi
+          done
+          exit $left
+
+  sanitizers:
+    # The suite again, this time compiled so that a read past the end of an
+    # array or a signed overflow stops the run with a stack trace instead of
+    # passing quietly. Arch for the newest compiler.
+    runs-on: ubuntu-24.04
+    name: ASan + UBSan
+    timeout-minutes: 45
+    container:
+      image: archlinux:base-devel
+    env:
+      PACKAGE_SUDO: ''
+    steps:
+      - name: Bootstrap
+        run: pacman -Syu --noconfirm git
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Dependencies
+        run: |
+          . scripts/_distro.sh
+          detect_distro_info
+          . scripts/_packages.sh
+          dependencies_for
+          install_packages "${DEPENDENCIES[@]}"
+
+      - name: Configure
+        # -O1 rather than none: the sanitizers need some optimization to reach
+        # the paths a release build takes, and full optimization takes the
+        # stack traces apart. Recovery is off, so the first finding ends the
+        # run instead of being logged and passed over.
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Test
+        env:
+          # Leaks are not looked for: what Qt holds for the life of a process
+          # dominates the report and none of it is anything to act on. Every
+          # other finding still stops the run.
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1
+          UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
+
+  gates:
+    # Everything that can be run before a commit, run again here: formatting,
+    # licence headers, the desktop entry, the static checks for C++ and QML,
+    # the build, the suite, the translation catalogue, and with --nix the flake
+    # as well. One job rather than one per gate, because the list of gates
+    # belongs in the script and not a second time in this file.
+    runs-on: ubuntu-24.04
+    name: check.sh
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: All gates, and the flake
+        run: ./scripts/check.sh --nix

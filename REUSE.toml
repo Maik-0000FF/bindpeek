@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Licence annotations for files that cannot carry their own header.
+version = 1
+
+# The sample sources are read as the real thing: mango parses bind.conf line by
+# line and KConfig parses the shortcut file. A licence header would either be
+# taken for data or, in the shortcut file, silently ignored while pretending
+# the sample looks like a real one. It has to stay a faithful copy.
+[[annotations]]
+path = "tests/samples/**"
+SPDX-FileCopyrightText = "2026 Maik-0000FF"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# A picture carries no comments. Rendered from the mark beside it, because a
+# Markdown viewer that shows no vector graphics is common enough that the front
+# page cannot depend on one.
+[[annotations]]
+path = "assets/*.png"
+SPDX-FileCopyrightText = "2026 Maik-0000FF"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Rewritten by lupdate on every run, which would drop a header each time.
+[[annotations]]
+path = "translations/*.ts"
+SPDX-FileCopyrightText = "2026 Maik-0000FF"
+SPDX-License-Identifier = "GPL-3.0-or-later"

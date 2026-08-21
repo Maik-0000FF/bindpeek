@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+cmake_minimum_required(VERSION 3.20)
+project(bindpeek VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# The test is a QObject; moc runs along automatically.
+set(CMAKE_AUTOMOC ON)
+
+include(GNUInstallDirs)
+
+# The version lives here and nowhere else. Both programs get it as a compile
+# definition and flake.nix reads it back out of this file, so a release means
+# changing one number.
+add_compile_definitions(BINDPEEK_VERSION="${PROJECT_VERSION}")
+
+# The id of the desktop entry: the base name of the installed file and the
+# application id the editor reports, so the window a compositor sees and the
+# launcher a desktop shows are recognized as the same program. Defined once
+# here, consumed by the install rule and by the editor.
+set(BINDPEEK_DESKTOP_ID "bindpeek")
+add_compile_definitions(BINDPEEK_DESKTOP_ID="${BINDPEEK_DESKTOP_ID}")
+
+# The entry as it lives in this checkout, which is not the name it is installed
+# under: the id above is what it becomes, this is where it comes from. Named
+# once because the install rule and the icon name below both need it, and the
+# install and uninstall scripts read the same file.
+set(BINDPEEK_DESKTOP_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/assets/bindpeek.desktop)
+
+# The name the installed icon file gets, taken out of the entry that asks for
+# it. An entry names its icon by a key of its own, and that key and the file
+# have to agree; reading the one out of the other is what keeps them agreeing.
+# Neither follows from the id above, so neither can stand in for it.
+file(STRINGS ${BINDPEEK_DESKTOP_SOURCE} _bindpeek_icon_line REGEX "^Icon=")
+# Asked before the list is taken apart: list(GET) on an empty list is an error
+# of its own and ends the configure before the sentence below can say which
+# file was missing what.
+if(NOT _bindpeek_icon_line)
+  message(FATAL_ERROR "No Icon= key in ${BINDPEEK_DESKTOP_SOURCE}")
+endif()
+list(GET _bindpeek_icon_line 0 _bindpeek_icon_line)
+string(REGEX REPLACE "^Icon=" "" BINDPEEK_ICON_NAME "${_bindpeek_icon_line}")
+if(NOT BINDPEEK_ICON_NAME)
+  message(FATAL_ERROR "The Icon= key in ${BINDPEEK_DESKTOP_SOURCE} is empty")
+endif()
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Qml Quick Widgets DBus
+                              LinguistTools)
+
+# wlr-layer-shell binding for Qt. The overlay has to be a layer surface to get
+# exclusive keyboard focus from the compositor.
+find_package(LayerShellQt REQUIRED)
+
+# libevdev ships only a pkg-config file, no CMake package.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
+
+# KDE's own configuration library. It reads kglobalshortcutsrc exactly the way
+# KDE writes it (double escaping of list commas and tabs); a hand-written
+# parser would be guesswork here.
+find_package(KF6Config REQUIRED)
+
+add_subdirectory(src)
+
+# Translation catalogs. lupdate refreshes the .ts files from the source tree,
+# lrelease compiles them, and the .qm files are baked into the binary under the
+# resource prefix main.cpp loads from. A language is added by adding a .ts file
+# here, no code change.
+qt_add_translations(
+  TARGETS bindpeek bindpeek-editor
+  # Named explicitly, see the list in src/CMakeLists.txt: lupdate builds its
+  # project from the targets' sources, and QML is not one of them. Without this
+  # a refresh finds no qsTr() at all and marks every interface string obsolete
+  # in one go.
+  SOURCES ${BINDPEEK_QML_SOURCES}
+  TS_FILES translations/bindpeek_de.ts
+  # A string whose source is gone is dropped rather than carried along as a
+  # vanished entry. This target is the only thing that writes the catalogue, so
+  # such an entry can never come back and is only noise in the next diff.
+  LUPDATE_OPTIONS -no-obsolete
+)
+
+enable_testing()
+add_subdirectory(tests)
