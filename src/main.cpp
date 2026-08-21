@@ -10,7 +10,9 @@
 #include "Settings.h"
 #include "Source.h"
 #include "SourceHyprland.h"
+#ifdef BINDPEEK_WITH_KDE
 #include "SourceKde.h"
+#endif
 #include "SourceMango.h"
 #include "SystemScheme.h"
 
@@ -110,9 +112,11 @@ std::unique_ptr<Source> makeSource(const QString &environment,
     if (environment == QLatin1String(kEnvironmentHyprland)) {
         return std::make_unique<SourceHyprland>(path);
     }
+#ifdef BINDPEEK_WITH_KDE
     if (environment == QLatin1String(kEnvironmentKde)) {
         return std::make_unique<SourceKde>(path);
     }
+#endif
     return nullptr;
 }
 
@@ -479,6 +483,20 @@ int main(int argc, char **argv) {
 
     auto source = makeSource(environment, parser.value(optionSource));
     if (!source) {
+#ifndef BINDPEEK_WITH_KDE
+        // Said apart from the sentence below, which would be a lie here: the
+        // backend exists, this build simply has not got it. What it needs is
+        // named, because the answer is to install one package and build again.
+        if (environment == QLatin1String(kEnvironmentKde)) {
+            err << QCoreApplication::translate(
+                       "main",
+                       "This build has no KDE backend. It was built without "
+                       "KDE's KConfig framework, which is what reads the "
+                       "shortcut file the way KDE writes it.")
+                << '\n';
+            return 1;
+        }
+#endif
         err << QCoreApplication::translate("main",
                                            "There is no backend for %1 yet.")
                    .arg(environment)

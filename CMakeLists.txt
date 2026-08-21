@@ -62,7 +62,25 @@ pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
 # KDE's own configuration library. It reads kglobalshortcutsrc exactly the way
 # KDE writes it (double escaping of list commas and tabs); a hand-written
 # parser would be guesswork here.
-find_package(KF6Config REQUIRED)
+#
+# Wanted, not required. It is needed by one backend out of three, and only on a
+# desktop that has KDE Plasma 6 in the first place; a distribution that does not
+# package the framework has no Plasma 6 to read either. Making the whole build
+# depend on it would keep the panel off machines whose compositor it supports
+# perfectly well: Ubuntu 24.04 and everything derived from it carry no KF6 at
+# all, so bindpeek could not be built there for want of a backend nobody there
+# can use.
+find_package(KF6Config QUIET)
+if(KF6Config_FOUND)
+  set(BINDPEEK_WITH_KDE ON)
+else()
+  set(BINDPEEK_WITH_KDE OFF)
+  message(STATUS
+    "KF6 KConfig not found, building without the KDE backend. "
+    "Install kconfig (Arch), libkf6config-dev (Debian/Ubuntu), or "
+    "kf6-kconfig-devel (Fedora/openSUSE) to read the shortcuts of a "
+    "KDE Plasma session.")
+endif()
 
 add_subdirectory(src)
 

@@ -850,7 +850,7 @@
 <context>
     <name>main</name>
     <message numerus="yes">
-        <location filename="../src/main.cpp" line="+121"/>
+        <location filename="../src/main.cpp" line="+125"/>
         <source>%1: %n shortcut(s)</source>
         <translation>
             <numerusform>%1: %n Kürzel</numerusform>
@@ -928,13 +928,18 @@
         <translation>Unbekannte Umgebung &quot;%1&quot;. Erlaubt: %2.</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+15"/>
+        <source>This build has no KDE backend. It was built without KDE&apos;s KConfig framework, which is what reads the shortcut file the way KDE writes it.</source>
+        <translation>Diese Fassung hat kein KDE-Backend. Sie wurde ohne KDEs KConfig-Framework gebaut, und das ist es, was die Kürzeldatei so liest, wie KDE sie schreibt.</translation>
+    </message>
+    <message>
+        <location line="+9"/>
         <source>There is no backend for %1 yet.</source>
         <translation>Für %1 gibt es noch kein Backend.</translation>
     </message>
     <message>
-        <location line="-239"/>
-        <location line="+257"/>
+        <location line="-253"/>
+        <location line="+271"/>
         <source>Note: %1</source>
         <translation>Hinweis: %1</translation>
     </message>

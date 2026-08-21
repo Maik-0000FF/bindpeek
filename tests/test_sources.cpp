@@ -9,7 +9,9 @@
 #include "Compositor.h"
 #include "Source.h"
 #include "SourceHyprland.h"
+#ifdef BINDPEEK_WITH_KDE
 #include "SourceKde.h"
+#endif
 #include "SourceMango.h"
 
 #include <QDir>
@@ -226,7 +228,12 @@ private slots:
     void mangoReportsMissingFile();
 
     // --- KDE --------------------------------------------------------------
-
+    //
+    // Declared only where the backend is built. A test that cannot be run is
+    // better left unnamed than skipped: a skipped one reads as a doubt about
+    // the code, and there is none here, the backend is simply not in this
+    // build.
+#ifdef BINDPEEK_WITH_KDE
     void kdeFiltersUnassigned();
     void kdeSplitsMultipleShortcuts();
     void kdeUsesFriendlyGroupNames();
@@ -235,6 +242,7 @@ private slots:
     void kdeNormalizesMeta();
     void kdeHandlesThePlusKey();
     void kdeReportsMissingFile();
+#endif
 
     // --- Hyprland ---------------------------------------------------------
 
@@ -901,6 +909,8 @@ void TestSources::mangoReportsMissingFile() {
 // KDE
 // ---------------------------------------------------------------------------
 
+#ifdef BINDPEEK_WITH_KDE
+
 void TestSources::kdeFiltersUnassigned() {
     SourceKde source(sample(QStringLiteral("kglobalshortcutsrc")));
     QString error;
@@ -1004,6 +1014,8 @@ void TestSources::kdeReportsMissingFile() {
     QVERIFY(binds.isEmpty());
     QVERIFY(!error.isEmpty());
 }
+
+#endif // BINDPEEK_WITH_KDE
 
 // ---------------------------------------------------------------------------
 // Hyprland

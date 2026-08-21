@@ -38,16 +38,24 @@ add_library(bindpeek_sources STATIC
   Settings.cpp
   Source.cpp
   SourceMango.cpp
-  SourceKde.cpp
   SourceHyprland.cpp
 )
+
+# The KDE backend and the library it needs, together or not at all. Anything
+# that asks whether it is there asks this one definition, so a build without it
+# cannot end up with the backend named somewhere and missing elsewhere.
+if(BINDPEEK_WITH_KDE)
+  target_sources(bindpeek_sources PRIVATE SourceKde.cpp)
+  target_link_libraries(bindpeek_sources PRIVATE KF6::ConfigCore)
+  target_compile_definitions(bindpeek_sources PUBLIC BINDPEEK_WITH_KDE)
+endif()
 
 target_include_directories(bindpeek_sources PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bindpeek_sources
   PUBLIC Qt6::Core
   # QLocalSocket: the compositor check connects to the Wayland socket, and the
   # Hyprland backend asks the running instance over its IPC socket.
-  PRIVATE Qt6::Network KF6::ConfigCore
+  PRIVATE Qt6::Network
 )
 
 add_executable(bindpeek
