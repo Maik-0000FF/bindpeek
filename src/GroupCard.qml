@@ -378,8 +378,16 @@ ColumnLayout {
                         }
                         return out;
                     }
+                    // The gutter is added to the heading and not to the rows,
+                    // and the two are not measured alike: a row is a layout
+                    // around its own margin and carries it in what it reports,
+                    // while the heading's margin is read by the layout above
+                    // it and left out of its own width. Compared as they come,
+                    // a heading wider than every row would still measure
+                    // narrower than one, and the wrap would be worked out from
+                    // a width the card does not have.
                     readonly property int naturalWidth: {
-                        var widest = runHeading.visible ? runHeading.implicitWidth : 0;
+                        var widest = runHeading.visible ? runHeading.implicitWidth + card.theme.gutterWrap : 0;
                         var rows = runFlow.children;
                         for (var i = 0; i < rows.length; ++i) {
                             widest = Math.max(widest, rows[i].implicitWidth);
