@@ -598,8 +598,18 @@ Window {
 
                 // --- settings ------------------------------------------------------
 
-                ScrollView {
-                    id: settings
+                // The settings, and they scroll on their own rather than
+                // inside a view that would carry them.
+                //
+                // A view of that kind hands out a flickable, or takes the one
+                // it is given; measured before this was written, it did
+                // neither. What is written here stood at no height at all
+                // while what it held was a thousand pixels tall, so nothing
+                // scrolled and the bar beside it reported that everything
+                // fitted. A list that scrolls, its bar, and nothing in
+                // between cannot come apart that way.
+                Flickable {
+                    id: settingsFlick
 
                     // Tabbing must bring the focused row into view.
                     //
@@ -618,7 +628,7 @@ Window {
                         return false;
                     }
                     function reveal(item) {
-                        if (!item || !holds(item))
+                        if (!item || !settingsFlick.holds(item))
                             return;
                         // Mapped into the content item, not into the
                         // Flickable: the rows live in the content item, which
@@ -631,8 +641,8 @@ Window {
                         var bottom = top + item.height + ui.spacingRow * 2;
                         if (top < settingsFlick.contentY)
                             settingsFlick.contentY = Math.max(0, top);
-                        else if (bottom > settingsFlick.contentY + settings.availableHeight)
-                            settingsFlick.contentY = bottom - settings.availableHeight;
+                        else if (bottom > settingsFlick.contentY + settingsFlick.height)
+                            settingsFlick.contentY = bottom - settingsFlick.height;
                     }
 
                     Layout.fillHeight: true
@@ -640,360 +650,341 @@ Window {
                     // beside them rather than over them, which is why this is
                     // wider than the rows are.
                     Layout.preferredWidth: ui.settingsWidth + ui.scrollRoom
-                    rightPadding: ui.scrollRoom
                     clip: true
+
+                    contentWidth: settingsFlick.width - ui.scrollRoom
+                    contentHeight: settingsColumn.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
 
                     // A window shorter than the list is the ordinary case, not
                     // the odd one: there are more settings here than fit a
                     // small window, and without a bar the ones below the edge
                     // are settings the reader has no reason to believe exist.
                     //
-                    // Where it stands is written out here, and it has to be.
-                    // A view of this kind hands its own bar a parent, a place
-                    // and a height, and a bar put in its stead takes that with
-                    // it: only the look was meant to change. Measured without
-                    // these four lines, the bar comes out ten by four in the
-                    // top left corner of the rows, which is no bar at all.
-                    ScrollBar.vertical: Bar {
-                        id: settingsBar
-
-                        parent: settings
-                        x: settings.mirrored ? 0 : settings.width - settingsBar.width
-                        y: settings.topPadding
-                        height: settings.availableHeight
-                    }
+                    // Nothing is said here about where it stands. A bar given
+                    // to a list of this kind places itself along its edge,
+                    // which is the whole reason it is given to the list.
+                    ScrollBar.vertical: Bar {}
 
                     Connections {
                         target: win
                         function onActiveFocusItemChanged() {
-                            settings.reveal(win.activeFocusItem);
+                            settingsFlick.reveal(win.activeFocusItem);
                         }
                     }
 
-                    // Written out rather than left to the view to provide. The
-                    // view hands out a plain item, and a plain item has no
-                    // notion of how far it is scrolled; naming the kind of
-                    // thing it is here is what lets the lines above move it.
-                    Flickable {
-                        id: settingsFlick
-                        contentWidth: settings.availableWidth
-                        contentHeight: settingsColumn.implicitHeight
-                        boundsBehavior: Flickable.StopAtBounds
+                    ColumnLayout {
+                        id: settingsColumn
 
-                        ColumnLayout {
-                            id: settingsColumn
+                        // As wide as the rows are allowed to be, which is the
+                        // list less the room kept clear for the bar.
+                        width: settingsFlick.contentWidth
+                        spacing: ui.spacingSection
 
-                            // Bound to what the view actually offers rather than
-                            // to a width of its own: the two would differ by the
-                            // scrollbar and the last column would sit under it.
-                            width: settings.availableWidth
-                            spacing: ui.spacingSection
+                        // Whether the panel is up at all, first of
+                        // everything and as a switch rather than a report.
+                        //
+                        // The one question a reader arrives with is why
+                        // nothing appears on screen, and it used to be
+                        // answered by a line in the smallest type in the
+                        // furthest corner. It also answered only half:
+                        // the panel could be switched on from the tray
+                        // alone, which is the one part of the program
+                        // that has to be found before it can be used.
+                        //
+                        // Above the first heading rather than under one:
+                        // it is not a setting among settings, it is
+                        // whether any of them are doing anything.
+                        Row_ {
+                            label: qsTr("Overlay")
+                            Toggle {
+                                id: overlaySwitch
+                                checked: OverlayControl.running
+                                // A session that cannot host the panel
+                                // says so instead of offering a switch
+                                // that does nothing.
+                                enabled: OverlayControl.usable
+                                // The order of the two things a switch
+                                // does lives with the panel, not here and
+                                // again in the tray.
+                                onToggled: OverlayControl.requestToggle(SettingsModel)
 
-                            // Whether the panel is up at all, first of
-                            // everything and as a switch rather than a report.
-                            //
-                            // The one question a reader arrives with is why
-                            // nothing appears on screen, and it used to be
-                            // answered by a line in the smallest type in the
-                            // furthest corner. It also answered only half:
-                            // the panel could be switched on from the tray
-                            // alone, which is the one part of the program
-                            // that has to be found before it can be used.
-                            //
-                            // Above the first heading rather than under one:
-                            // it is not a setting among settings, it is
-                            // whether any of them are doing anything.
-                            Row_ {
-                                label: qsTr("Overlay")
-                                Toggle {
-                                    id: overlaySwitch
-                                    checked: OverlayControl.running
-                                    // A session that cannot host the panel
-                                    // says so instead of offering a switch
-                                    // that does nothing.
-                                    enabled: OverlayControl.usable
-                                    // The order of the two things a switch
-                                    // does lives with the panel, not here and
-                                    // again in the tray.
-                                    onToggled: OverlayControl.requestToggle(SettingsModel)
-
-                                    ThemedToolTip {
-                                        ui: ui
-                                        hovered: overlaySwitch.hovered
-                                        text: !OverlayControl.usable ? OverlayControl.unsupportedReason : OverlayControl.running ? qsTr("The panel is up. Hold a modifier to see it.") : qsTr("The panel is off. Nothing appears on screen.")
-                                    }
+                                ThemedToolTip {
+                                    ui: ui
+                                    hovered: overlaySwitch.hovered
+                                    text: !OverlayControl.usable ? OverlayControl.unsupportedReason : OverlayControl.running ? qsTr("The panel is up. Hold a modifier to see it.") : qsTr("The panel is off. Nothing appears on screen.")
                                 }
                             }
+                        }
 
-                            Heading {
-                                text: qsTr("Behaviour")
-                            }
+                        Heading {
+                            text: qsTr("Behaviour")
+                        }
 
-                            Row_ {
-                                label: qsTr("Delay")
-                                ValueSlider {
-                                    from: SettingsModel.showDelayMin
-                                    to: SettingsModel.showDelayMax
-                                    stepSize: SettingsModel.showDelayStep
-                                    value: SettingsModel.showDelayMs
-                                    suffix: " ms"
-                                    onMoved: function (v) {
-                                        SettingsModel.showDelayMs = v;
-                                    }
+                        Row_ {
+                            label: qsTr("Delay")
+                            ValueSlider {
+                                from: SettingsModel.showDelayMin
+                                to: SettingsModel.showDelayMax
+                                stepSize: SettingsModel.showDelayStep
+                                value: SettingsModel.showDelayMs
+                                suffix: " ms"
+                                onMoved: function (v) {
+                                    SettingsModel.showDelayMs = v;
                                 }
                             }
+                        }
 
-                            // Not a placement matter and not an appearance one: it
-                            // decides whether a question is asked at all.
-                            Row_ {
-                                label: qsTr("Ignore a lone Shift")
-                                Toggle {
-                                    checked: SettingsModel.ignoreLoneShift
-                                    onToggled: SettingsModel.ignoreLoneShift = checked
+                        // Not a placement matter and not an appearance one: it
+                        // decides whether a question is asked at all.
+                        Row_ {
+                            label: qsTr("Ignore a lone Shift")
+                            Toggle {
+                                checked: SettingsModel.ignoreLoneShift
+                                onToggled: SettingsModel.ignoreLoneShift = checked
+                            }
+                        }
+
+                        // Under a heading of its own rather than among the
+                        // two above it. Those say when the panel appears;
+                        // this says what is on it, which is a different
+                        // question and the most consequential one the
+                        // program asks.
+                        Heading {
+                            text: qsTr("Contents")
+                        }
+
+                        // What a further modifier would reach is always shown; this
+                        // only says how. The preview next to it draws each one, so
+                        // the words are compared by looking rather than by reading.
+                        Row_ {
+                            label: qsTr("Deeper shortcuts")
+                            Choice {
+                                model: SettingsModel.disclosures
+                                currentIndex: SettingsModel.disclosures.indexOf(SettingsModel.disclosure)
+                                onActivated: function (i) {
+                                    SettingsModel.disclosure = SettingsModel.disclosures[i];
                                 }
                             }
+                        }
 
-                            // Under a heading of its own rather than among the
-                            // two above it. Those say when the panel appears;
-                            // this says what is on it, which is a different
-                            // question and the most consequential one the
-                            // program asks.
-                            Heading {
-                                text: qsTr("Contents")
-                            }
-
-                            // What a further modifier would reach is always shown; this
-                            // only says how. The preview next to it draws each one, so
-                            // the words are compared by looking rather than by reading.
-                            Row_ {
-                                label: qsTr("Deeper shortcuts")
-                                Choice {
-                                    model: SettingsModel.disclosures
-                                    currentIndex: SettingsModel.disclosures.indexOf(SettingsModel.disclosure)
-                                    onActivated: function (i) {
-                                        SettingsModel.disclosure = SettingsModel.disclosures[i];
-                                    }
+                        // Which headings the list is cut into: the ones
+                        // the session gives, or one per combination. The
+                        // preview beside it draws both, so the two words
+                        // are told apart by looking.
+                        Row_ {
+                            label: qsTr("Grouped by")
+                            Choice {
+                                model: SettingsModel.arrangements
+                                currentIndex: SettingsModel.arrangements.indexOf(SettingsModel.arrangement)
+                                onActivated: function (i) {
+                                    SettingsModel.arrangement = SettingsModel.arrangements[i];
                                 }
                             }
+                        }
 
-                            // Which headings the list is cut into: the ones
-                            // the session gives, or one per combination. The
-                            // preview beside it draws both, so the two words
-                            // are told apart by looking.
-                            Row_ {
-                                label: qsTr("Grouped by")
-                                Choice {
-                                    model: SettingsModel.arrangements
-                                    currentIndex: SettingsModel.arrangements.indexOf(SettingsModel.arrangement)
-                                    onActivated: function (i) {
-                                        SettingsModel.arrangement = SettingsModel.arrangements[i];
-                                    }
+                        Heading {
+                            text: qsTr("Placement")
+                        }
+
+                        Row_ {
+                            label: qsTr("Position")
+                            Choice {
+                                model: SettingsModel.positions
+                                currentIndex: SettingsModel.positions.indexOf(SettingsModel.position)
+                                onActivated: function (i) {
+                                    SettingsModel.position = SettingsModel.positions[i];
                                 }
                             }
+                        }
+                        // Where the content sits along the edge the panel
+                        // spans. Nothing to see in the centre position,
+                        // which spans nothing and is therefore as wide as
+                        // what it holds.
+                        Row_ {
+                            label: qsTr("Alignment")
+                            RowLayout {
+                                spacing: ui.spacingTight
 
-                            Heading {
-                                text: qsTr("Placement")
-                            }
-
-                            Row_ {
-                                label: qsTr("Position")
-                                Choice {
-                                    model: SettingsModel.positions
-                                    currentIndex: SettingsModel.positions.indexOf(SettingsModel.position)
-                                    onActivated: function (i) {
-                                        SettingsModel.position = SettingsModel.positions[i];
-                                    }
+                                // Written out rather than repeated over a
+                                // list: each button names the word it
+                                // stands for and which end it marks, so
+                                // nothing has to be worked out from where
+                                // a word happens to sit in that list.
+                                AlignButton {
+                                    word: SettingsModel.alignmentStart
+                                    atStart: true
+                                    tip: Appearance.spanVertical ? qsTr("Top") : qsTr("Left")
+                                }
+                                AlignButton {
+                                    word: SettingsModel.alignmentCenter
+                                    tip: Appearance.spanVertical ? qsTr("Middle") : qsTr("Centred")
+                                }
+                                AlignButton {
+                                    word: SettingsModel.alignmentEnd
+                                    atEnd: true
+                                    tip: Appearance.spanVertical ? qsTr("Bottom") : qsTr("Right")
                                 }
                             }
-                            // Where the content sits along the edge the panel
-                            // spans. Nothing to see in the centre position,
-                            // which spans nothing and is therefore as wide as
-                            // what it holds.
-                            Row_ {
-                                label: qsTr("Alignment")
-                                RowLayout {
-                                    spacing: ui.spacingTight
+                        }
+                        // Two distances, and they are not the same one: how far
+                        // the panel sits from its edge, and how far it stops short
+                        // of that edge's two ends.
+                        Row_ {
+                            label: qsTr("Distance to edge")
+                            ValueSlider {
+                                from: SettingsModel.marginMin
+                                to: SettingsModel.marginMax
+                                value: SettingsModel.marginPx
+                                suffix: " px"
+                                enabled: SettingsModel.anchoredToEdge
+                                onMoved: function (v) {
+                                    SettingsModel.marginPx = v;
+                                }
+                            }
+                        }
+                        Row_ {
+                            label: qsTr("Distance at the ends")
+                            ValueSlider {
+                                from: SettingsModel.marginMin
+                                to: SettingsModel.marginMax
+                                value: SettingsModel.edgeInsetPx
+                                suffix: " px"
+                                enabled: SettingsModel.anchoredToEdge
+                                onMoved: function (v) {
+                                    SettingsModel.edgeInsetPx = v;
+                                }
+                            }
+                        }
 
-                                    // Written out rather than repeated over a
-                                    // list: each button names the word it
-                                    // stands for and which end it marks, so
-                                    // nothing has to be worked out from where
-                                    // a word happens to sit in that list.
-                                    AlignButton {
-                                        word: SettingsModel.alignmentStart
-                                        atStart: true
-                                        tip: Appearance.spanVertical ? qsTr("Top") : qsTr("Left")
-                                    }
-                                    AlignButton {
-                                        word: SettingsModel.alignmentCenter
-                                        tip: Appearance.spanVertical ? qsTr("Middle") : qsTr("Centred")
-                                    }
-                                    AlignButton {
-                                        word: SettingsModel.alignmentEnd
-                                        atEnd: true
-                                        tip: Appearance.spanVertical ? qsTr("Bottom") : qsTr("Right")
-                                    }
-                                }
-                            }
-                            // Two distances, and they are not the same one: how far
-                            // the panel sits from its edge, and how far it stops short
-                            // of that edge's two ends.
-                            Row_ {
-                                label: qsTr("Distance to edge")
-                                ValueSlider {
-                                    from: SettingsModel.marginMin
-                                    to: SettingsModel.marginMax
-                                    value: SettingsModel.marginPx
-                                    suffix: " px"
-                                    enabled: SettingsModel.anchoredToEdge
-                                    onMoved: function (v) {
-                                        SettingsModel.marginPx = v;
-                                    }
-                                }
-                            }
-                            Row_ {
-                                label: qsTr("Distance at the ends")
-                                ValueSlider {
-                                    from: SettingsModel.marginMin
-                                    to: SettingsModel.marginMax
-                                    value: SettingsModel.edgeInsetPx
-                                    suffix: " px"
-                                    enabled: SettingsModel.anchoredToEdge
-                                    onMoved: function (v) {
-                                        SettingsModel.edgeInsetPx = v;
-                                    }
-                                }
-                            }
+                        Heading {
+                            text: qsTr("Colours")
+                        }
 
-                            Heading {
-                                text: qsTr("Colours")
+                        Row_ {
+                            label: qsTr("Follow the system")
+                            Toggle {
+                                checked: SettingsModel.followSystemScheme
+                                onToggled: SettingsModel.followSystemScheme = checked
                             }
-
-                            Row_ {
-                                label: qsTr("Follow the system")
-                                Toggle {
-                                    checked: SettingsModel.followSystemScheme
-                                    onToggled: SettingsModel.followSystemScheme = checked
+                        }
+                        Row_ {
+                            label: SettingsModel.followSystemScheme ? qsTr("Light palette") : qsTr("Palette")
+                            Choice {
+                                model: SettingsModel.themes
+                                currentIndex: SettingsModel.themes.indexOf(SettingsModel.followSystemScheme ? SettingsModel.themeLight : SettingsModel.theme)
+                                onActivated: function (i) {
+                                    if (SettingsModel.followSystemScheme)
+                                        SettingsModel.themeLight = SettingsModel.themes[i];
+                                    else
+                                        SettingsModel.theme = SettingsModel.themes[i];
                                 }
                             }
-                            Row_ {
-                                label: SettingsModel.followSystemScheme ? qsTr("Light palette") : qsTr("Palette")
-                                Choice {
-                                    model: SettingsModel.themes
-                                    currentIndex: SettingsModel.themes.indexOf(SettingsModel.followSystemScheme ? SettingsModel.themeLight : SettingsModel.theme)
-                                    onActivated: function (i) {
-                                        if (SettingsModel.followSystemScheme)
-                                            SettingsModel.themeLight = SettingsModel.themes[i];
-                                        else
-                                            SettingsModel.theme = SettingsModel.themes[i];
-                                    }
+                        }
+                        Row_ {
+                            label: qsTr("Dark palette")
+                            visible: SettingsModel.followSystemScheme
+                            Choice {
+                                model: SettingsModel.themes
+                                currentIndex: SettingsModel.themes.indexOf(SettingsModel.themeDark)
+                                onActivated: function (i) {
+                                    SettingsModel.themeDark = SettingsModel.themes[i];
                                 }
                             }
-                            Row_ {
-                                label: qsTr("Dark palette")
-                                visible: SettingsModel.followSystemScheme
-                                Choice {
-                                    model: SettingsModel.themes
-                                    currentIndex: SettingsModel.themes.indexOf(SettingsModel.themeDark)
-                                    onActivated: function (i) {
-                                        SettingsModel.themeDark = SettingsModel.themes[i];
-                                    }
+                        }
+
+                        Heading {
+                            text: qsTr("Type")
+                        }
+
+                        Row_ {
+                            label: qsTr("Font")
+                            Choice {
+                                model: SettingsModel.fontFamilies
+                                currentIndex: SettingsModel.fontFamilies.indexOf(SettingsModel.fontFamily)
+                                onActivated: function (i) {
+                                    SettingsModel.fontFamily = SettingsModel.fontFamilies[i];
                                 }
                             }
-
-                            Heading {
-                                text: qsTr("Type")
-                            }
-
-                            Row_ {
-                                label: qsTr("Font")
-                                Choice {
-                                    model: SettingsModel.fontFamilies
-                                    currentIndex: SettingsModel.fontFamilies.indexOf(SettingsModel.fontFamily)
-                                    onActivated: function (i) {
-                                        SettingsModel.fontFamily = SettingsModel.fontFamilies[i];
-                                    }
+                        }
+                        Row_ {
+                            label: qsTr("Font size")
+                            ValueSlider {
+                                from: SettingsModel.fontSizeMin
+                                to: SettingsModel.fontSizeMax
+                                value: SettingsModel.fontSizePt
+                                suffix: " pt"
+                                onMoved: function (v) {
+                                    SettingsModel.fontSizePt = v;
                                 }
                             }
-                            Row_ {
-                                label: qsTr("Font size")
-                                ValueSlider {
-                                    from: SettingsModel.fontSizeMin
-                                    to: SettingsModel.fontSizeMax
-                                    value: SettingsModel.fontSizePt
-                                    suffix: " pt"
-                                    onMoved: function (v) {
-                                        SettingsModel.fontSizePt = v;
-                                    }
+                        }
+
+                        // Named for what is in it. The three below are the
+                        // plate itself: how its corners are cut, what
+                        // holds its edge, and how much of the desktop
+                        // shows through it. Only the first two are a
+                        // frame, and a heading that names one of three is
+                        // where a setting goes missing.
+                        Heading {
+                            text: qsTr("Surface")
+                        }
+
+                        Row_ {
+                            label: qsTr("Corner radius")
+                            ValueSlider {
+                                from: SettingsModel.radiusMin
+                                to: SettingsModel.radiusMax
+                                value: SettingsModel.cornerRadiusPx
+                                suffix: " px"
+                                onMoved: function (v) {
+                                    SettingsModel.cornerRadiusPx = v;
                                 }
                             }
-
-                            // Named for what is in it. The three below are the
-                            // plate itself: how its corners are cut, what
-                            // holds its edge, and how much of the desktop
-                            // shows through it. Only the first two are a
-                            // frame, and a heading that names one of three is
-                            // where a setting goes missing.
-                            Heading {
-                                text: qsTr("Surface")
-                            }
-
-                            Row_ {
-                                label: qsTr("Corner radius")
-                                ValueSlider {
-                                    from: SettingsModel.radiusMin
-                                    to: SettingsModel.radiusMax
-                                    value: SettingsModel.cornerRadiusPx
-                                    suffix: " px"
-                                    onMoved: function (v) {
-                                        SettingsModel.cornerRadiusPx = v;
-                                    }
+                        }
+                        Row_ {
+                            label: qsTr("Border")
+                            ValueSlider {
+                                from: SettingsModel.borderMin
+                                to: SettingsModel.borderMax
+                                value: SettingsModel.borderWidthPx
+                                suffix: " px"
+                                onMoved: function (v) {
+                                    SettingsModel.borderWidthPx = v;
                                 }
                             }
-                            Row_ {
-                                label: qsTr("Border")
-                                ValueSlider {
-                                    from: SettingsModel.borderMin
-                                    to: SettingsModel.borderMax
-                                    value: SettingsModel.borderWidthPx
-                                    suffix: " px"
-                                    onMoved: function (v) {
-                                        SettingsModel.borderWidthPx = v;
-                                    }
+                        }
+                        Row_ {
+                            label: qsTr("Opacity")
+                            ValueSlider {
+                                from: SettingsModel.opacityMin
+                                to: SettingsModel.opacityMax
+                                stepSize: SettingsModel.opacityStep
+                                value: SettingsModel.opacity
+                                onMoved: function (v) {
+                                    SettingsModel.opacity = v;
                                 }
                             }
-                            Row_ {
-                                label: qsTr("Opacity")
-                                ValueSlider {
-                                    from: SettingsModel.opacityMin
-                                    to: SettingsModel.opacityMax
-                                    stepSize: SettingsModel.opacityStep
-                                    value: SettingsModel.opacity
-                                    onMoved: function (v) {
-                                        SettingsModel.opacity = v;
-                                    }
-                                }
-                            }
+                        }
 
-                            // The way back, at the end of the values it undoes and
-                            // set apart from them by a rule: it is not a setting
-                            // but an act on all of them at once.
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.topMargin: ui.spacingSection
-                                Layout.preferredHeight: ui.lineWidth
-                                color: ui.line
-                            }
+                        // The way back, at the end of the values it undoes and
+                        // set apart from them by a rule: it is not a setting
+                        // but an act on all of them at once.
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.topMargin: ui.spacingSection
+                            Layout.preferredHeight: ui.lineWidth
+                            color: ui.line
+                        }
 
-                            Button_ {
-                                Layout.topMargin: ui.spacingRow
-                                text: qsTr("Restore defaults")
-                                onClicked: resetConfirm.open()
-                            }
+                        Button_ {
+                            Layout.topMargin: ui.spacingRow
+                            text: qsTr("Restore defaults")
+                            onClicked: resetConfirm.open()
+                        }
 
-                            Item {
-                                Layout.fillHeight: true
-                            }
+                        Item {
+                            Layout.fillHeight: true
                         }
                     }
                 }

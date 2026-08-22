@@ -127,7 +127,7 @@
         <translation>(automatisch)</translation>
     </message>
     <message>
-        <location line="+360"/>
+        <location line="+352"/>
         <source>Behaviour</source>
         <translation>Verhalten</translation>
     </message>
@@ -167,12 +167,12 @@
         <translation>Ausrichtung</translation>
     </message>
     <message>
-        <location line="-340"/>
+        <location line="-332"/>
         <source>Only applies to a panel at an edge</source>
         <translation>Gilt nur für ein Panel an einer Kante</translation>
     </message>
     <message>
-        <location line="+352"/>
+        <location line="+344"/>
         <source>Top</source>
         <translation>Oben</translation>
     </message>
@@ -297,7 +297,7 @@
         <translation>Voreinstellungen wiederherstellen</translation>
     </message>
     <message>
-        <location line="+19"/>
+        <location line="+18"/>
         <source>Preview</source>
         <translation>Vorschau</translation>
     </message>
@@ -322,7 +322,7 @@
         <translation>Fenster schließen</translation>
     </message>
     <message>
-        <location line="-525"/>
+        <location line="-516"/>
         <source>About</source>
         <translation>Über</translation>
     </message>
