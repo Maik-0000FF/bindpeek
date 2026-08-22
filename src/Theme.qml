@@ -370,4 +370,18 @@ QtObject {
     // which Appearance has already worked out from the position.
     readonly property int maxPanelWidth: Math.max(minPanelWidth, screenWidth - Appearance.horizontalReservedPx)
     readonly property int maxPanelHeight: Math.max(minPanelHeight, screenHeight - Appearance.verticalReservedPx)
+
+    // Which way the groups run.
+    //
+    // Against an edge the shape is given: a band along the top or bottom runs
+    // across, a column at the side runs down. In the middle nothing gives it,
+    // so the screen decides: a monitor standing on end wants a column, a wide
+    // one a band. That is the same question the panel answers at an edge, only
+    // asked of the display instead.
+    //
+    // Asked here rather than where the panel is drawn, because it is asked
+    // twice: once by the overlay and once by the preview in the settings
+    // window. Written out on both sides, one of them had only half of it, and
+    // the preview answered a shape the panel never took.
+    readonly property bool groupsAcross: Appearance.spanHorizontal || (!Appearance.spanVertical && screenWidth > screenHeight)
 }

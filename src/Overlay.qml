@@ -91,12 +91,9 @@ Window {
         // The bound here is a display, so a size that does not fit it is
         // lowered until everything is on screen.
         fitsToBounds: true
-        // Against an edge the shape is given: a band along the top or bottom
-        // runs across, a column at the side runs down. In the middle nothing
-        // gives it, so the screen decides: a monitor standing on end wants a
-        // column, a wide one a band. That is the same question the panel
-        // answers at an edge, only asked of the display instead.
-        groupsAcross: Appearance.spanHorizontal || (!Appearance.spanVertical && theme.screenWidth > theme.screenHeight)
+        // Which way the groups run, measured against the output this window
+        // landed on; see Theme.groupsAcross.
+        groupsAcross: theme.groupsAcross
         alignsAtStart: Appearance.alignsAtStart
         alignsAtEnd: Appearance.alignsAtEnd
         deeperInSections: Appearance.deeperInSections

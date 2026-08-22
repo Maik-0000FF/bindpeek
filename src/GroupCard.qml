@@ -413,6 +413,15 @@ ColumnLayout {
                     //
                     // The heading belongs to what follows it, not to the row
                     // above, hence the margin on top rather than below.
+                    //
+                    // Kept even where the heading opens the card and has
+                    // nothing above it to be kept from, which is the card
+                    // whose written name gave way to these keys. It is then a
+                    // margin at the top of the plate and was not put there for
+                    // that, but it reads well and costs no room once the wrap
+                    // has anything to wrap: measured, fifteen pixels on a card
+                    // that stands alone and nothing at all as soon as the rows
+                    // run into a second column. Left as it is on purpose.
                     RowLayout {
                         id: runHeading
 

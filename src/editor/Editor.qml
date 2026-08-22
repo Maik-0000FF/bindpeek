@@ -1024,7 +1024,7 @@ Window {
                         PanelBody {
                             anchors.centerIn: parent
                             theme: preview
-                            groupsAcross: Appearance.spanHorizontal
+                            groupsAcross: preview.groupsAcross
                             alignsAtStart: Appearance.alignsAtStart
                             alignsAtEnd: Appearance.alignsAtEnd
                             deeperInSections: Appearance.deeperInSections
