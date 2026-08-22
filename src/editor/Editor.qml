@@ -26,18 +26,21 @@ Window {
     // Starts hidden: the tray icon decides when it appears.
     visible: false
 
-    // Whether the window is where it will stay and Qt names the screen it is
-    // actually on.
+    // Whether Qt names the screen this window is actually on.
     //
     // Measured: a window that has never been shown already names a screen, and
-    // it names the primary one. The two signals are both needed, as the panel
-    // needs them: the screen changes where the window lands on another one,
-    // and a frame is presented where it lands on the one Qt guessed.
+    // it names the primary one, without either signal below having fired. A
+    // preview built on that draws the shape of a screen nobody is looking at.
+    //
+    // Shown is landed, so that is where this turns true; afterwards the screen
+    // signal follows the window wherever it is moved. Never turned back: a
+    // window put away keeps the screen it was on, and a shape that fell back
+    // to the stand-in every time the tray closed the window would be redrawn
+    // in front of the reader on every reopening.
     property bool onItsScreen: false
     onScreenChanged: win.onItsScreen = true
-    onFrameSwapped: win.onItsScreen = true
-    onVisibleChanged: if (!win.visible) {
-        win.onItsScreen = false;
+    onVisibleChanged: if (win.visible) {
+        win.onItsScreen = true;
     }
 
     Theme {
@@ -60,8 +63,8 @@ Window {
         // opened on a second monitor of another shape, the preview would draw
         // that first shape and reflow in front of the reader the moment the
         // window settles.
-        screenWidth: win.onItsScreen ? win.screen.width : Appearance.screenWidth
-        screenHeight: win.onItsScreen ? win.screen.height : Appearance.screenHeight
+        screenWidth: win.onItsScreen && win.screen ? win.screen.width : Appearance.screenWidth
+        screenHeight: win.onItsScreen && win.screen ? win.screen.height : Appearance.screenHeight
     }
     // The editor wears the palette the overlay is set to, so a choice is seen
     // rather than described.
