@@ -124,24 +124,19 @@ done
 # What is lost without the framework, worded once and said wherever that
 # happens: the offer was declined here, or the distribution has no such package
 # to offer at all.
+#
+# What it does not say is that the backend is gone for certain. The question
+# here is about a package, and answering it is not the same as answering
+# whether the framework is on the machine: a framework installed under a name
+# this script does not carry, or from somewhere a package manager cannot see,
+# is found by the build all the same and the backend is built. Which of the two
+# it was is not guessed here, it is said by the configure step, which looks for
+# the framework itself and prints what it found.
 WITHOUT_KDE=(
-    "Building without the KDE backend. Everything else works;"
-    "only a KDE Plasma session could not be read."
+    "The build then leaves the KDE backend out, unless the framework is"
+    "already there under some other name; the configure step below says"
+    "which of the two it was. Only a KDE Plasma session could not be read."
 )
-
-# Whether the build is told to look for the framework at all, handed to cmake
-# below either way rather than only when it is off.
-#
-# Off by default: the backend is built wherever the framework is there. Turned
-# on where the framework was refused at the question, so that the sentence
-# above is what actually happens: without it the search still finds a framework
-# that is installed under a name this script does not know, and the run would
-# say one thing and build another.
-#
-# Passed on every run because cmake remembers it. A run that left it out would
-# inherit the answer of the run before it, and a refusal once given would keep
-# the backend out of every later build in the same directory.
-DISABLE_KDE_LOOKUP=OFF
 
 if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
     echo
@@ -174,7 +169,6 @@ if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
             fail "Nothing to build with."
             exit 1
         fi
-        DISABLE_KDE_LOOKUP=ON
         warn "Left out: ${MISSING_OPTIONAL[*]}." "${WITHOUT_KDE[@]}"
         ok "carrying on"
     else
@@ -203,8 +197,7 @@ fi
 step "Building"
 # Ninja rather than the default generator: it is in the list above, so it is
 # there, and it does not rely on make being on a minimal machine.
-cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_DISABLE_FIND_PACKAGE_KF6Config="$DISABLE_KDE_LOOKUP"
+cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD_DIR" -j"$(nproc)"
 ok "built"
 

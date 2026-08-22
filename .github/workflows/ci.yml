@@ -111,6 +111,11 @@ jobs:
             # nothing exercises is a path that breaks unnoticed. The four other
             # lanes keep building the backend itself.
             cmake_extra: -DCMAKE_DISABLE_FIND_PACKAGE_KF6Config=ON
+            # Asked of the program afterwards, see the step at the foot of the
+            # job. A variable that stopped working, or a name with a typo in
+            # it, would otherwise leave this lane green while it built the very
+            # thing it is here to do without.
+            without_kde: true
           - distro: openSUSE
             # The Tumbleweed base image carries busybox-gawk, which the Qt 6
             # development packages refuse to sit next to. Swapping it for the
@@ -179,7 +184,7 @@ jobs:
           if optional_dependencies_for && [ "${#OPTIONAL[@]}" -ne 0 ]; then
             printf 'optional: %s\n' "${OPTIONAL[@]}"
             install_packages "${OPTIONAL[@]}" ||
-              echo "not available here, building without the KDE backend"
+              echo "not available here, the configure step says what that means"
           fi
 
       - name: Configure
@@ -190,6 +195,26 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      - name: The build without the KDE backend really is one
+        if: matrix.without_kde
+        # Asked of the program rather than read off the configure log: the
+        # question is what was built, and the panel answers it itself. Forced
+        # onto the backend that is not there, it says so and stops; a build
+        # that carries the backend gets as far as reading the shortcut file.
+        # The sentence is the one main.cpp prints in exactly this case.
+        run: |
+          report=$(./build/src/bindpeek --environment kde --list 2>&1 || true)
+          case "$report" in
+            *"no KDE backend"*)
+              echo "ok: $report"
+              ;;
+            *)
+              echo "this lane built the KDE backend after all"
+              echo "$report"
+              exit 1
+              ;;
+          esac
 
       - name: Both programs are there
         # A missing Qt or layer-shell package does not have to break the build:
