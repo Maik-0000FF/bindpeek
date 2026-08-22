@@ -24,9 +24,23 @@ ColumnLayout {
     // headings of their own.
     required property bool deeperInSections
 
-    // The height the card has to stay within, which is what decides where the
-    // rows wrap. Zero while the panel does not know it yet.
+    // The height the card has to stay within. Zero while the panel does not
+    // know it yet.
     required property int roomForCard
+
+    // Whether the rows are spread sideways rather than filled downwards.
+    //
+    // True where the plate is a band along an edge, false where it is a column
+    // at one. Against the side there is height to spend and hardly any width,
+    // so a column is filled to the room and the next one begins where it runs
+    // out. Along the top or bottom it is the other way round, and filling the
+    // room there would answer a band with a panel the height of the screen for
+    // a list two columns wide.
+    required property bool spreadsRows
+
+    // What this card may take of the plate's width before its rows are spread
+    // into further columns. An equal share, worked out by the panel.
+    required property int widthShare
 
     // Stands in for "no bound at all", where an extent has to be given and
     // there is nothing yet to bound it by. Past any display, so a wrap
@@ -34,6 +48,30 @@ ColumnLayout {
     readonly property int unbounded: 1 << 20
 
     spacing: card.theme.spacingRow
+
+    // The rows cut into the runs that belong to one combination. The entries
+    // arrive sorted by exactly that, so a run is found by comparing with the
+    // row before it rather than by regrouping.
+    //
+    // The runs are what the wrap moves about, not the rows. A run carries a
+    // heading of its own where the deeper shortcuts are shown in sections, and
+    // a column that opens under somebody else's heading says the wrong thing
+    // about what fires. Only a run that is taller than a whole column is
+    // broken up, and then inside itself.
+    readonly property var runs: {
+        var out = [];
+        var entries = card.group.entries;
+        for (var i = 0; i < entries.length; ++i) {
+            if (i === 0 || entries[i - 1].section !== entries[i].section) {
+                out.push({
+                    caps: entries[i].caps,
+                    entries: []
+                });
+            }
+            out[out.length - 1].entries.push(entries[i]);
+        }
+        return out;
+    }
 
     // The shortcut column is as wide as the widest shortcut in this group and
     // no wider.
@@ -63,6 +101,136 @@ ColumnLayout {
         font.family: card.theme.fontFamilyMono
         font.pixelSize: card.theme.fontSizeBody
         text: card.widestShortcut
+    }
+
+    // What each run came to, asked of the runs themselves: the height of the
+    // heading, the height of every row under it, and how wide the widest of
+    // them is.
+    //
+    // None of those three depends on where the wrap falls, which is what makes
+    // it safe to work the wrap out from them. They are read as properties, so
+    // a change of type or of list is followed without anything having to be
+    // told to look again.
+    readonly property var runShapes: {
+        var out = [];
+        var blocks = entryFlow.children;
+        for (var i = 0; i < blocks.length; ++i) {
+            var block = blocks[i];
+            if (block.rowHeights === undefined || block.rowHeights.length === 0)
+                continue;
+            out.push({
+                head: block.headingHeight,
+                rows: block.rowHeights,
+                width: block.naturalWidth
+            });
+        }
+        return out;
+    }
+
+    // The height of one run, heading and rows together.
+    function runHeight(run, gap) {
+        var height = run.head;
+        for (var i = 0; i < run.rows.length; ++i) {
+            height += run.rows[i] + (i > 0 ? gap : 0);
+        }
+        return height;
+    }
+
+    // How many columns a run alone is wrapped into, which only happens where
+    // the run is taller than a whole column.
+    function innerColumns(run, bound, gap) {
+        var room = Math.max(1, bound - run.head);
+        var columns = 1;
+        var used = 0;
+        for (var i = 0; i < run.rows.length; ++i) {
+            var row = run.rows[i];
+            var lead = used > 0 ? gap : 0;
+            if (used === 0 || used + lead + row <= room) {
+                used += lead + row;
+            } else {
+                ++columns;
+                used = row;
+            }
+        }
+        return columns;
+    }
+
+    // How many columns the runs come to at a given column height.
+    //
+    // The same rule the wrap below follows, run here on numbers first: fill a
+    // column until the next run would pass the bound, then start another, and
+    // where a single run is taller than the bound, wrap it inside itself and
+    // begin the one after it in a column of its own.
+    function columnsAt(runs, bound, gap) {
+        var columns = 1;
+        var used = 0;
+        for (var i = 0; i < runs.length; ++i) {
+            var height = card.runHeight(runs[i], gap);
+            var lead = used > 0 ? gap : 0;
+            if (used + lead + height <= bound) {
+                used += lead + height;
+                continue;
+            }
+            if (height <= bound) {
+                ++columns;
+                used = height;
+                continue;
+            }
+            if (used > 0) {
+                ++columns;
+            }
+            columns += card.innerColumns(runs[i], bound, gap) - 1;
+            used = bound;
+        }
+        return columns;
+    }
+
+    // The shortest column that still leaves the card inside its share of the
+    // width. Zero where the rows are filled downwards instead, and there is
+    // nothing to work out.
+    //
+    // Halved rather than stepped: the answer is wanted in the frame it is
+    // asked in, because it decides a wrap that is about to be drawn. Stepping
+    // towards it would reshape the panel in front of the reader, one row per
+    // frame, for as many rows as the list is long.
+    readonly property int spread: {
+        if (!card.spreadsRows)
+            return 0;
+        var runs = card.runShapes;
+        if (runs.length === 0)
+            return 0;
+
+        var gap = card.theme.spacingRow;
+        var widest = 0;
+        var total = 0;
+        for (var i = 0; i < runs.length; ++i) {
+            widest = Math.max(widest, runs[i].width);
+            total += card.runHeight(runs[i], gap) + (i > 0 ? gap : 0);
+        }
+        if (widest <= 0 || total <= 0)
+            return 0;
+
+        // How many columns of that width the share has room for. One at the
+        // least: a share too narrow for a single column is answered by the
+        // longest column rather than by no column at all, and the panel says
+        // at its foot what did not fit.
+        var allowed = Math.max(1, Math.floor((card.widthShare + gap) / (widest + gap)));
+        if (allowed === 1)
+            return total;
+
+        var low = 1;
+        var high = total;
+        var best = total;
+        while (low <= high) {
+            var mid = Math.floor((low + high) / 2);
+            if (card.columnsAt(runs, mid, gap) <= allowed) {
+                best = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+        return best;
     }
 
     Text {
@@ -107,14 +275,23 @@ ColumnLayout {
         // reads as "do not wrap at all".
         readonly property int roomForEntries: Math.max(0, card.roomForCard - groupName.height - card.spacing)
 
-        // The height a column may reach before the next row starts a new one.
+        // The height a column may reach before the next run starts a new one.
+        //
+        // Along a band that is the shortest column the width has room for, so
+        // the plate stays a band; against a side it is the room itself, which
+        // fills the column and wraps at the bottom of it.
         //
         // Where the room is not known yet the wrap is off, and deliberately
         // so: a bound of nothing would give every row a column of its own and
         // ask the compositor for a surface as wide as the whole list laid end
         // to end. One tall column is the panel as it was before the wrap,
         // which is the safe answer while the room is still being worked out.
-        readonly property int columnHeight: entryBox.roomForEntries > 0 ? entryBox.roomForEntries : card.unbounded
+        readonly property int columnHeight: {
+            if (card.spreadsRows && card.spread > 0) {
+                return entryBox.roomForEntries > 0 ? Math.min(card.spread, entryBox.roomForEntries) : card.spread;
+            }
+            return entryBox.roomForEntries > 0 ? entryBox.roomForEntries : card.unbounded;
+        }
 
         Layout.preferredWidth: Math.max(0, entryFlow.implicitWidth - card.theme.gutterWrap)
         Layout.preferredHeight: Math.min(entryFlow.implicitHeight, entryBox.columnHeight)
@@ -134,24 +311,116 @@ ColumnLayout {
             height: entryBox.columnHeight
 
             Repeater {
-                model: card.group.entries
+                model: card.runs
 
-                delegate: EntryBlock {
-                    id: entryDelegate
+                delegate: ColumnLayout {
+                    id: runBlock
                     required property var modelData
-                    required property int index
 
-                    theme: card.theme
-                    entry: entryDelegate.modelData
-                    deeperInSections: card.deeperInSections
-                    shortcutWidth: Math.min(shortcutMetrics.width, card.theme.columnShortcut)
-                    // The first row of a run of shortcuts belonging to the
-                    // same combination. The entries arrive sorted by exactly
-                    // that, so a run is found by comparing with the row above
-                    // rather than by regrouping. The first row of a group
-                    // opens one as well: the combination that fires now is a
-                    // segment like any other.
-                    opensSection: entryDelegate.index === 0 || card.group.entries[entryDelegate.index - 1].section !== entryDelegate.modelData.section
+                    // What the card measures the wrap from. Each of the three
+                    // is taken from the items themselves and none of them
+                    // depends on where the wrap falls.
+                    readonly property int headingHeight: runHeading.visible ? runHeading.implicitHeight + runHeading.Layout.topMargin + runBlock.spacing : 0
+                    readonly property var rowHeights: {
+                        var out = [];
+                        var rows = runFlow.children;
+                        for (var i = 0; i < rows.length; ++i) {
+                            if (rows[i].implicitHeight > 0)
+                                out.push(rows[i].implicitHeight);
+                        }
+                        return out;
+                    }
+                    readonly property int naturalWidth: {
+                        var widest = runHeading.visible ? runHeading.implicitWidth : 0;
+                        var rows = runFlow.children;
+                        for (var i = 0; i < rows.length; ++i) {
+                            widest = Math.max(widest, rows[i].implicitWidth);
+                        }
+                        return widest;
+                    }
+
+                    spacing: card.theme.spacingRow
+
+                    // The combination this run belongs to, one key cap per
+                    // modifier, drawn the way they sit on the keyboard rather
+                    // than written out as a line of text. Every cap is marked:
+                    // the ones already held and the one still to press are the
+                    // same kind of thing, a key.
+                    //
+                    // The heading belongs to what follows it, not to the row
+                    // above, hence the margin on top rather than below.
+                    RowLayout {
+                        id: runHeading
+
+                        visible: card.deeperInSections
+                        spacing: card.theme.spacingRow
+                        Layout.topMargin: card.theme.spacingGroup
+                        // The gap to a wrapped column, carried by every row
+                        // that can be the widest one in its column; see
+                        // Theme.gutterWrap.
+                        Layout.rightMargin: card.theme.gutterWrap
+
+                        Repeater {
+                            model: runBlock.modelData.caps
+
+                            delegate: Rectangle {
+                                id: keyCap
+                                required property string modelData
+
+                                implicitWidth: capLabel.implicitWidth + card.theme.paddingPill * 2
+                                implicitHeight: capLabel.implicitHeight + card.theme.paddingPill
+                                radius: card.theme.radiusPill
+                                color: card.theme.surfaceHover
+                                border.color: card.theme.brand
+                                border.width: card.theme.borderWidthKey
+
+                                Text {
+                                    id: capLabel
+                                    anchors.centerIn: parent
+                                    text: keyCap.modelData
+                                    color: card.theme.brand
+                                    font.family: card.theme.fontFamilyMono
+                                    font.pixelSize: card.theme.fontSizeGroup
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+                        }
+                    }
+
+                    // The rows of this run, and a wrap of their own that only
+                    // ever comes into play where the run alone is taller than
+                    // a column. Everywhere else the run stands as one block,
+                    // which is what keeps a heading with the rows it names.
+                    Item {
+                        id: runBox
+
+                        readonly property int roomForRows: Math.max(0, entryBox.columnHeight - runBlock.headingHeight)
+
+                        Layout.preferredWidth: runFlow.implicitWidth
+                        Layout.preferredHeight: runBox.roomForRows > 0 ? Math.min(runFlow.implicitHeight, runBox.roomForRows) : runFlow.implicitHeight
+
+                        Flow {
+                            id: runFlow
+
+                            flow: Flow.TopToBottom
+                            spacing: card.theme.spacingRow
+                            height: runBox.roomForRows > 0 ? runBox.roomForRows : card.unbounded
+
+                            Repeater {
+                                model: runBlock.modelData.entries
+
+                                delegate: EntryBlock {
+                                    id: entryDelegate
+                                    required property var modelData
+
+                                    theme: card.theme
+                                    entry: entryDelegate.modelData
+                                    deeperInSections: card.deeperInSections
+                                    shortcutWidth: Math.min(shortcutMetrics.width, card.theme.columnShortcut)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

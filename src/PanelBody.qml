@@ -296,6 +296,17 @@ Rectangle {
     readonly property int maxContentWidth: panel.maxWidth - panel.inset * 2
     readonly property int maxContentHeight: panel.maxHeight - panel.inset * 2
 
+    // What one group may take of the plate's width before its own rows are
+    // spread into further columns.
+    //
+    // An equal share of what is left once the gaps between the cards are off,
+    // which is a rough model of an uneven thing: one group can be ten times
+    // another. It errs the safe way. A card that needs less than its share
+    // simply leaves the room to the ones beside it, because the cards are
+    // placed by the wrap and not by the share, while a card that took the
+    // whole plate would push every other group into a second row.
+    readonly property int widthShare: panel.groups.length > 1 ? Math.floor((panel.maxContentWidth - (panel.groups.length - 1) * panel.theme.spacingGroup) / panel.groups.length) : panel.maxContentWidth
+
     implicitWidth: content.width + panel.inset * 2
     implicitHeight: content.height + panel.inset * 2
 
@@ -424,6 +435,11 @@ Rectangle {
                         group: groupCard.modelData
                         deeperInSections: panel.deeperInSections
                         roomForCard: shortcutBox.roomForFlow
+                        // Along a band the rows are spread sideways, which is
+                        // the same question the groups themselves are asked
+                        // and therefore the same answer.
+                        spreadsRows: panel.groupsAcross
+                        widthShare: panel.widthShare
                     }
                 }
             }
