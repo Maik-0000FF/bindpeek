@@ -26,6 +26,20 @@ Window {
     // Starts hidden: the tray icon decides when it appears.
     visible: false
 
+    // Whether the window is where it will stay and Qt names the screen it is
+    // actually on.
+    //
+    // Measured: a window that has never been shown already names a screen, and
+    // it names the primary one. The two signals are both needed, as the panel
+    // needs them: the screen changes where the window lands on another one,
+    // and a frame is presented where it lands on the one Qt guessed.
+    property bool onItsScreen: false
+    onScreenChanged: win.onItsScreen = true
+    onFrameSwapped: win.onItsScreen = true
+    onVisibleChanged: if (!win.visible) {
+        win.onItsScreen = false;
+    }
+
     Theme {
         id: preview
 
@@ -40,8 +54,14 @@ Window {
         //
         // Only the shape is decided by these two here. What the preview may
         // grow to is the box it sits in, which is handed to it further down.
-        screenWidth: win.screen ? win.screen.width : Appearance.screenWidth
-        screenHeight: win.screen ? win.screen.height : Appearance.screenHeight
+        //
+        // Asked only once the window has landed. A window that has not been
+        // shown yet already names a screen, and it names the primary one:
+        // opened on a second monitor of another shape, the preview would draw
+        // that first shape and reflow in front of the reader the moment the
+        // window settles.
+        screenWidth: win.onItsScreen ? win.screen.width : Appearance.screenWidth
+        screenHeight: win.onItsScreen ? win.screen.height : Appearance.screenHeight
     }
     // The editor wears the palette the overlay is set to, so a choice is seen
     // rather than described.
