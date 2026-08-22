@@ -26,23 +26,6 @@ Window {
     // Starts hidden: the tray icon decides when it appears.
     visible: false
 
-    // Whether Qt names the screen this window is actually on.
-    //
-    // Measured: a window that has never been shown already names a screen, and
-    // it names the primary one, without either signal below having fired. A
-    // preview built on that draws the shape of a screen nobody is looking at.
-    //
-    // Shown is landed, so that is where this turns true; afterwards the screen
-    // signal follows the window wherever it is moved. Never turned back: a
-    // window put away keeps the screen it was on, and a shape that fell back
-    // to the stand-in every time the tray closed the window would be redrawn
-    // in front of the reader on every reopening.
-    property bool onItsScreen: false
-    onScreenChanged: win.onItsScreen = true
-    onVisibleChanged: if (win.visible) {
-        win.onItsScreen = true;
-    }
-
     Theme {
         id: preview
 
@@ -58,13 +41,16 @@ Window {
         // Only the shape is decided by these two here. What the preview may
         // grow to is the box it sits in, which is handed to it further down.
         //
-        // Asked only once the window has landed. A window that has not been
-        // shown yet already names a screen, and it names the primary one:
-        // opened on a second monitor of another shape, the preview would draw
-        // that first shape and reflow in front of the reader the moment the
-        // window settles.
-        screenWidth: win.onItsScreen && win.screen ? win.screen.width : Appearance.screenWidth
-        screenHeight: win.onItsScreen && win.screen ? win.screen.height : Appearance.screenHeight
+        // Asked plainly, without waiting for the window to have landed
+        // somewhere. There is nothing to wait for: this preview is looked at
+        // while the window is up and at no other time, and while it is up Qt
+        // names its screen. What it works out before that is drawn on nobody's
+        // screen. Opened onto a display the window was not expected on, the
+        // shape can still be redrawn once, which is one redrawing against a
+        // shape that would have been wrong for as long as the window stood
+        // there.
+        screenWidth: win.screen ? win.screen.width : Appearance.screenWidth
+        screenHeight: win.screen ? win.screen.height : Appearance.screenHeight
     }
     // The editor wears the palette the overlay is set to, so a choice is seen
     // rather than described.
