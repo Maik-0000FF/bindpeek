@@ -424,7 +424,6 @@ Rectangle {
                         group: groupCard.modelData
                         deeperInSections: panel.deeperInSections
                         roomForCard: shortcutBox.roomForFlow
-                        maxWidth: panel.maxContentWidth
                     }
                 }
             }

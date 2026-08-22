@@ -28,10 +28,6 @@ ColumnLayout {
     // rows wrap. Zero while the panel does not know it yet.
     required property int roomForCard
 
-    // The width the panel allows its content, so a card cannot wrap itself
-    // wider than the plate.
-    required property int maxWidth
-
     // Stands in for "no bound at all", where an extent has to be given and
     // there is nothing yet to bound it by. Past any display, so a wrap
     // measured against it never triggers.
@@ -95,6 +91,14 @@ ColumnLayout {
     // The width is one gutter short of what the wrap measured: every row
     // carries a gutter on its right, including the rows of the last column,
     // and that one is not part of the card.
+    //
+    // Not capped at what the plate allows, and that is the whole point. The
+    // panel reads a card that is wider than the plate as an overflow, takes
+    // the type down a point and lets the wrap try again, and says at the foot
+    // when even the smallest type could not fit it. A card that reported the
+    // plate's width instead would report that everything fits while the last
+    // columns are behind the edge, which is the one thing this panel promises
+    // never to do.
     Item {
         id: entryBox
 
@@ -112,7 +116,7 @@ ColumnLayout {
         // which is the safe answer while the room is still being worked out.
         readonly property int columnHeight: entryBox.roomForEntries > 0 ? entryBox.roomForEntries : card.unbounded
 
-        Layout.preferredWidth: Math.min(Math.max(0, entryFlow.implicitWidth - card.theme.gutterWrap), card.maxWidth)
+        Layout.preferredWidth: Math.max(0, entryFlow.implicitWidth - card.theme.gutterWrap)
         Layout.preferredHeight: Math.min(entryFlow.implicitHeight, entryBox.columnHeight)
 
         Flow {
@@ -121,9 +125,12 @@ ColumnLayout {
             // Down the column and into the next one, in both shapes of panel:
             // the height is the scarce extent either way, because the wrap
             // between cards has already taken the width it needed.
+            //
+            // Only the height is set. Running top to bottom, that is the
+            // extent the wrap is measured against; the width is whatever the
+            // columns came to, which is what the box above takes up.
             flow: Flow.TopToBottom
             spacing: card.theme.spacingRow
-            width: card.maxWidth
             height: entryBox.columnHeight
 
             Repeater {
