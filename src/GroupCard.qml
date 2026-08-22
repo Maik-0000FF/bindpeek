@@ -257,9 +257,14 @@ ColumnLayout {
         // by the longest column rather than by no column at all, and the panel
         // says at its foot what did not fit.
         //
-        // Exact, with nothing left over. Measured, every width that goes into
-        // it is a whole number of pixels, so a card that fits on paper fits on
-        // the plate; were one ever fractional, the card would come out a few
+        // Exact, with nothing left over, which it can afford because every
+        // width that goes into it is a whole number of pixels.
+        //
+        // Not because text measures in whole pixels: measured, a line of text
+        // answers with a fraction forty times out of forty. What rounds is the
+        // layout around it, which came back whole forty times out of forty,
+        // and what is counted here are those layouts and never the text
+        // itself. Were one ever fractional, the card would come out a few
         // pixels wider than its share, and the panel would answer that the way
         // it answers any overflow, by taking the type down. Slack against that
         // would be a number nobody could name.
