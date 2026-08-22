@@ -196,26 +196,6 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      - name: The build without the KDE backend really is one
-        if: matrix.without_kde
-        # Asked of the program rather than read off the configure log: the
-        # question is what was built, and the panel answers it itself. Forced
-        # onto the backend that is not there, it says so and stops; a build
-        # that carries the backend gets as far as reading the shortcut file.
-        # The sentence is the one main.cpp prints in exactly this case.
-        run: |
-          report=$(./build/src/bindpeek --environment kde --list 2>&1 || true)
-          case "$report" in
-            *"no KDE backend"*)
-              echo "ok: $report"
-              ;;
-            *)
-              echo "this lane built the KDE backend after all"
-              echo "$report"
-              exit 1
-              ;;
-          esac
-
       - name: Both programs are there
         # A missing Qt or layer-shell package does not have to break the build:
         # a target can be skipped and the job stay green while the thing it was
@@ -251,6 +231,37 @@ jobs:
             fi
           done
           exit $unresolved
+
+      - name: The build without the KDE backend really is one
+        if: matrix.without_kde
+        # Asked of the program rather than read off the configure log: the
+        # question is what was built, and the panel answers it itself. Forced
+        # onto the backend that is not there, it says so and stops; a build
+        # that carries the backend gets as far as reading the shortcut file.
+        #
+        # After the two steps above, and that is not a matter of taste: the
+        # answer here is a sentence, so a program that is missing or cannot be
+        # started answers with nothing and would be read as one that built the
+        # backend after all. Those two possibilities are ruled out by then.
+        #
+        # In the source language, because that sentence is translated and the
+        # word looked for is the English one. Nothing sets a language in this
+        # job today, which would leave the check working by luck.
+        run: |
+          . scripts/_style.sh
+          PROJECT_ROOT="$PWD"
+          . scripts/_paths.sh
+          report=$(LC_ALL=C "build/src/$PANEL" --environment kde --list 2>&1 || true)
+          case "$report" in
+            *"no KDE backend"*)
+              echo "ok: $report"
+              ;;
+            *)
+              echo "this lane built the KDE backend after all"
+              echo "$report"
+              exit 1
+              ;;
+          esac
 
   install-uninstall:
     # The two scripts, run the way somebody would run them, in a container of

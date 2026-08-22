@@ -160,10 +160,10 @@ a comment above every line. Both are read live. See
   and install on Arch, Ubuntu 26.04, Fedora and openSUSE Tumbleweed on every
   push. Older releases are not held back on purpose, they simply carry a Qt
   this was not written against.
-- For the KDE backend only, KDE's KConfig framework. Where a distribution does
-  not package it, bindpeek builds without that one backend and says so. Nothing
-  else is affected, and a system without the framework has no KDE Plasma 6
-  whose shortcuts there would be to read.
+- For the KDE backend only, KDE's KConfig framework. The build looks for it and
+  says what it found: where there is none, that one backend is left out and
+  nothing else is affected, and a machine without the framework has no KDE
+  Plasma 6 whose shortcuts there would be to read.
 
 Reading the shortcuts themselves is a second question, and there the answer is
 narrower: mango, Hyprland or KDE Plasma. On any other compositor the panel can

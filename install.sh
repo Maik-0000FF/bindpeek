@@ -157,13 +157,16 @@ if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
     #   --------   --------   --------   ---------------------------------
     #   none       none       not asked  nothing to install
     #   none       some       yes        installed, a failure is tolerated
-    #   none       some       no         built without the KDE backend
+    #   none       some       no         left uninstalled, the run carries on
     #   some       any        yes        the required ones, then the rest
     #   some       any        no         nothing to build with, the run ends
     #
-    # A No while only the framework is missing refuses one backend, not the
-    # build. What is left is exactly the build a distribution gets that carries
-    # no such package, and that one is not treated as a reason to stop either.
+    # A No while only the framework is missing refuses a package, not the
+    # build. What is left is the build a distribution gets that carries no such
+    # package, and that one is not treated as a reason to stop either. Whether
+    # the KDE backend ends up in it is not decided here: the build looks for
+    # the framework itself, so a copy already on the machine is used whatever
+    # was answered about the package.
     if [ "$DECLINED" -eq 1 ]; then
         if [ "${#MISSING[@]}" -ne 0 ]; then
             fail "Nothing to build with."

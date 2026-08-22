@@ -76,6 +76,12 @@ pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
 find_package(KF6Config QUIET)
 if(KF6Config_FOUND)
   set(BINDPEEK_WITH_KDE ON)
+  # Said as well, not only when the search comes up empty. The install script
+  # tells the reader that this step names the outcome, and the case it says it
+  # for is exactly this one: a framework already on the machine, under a name
+  # no package list here carries. Quietly finding it would leave that reader
+  # with nothing to read.
+  message(STATUS "KF6 KConfig found, building with the KDE backend.")
 else()
   set(BINDPEEK_WITH_KDE OFF)
   message(STATUS
