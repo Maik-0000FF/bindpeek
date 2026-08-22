@@ -99,7 +99,10 @@ Window {
         var rows = [];
         for (var g = 0; g < groups.length; ++g)
             for (var e = 0; e < groups[g].entries.length; ++e)
-                rows.push(groups[g].entries[e]);
+                rows.push({
+                    at: rows.length,
+                    entry: groups[g].entries[e]
+                });
         // Nearest first, and among equals by where the modifiers stand in the
         // display order. Both keys are needed: without the second, two
         // combinations of the same length come out in whichever order the
@@ -116,24 +119,31 @@ Window {
             }
             return places;
         }
+        // Where each row started, as the last key of the sort. The engine's
+        // sort is not a stable one: measured here, four rows a comparison
+        // calls equal come back in another order than they went in, so the
+        // order the sample was written in would be lost inside a combination
+        // and the preview would list what no panel lists. The C++ side keeps
+        // it with a stable sort; this keeps it by asking.
         rows.sort(function (left, right) {
-            if (left.caps.length !== right.caps.length)
-                return left.caps.length - right.caps.length;
-            var here = placeOf(left.caps);
-            var there = placeOf(right.caps);
+            if (left.entry.caps.length !== right.entry.caps.length)
+                return left.entry.caps.length - right.entry.caps.length;
+            var here = placeOf(left.entry.caps);
+            var there = placeOf(right.entry.caps);
             for (var i = 0; i < here.length; ++i)
                 if (here[i] !== there[i])
                     return here[i] - there[i];
-            return 0;
+            return left.at - right.at;
         });
         var out = [];
         for (var i = 0; i < rows.length; ++i) {
-            if (out.length === 0 || out[out.length - 1].name !== rows[i].section)
+            var entry = rows[i].entry;
+            if (out.length === 0 || out[out.length - 1].name !== entry.section)
                 out.push({
-                    name: rows[i].section,
+                    name: entry.section,
                     entries: []
                 });
-            out[out.length - 1].entries.push(rows[i]);
+            out[out.length - 1].entries.push(entry);
         }
         return out;
     }

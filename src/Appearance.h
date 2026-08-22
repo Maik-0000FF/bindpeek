@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 
 namespace bindpeek {
 

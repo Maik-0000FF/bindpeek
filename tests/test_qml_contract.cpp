@@ -33,9 +33,14 @@ struct Contract {
     const char *header;
 };
 
+// One line per pair of files, not per class: the same object is read from more
+// than one of them, and a member only one of those files asks for is exactly
+// the one a rename would leave behind.
 constexpr Contract kContracts[] = {
     {"OverlayController", "Overlay.qml", "OverlayController.h"},
     {"Appearance", "Theme.qml", "Appearance.h"},
+    {"Appearance", "Overlay.qml", "Appearance.h"},
+    {"Appearance", "editor/Editor.qml", "Appearance.h"},
     {"SettingsModel", "editor/Editor.qml", "editor/SettingsModel.h"},
     {"OverlayControl", "editor/Editor.qml", "editor/OverlayProcess.h"},
     {"AppInfo", "editor/AboutDialog.qml", "AppInfo.h"},
