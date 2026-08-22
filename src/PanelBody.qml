@@ -69,13 +69,19 @@ Rectangle {
     // the list can be ordered by; see Settings::knownArrangements().
     property bool arrangesByModifier: false
 
-    // The two things the panel makes of those settings, asked once here
-    // rather than at each of the three places that care.
+    // The three things the panel makes of those two settings, asked once here
+    // rather than at each of the places that care.
     //
-    // A group named after its combination says what the key caps above a run
-    // would say, so only one of the two is drawn. Either of them names the
-    // modifiers, so either of them leaves the rows carrying their key alone.
-    readonly property bool showsSectionHeads: panel.deeperInSections && !panel.arrangesByModifier
+    // A group headed by its combination says what the key caps above a run
+    // would say, so exactly one of the two is drawn. Where the sections are
+    // asked for, the caps are that one: keys are drawn as keys, which is what
+    // the whole panel is about, and the written name gives way. Everywhere
+    // else the name carries it.
+    //
+    // Either of them names the modifiers, so either of them leaves the rows
+    // carrying their key alone.
+    readonly property bool showsSectionHeads: panel.deeperInSections
+    readonly property bool showsGroupName: !(panel.arrangesByModifier && panel.deeperInSections)
     readonly property bool showsKeyOnly: panel.deeperInSections || panel.arrangesByModifier
 
     // Where the content sits on the plate. Both false is the middle.
@@ -449,6 +455,7 @@ Rectangle {
                         theme: panel.theme
                         group: groupCard.modelData
                         showsSectionHeads: panel.showsSectionHeads
+                        showsGroupName: panel.showsGroupName
                         showsKeyOnly: panel.showsKeyOnly
                         roomForCard: shortcutBox.roomForFlow
                         // Along a band the rows are spread sideways, which is

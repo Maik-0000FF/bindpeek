@@ -60,9 +60,10 @@ class Appearance : public QObject {
     Q_PROPERTY(bool deeperInSections READ deeperInSections NOTIFY changed)
     Q_PROPERTY(bool showContinuations READ showContinuations NOTIFY changed)
     // Whether a group is headed by the combination its shortcuts want rather
-    // than by the heading the session gave them. The panel then names the
-    // combination itself, so the key caps that would say the same thing above
-    // each run are left off and every row carries its key alone.
+    // than by the heading the session gave them. Every row then carries its
+    // key alone, and the heading is drawn either as key caps or as the
+    // combination written out, whichever the disclosure asks for: both at once
+    // would say the same thing twice.
     Q_PROPERTY(bool arrangesByModifier READ arrangesByModifier NOTIFY changed)
     // The order the modifiers are named in, which is the order the panel
     // writes them in and the order the line at the foot counts them. Handed

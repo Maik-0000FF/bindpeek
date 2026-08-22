@@ -23,6 +23,10 @@ ColumnLayout {
     // Whether a run is headed by the key caps of its combination.
     required property bool showsSectionHeads
 
+    // Whether the card carries its written heading. Off where the key caps
+    // above the rows already name the same combination.
+    required property bool showsGroupName
+
     // Whether the rows carry their key alone, which they do wherever
     // something above them already names the modifiers.
     required property bool showsKeyOnly
@@ -266,6 +270,7 @@ ColumnLayout {
     Text {
         id: groupName
 
+        visible: card.showsGroupName
         text: card.group.name
         color: card.theme.accent
         font.family: card.theme.fontFamily
@@ -303,7 +308,10 @@ ColumnLayout {
         // What is left for the rows once the heading has had its share. Zero
         // while nothing is known about the room, which is what the bound below
         // reads as "do not wrap at all".
-        readonly property int roomForEntries: Math.max(0, card.roomForCard - groupName.height - card.spacing)
+        // Counted from the heading only where there is one: a card whose
+        // combination is named by the key caps below has no written heading,
+        // and taking a line off for it would leave the rows a row short.
+        readonly property int roomForEntries: Math.max(0, card.roomForCard - (groupName.visible ? groupName.height + card.spacing : 0))
 
         // The height a column may reach before the next run starts a new one.
         //

@@ -77,9 +77,11 @@ keeps them.
 | `source` | The headings the session gives, in the order it gives them |
 | `modifiers` | One group per combination, nearest first: what fires on the next key, then what wants one more modifier, then two |
 
-With `modifiers` a group is headed by the combination itself, so the key caps
-`sections` puts above each block would say the same thing twice and are left
-off. Every row then carries its key alone.
+With `modifiers` a group is headed by the combination itself, and every row
+under it then carries its key alone. Which way that heading is drawn follows
+`disclosure`: with `sections` it is the key caps, drawn as keys, and with any
+other word it is the combination written out. Only one of the two ever
+appears, because both would say the same thing.
 
 ## Where the text in the panel comes from
 
