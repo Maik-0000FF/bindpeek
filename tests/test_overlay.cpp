@@ -109,6 +109,7 @@ private slots:
     void headingsAppearOnceEachAndInSourceOrder();
     void onlyTheHeldCombinationIsShown();
     void sortingTheRowsLeavesTheHeadingsWhereTheyAre();
+    void arrangingByModifierHeadsEachCombinationNearestFirst();
     void deeperEntriesAreMarkedAsSuch();
     void showingOnlyWhatFiresLeavesTheRestOut();
     void aLoneShiftIsNotAQuestion();
@@ -139,6 +140,47 @@ void TestOverlay::headingsAppearOnceEachAndInSourceOrder() {
     // And both of its entries are under the one heading, in their own order.
     QCOMPARE(shortcuts(groups, QStringLiteral("Other")),
              QStringList({QStringLiteral("A"), QStringLiteral("C")}));
+}
+
+// The other arrangement, where the headings the session gave are set aside and
+// each combination heads a group of its own.
+//
+// Two things are asked of it at once, because they are the point of it: the
+// groups run nearest first, so what fires on the next key comes before what
+// wants one more modifier, and a combination is one group however many
+// headings its shortcuts arrived under.
+void TestOverlay::arrangingByModifierHeadsEachCombinationNearestFirst() {
+    const QStringList held = {QStringLiteral("SUPER")};
+    const QStringList superShift = {QStringLiteral("SUPER"),
+                                    QStringLiteral("SHIFT")};
+    const QStringList superCtrlShift = {QStringLiteral("SUPER"),
+                                        QStringLiteral("CTRL"),
+                                        QStringLiteral("SHIFT")};
+    // Written deepest first and spread over two headings, so the order below
+    // can only come from the arrangement and not from the source.
+    auto source = std::make_unique<StubSource>(QList<Bind>{
+        bind(superCtrlShift, QStringLiteral("C"), QStringLiteral("Other")),
+        bind(superShift, QStringLiteral("B"), QStringLiteral("resize")),
+        bind(held, QStringLiteral("A"), QStringLiteral("Other")),
+        bind(superShift, QStringLiteral("D"), QStringLiteral("Other")),
+    });
+
+    KeyboardWatch watch;
+    OverlayController controller(std::move(source), &watch, kShowDelayMs);
+    controller.setArrangesByModifier(true);
+    QVERIFY(controller.reload());
+    emit watch.heldChanged(held);
+
+    const QVariantList groups = controller.groups();
+    QCOMPARE(
+        headings(groups),
+        QStringList({QStringLiteral("SUPER"), QStringLiteral("SUPER+SHIFT"),
+                     QStringLiteral("SUPER+CTRL+SHIFT")}));
+    // Both of the SUPER+SHIFT shortcuts under the one heading, in the order
+    // the source listed them, although they arrived under two of its own.
+    QCOMPARE(
+        shortcuts(groups, QStringLiteral("SUPER+SHIFT")),
+        QStringList({QStringLiteral("SHIFT+B"), QStringLiteral("SHIFT+D")}));
 }
 
 void TestOverlay::onlyTheHeldCombinationIsShown() {

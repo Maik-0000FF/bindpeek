@@ -21,6 +21,7 @@ namespace {
 constexpr char kKeyShowDelay[] = "showDelayMs";
 constexpr char kKeyOverlayEnabled[] = "overlayEnabled";
 constexpr char kKeyDisclosure[] = "disclosure";
+constexpr char kKeyArrangement[] = "arrangement";
 constexpr char kKeyAlignment[] = "alignment";
 constexpr char kKeyIgnoreLoneShift[] = "ignoreLoneShift";
 constexpr char kKeyPosition[] = "position";
@@ -95,6 +96,7 @@ constexpr char kThemeDarkDefault[] = "bindpeek";
 // ones are there for anyone who finds it too much. The words themselves are in
 // Settings.h, where everything that acts on them can reach them.
 constexpr const char *kDisclosureDefault = disclosure::kSections;
+constexpr const char *kArrangementDefault = arrangement::kSource;
 
 // Where the content sits along the axis the panel spans: in the middle of it.
 // The panel is looked at rather than read line by line, and the middle is
@@ -333,6 +335,11 @@ QStringList Settings::knownDisclosures() {
             QLatin1String(disclosure::kSections)};
 }
 
+QStringList Settings::knownArrangements() {
+    return {QLatin1String(arrangement::kSource),
+            QLatin1String(arrangement::kModifiers)};
+}
+
 QStringList Settings::knownPositions() {
     return {QLatin1String(kPositionCenter), QLatin1String(kPositionLeft),
             QLatin1String(kPositionRight), QLatin1String(kPositionTop),
@@ -402,6 +409,7 @@ Settings::Settings(QString path)
     : m_showDelayMs(kShowDelayDefault),
       m_overlayEnabled(kOverlayEnabledDefault),
       m_disclosure(QLatin1String(kDisclosureDefault)),
+      m_arrangement(QLatin1String(kArrangementDefault)),
       m_alignment(QLatin1String(kAlignmentDefault)),
       m_ignoreLoneShift(kIgnoreLoneShiftDefault), m_position(kPositionDefault),
       m_marginPx(kMarginDefault), m_edgeInsetPx(kEdgeInsetDefault),
@@ -438,6 +446,9 @@ Settings::Settings(QString path)
 
     m_disclosure = read.word(kKeyDisclosure, QLatin1String(kDisclosureDefault),
                              knownDisclosures());
+    m_arrangement =
+        read.word(kKeyArrangement, QLatin1String(kArrangementDefault),
+                  knownArrangements());
     m_alignment = read.word(kKeyAlignment, QLatin1String(kAlignmentDefault),
                             knownAlignments());
     m_ignoreLoneShift =
@@ -459,6 +470,12 @@ int Settings::marginPx() const { return m_marginPx; }
 int Settings::edgeInsetPx() const { return m_edgeInsetPx; }
 bool Settings::overlayEnabled() const { return m_overlayEnabled; }
 QString Settings::disclosure() const { return m_disclosure; }
+
+QString Settings::arrangement() const { return m_arrangement; }
+
+bool Settings::arrangesByModifier() const {
+    return m_arrangement == QLatin1String(arrangement::kModifiers);
+}
 
 QString Settings::alignment() const { return m_alignment; }
 
@@ -502,6 +519,7 @@ void Settings::setMarginPx(int value) { m_marginPx = value; }
 void Settings::setEdgeInsetPx(int value) { m_edgeInsetPx = value; }
 void Settings::setOverlayEnabled(bool value) { m_overlayEnabled = value; }
 void Settings::setDisclosure(const QString &value) { m_disclosure = value; }
+void Settings::setArrangement(const QString &value) { m_arrangement = value; }
 void Settings::setAlignment(const QString &value) { m_alignment = value; }
 void Settings::setIgnoreLoneShift(bool value) { m_ignoreLoneShift = value; }
 void Settings::setTheme(const QString &value) { m_theme = value; }
@@ -542,6 +560,7 @@ bool Settings::save(const QString &path) const {
         {QLatin1String(kKeyOverlayEnabled),
          m_overlayEnabled ? QStringLiteral("true") : QStringLiteral("false")},
         {QLatin1String(kKeyDisclosure), m_disclosure},
+        {QLatin1String(kKeyArrangement), m_arrangement},
         {QLatin1String(kKeyAlignment), m_alignment},
         {QLatin1String(kKeyIgnoreLoneShift),
          m_ignoreLoneShift ? QStringLiteral("true") : QStringLiteral("false")},
@@ -666,6 +685,14 @@ bool Settings::writeTemplateIfMissing(const QString &path) {
         << "# many more; sections gives each further combination a block of\n"
         << "# its own, headed by its keys.\n"
         << kKeyDisclosure << "=" << kDisclosureDefault << "\n"
+        << "\n"
+        << "# How the groups are arranged: "
+        << knownArrangements().join(QStringLiteral(", ")) << ".\n"
+        << "# source keeps the headings the session itself uses, an\n"
+        << "# application under KDE or a submap under Hyprland; modifiers\n"
+        << "# heads a group with the combination its shortcuts want, nearest\n"
+        << "# first.\n"
+        << kKeyArrangement << "=" << kArrangementDefault << "\n"
         << "\n"
         << "# Where the content sits along the edge the panel spans:\n"
         << "# " << knownAlignments().join(QStringLiteral(", ")) << ".\n"

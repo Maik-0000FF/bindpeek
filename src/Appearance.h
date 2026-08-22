@@ -58,6 +58,11 @@ class Appearance : public QObject {
     Q_PROPERTY(bool showsDeeper READ showsDeeper NOTIFY changed)
     Q_PROPERTY(bool deeperInSections READ deeperInSections NOTIFY changed)
     Q_PROPERTY(bool showContinuations READ showContinuations NOTIFY changed)
+    // Whether a group is headed by the combination its shortcuts want rather
+    // than by the heading the session gave them. The panel then names the
+    // combination itself, so the key caps that would say the same thing above
+    // each run are left off and every row carries its key alone.
+    Q_PROPERTY(bool arrangesByModifier READ arrangesByModifier NOTIFY changed)
     // Where the content sits along the axis the compositor stretches. Both
     // false is the middle, which is where a panel that spans nothing also
     // ends up: there is no room to move it in.
@@ -104,6 +109,7 @@ public:
     double opacity() const;
     bool showsDeeper() const;
     bool deeperInSections() const;
+    bool arrangesByModifier() const;
     bool showContinuations() const;
     bool alignsAtStart() const;
     bool alignsAtEnd() const;
@@ -169,6 +175,7 @@ private:
     double m_opacity;
     bool m_showsDeeper = false;
     bool m_deeperInSections = false;
+    bool m_arrangesByModifier = false;
     bool m_showContinuations = false;
     bool m_alignsAtStart = false;
     bool m_alignsAtEnd = false;

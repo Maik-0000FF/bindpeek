@@ -51,6 +51,8 @@ bool SettingsModel::overlayEnabled() const {
     return m_settings.overlayEnabled();
 }
 QString SettingsModel::disclosure() const { return m_settings.disclosure(); }
+
+QString SettingsModel::arrangement() const { return m_settings.arrangement(); }
 QString SettingsModel::alignment() const { return m_settings.alignment(); }
 bool SettingsModel::ignoreLoneShift() const {
     return m_settings.ignoreLoneShift();
@@ -86,6 +88,7 @@ BINDPEEK_SETTER(setMarginPx, int, marginPx, setMarginPx)
 BINDPEEK_SETTER(setEdgeInsetPx, int, edgeInsetPx, setEdgeInsetPx)
 BINDPEEK_SETTER(setOverlayEnabled, bool, overlayEnabled, setOverlayEnabled)
 BINDPEEK_SETTER(setDisclosure, const QString &, disclosure, setDisclosure)
+BINDPEEK_SETTER(setArrangement, const QString &, arrangement, setArrangement)
 BINDPEEK_SETTER(setAlignment, const QString &, alignment, setAlignment)
 BINDPEEK_SETTER(setIgnoreLoneShift, bool, ignoreLoneShift, setIgnoreLoneShift)
 BINDPEEK_SETTER(setTheme, const QString &, theme, setTheme)
@@ -129,6 +132,10 @@ QStringList SettingsModel::positions() const {
 }
 QStringList SettingsModel::disclosures() const {
     return Settings::knownDisclosures();
+}
+
+QStringList SettingsModel::arrangements() const {
+    return Settings::knownArrangements();
 }
 QString SettingsModel::alignmentStart() const {
     return QLatin1String(alignment::kStart);

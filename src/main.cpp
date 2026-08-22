@@ -252,6 +252,7 @@ int runOverlay(std::unique_ptr<Source> source, QTextStream &err) {
         std::move(source), watch, settings.showDelayMs());
     controller->setShowsDeeper(settings.showsDeeper());
     controller->setIgnoreLoneShift(settings.ignoreLoneShift());
+    controller->setArrangesByModifier(settings.arrangesByModifier());
     if (!controller->reload()) {
         err << controller->message() << QChar(QLatin1Char(0x0A));
         return 1;
@@ -321,6 +322,7 @@ int runOverlay(std::unique_ptr<Source> source, QTextStream &err) {
             controller->setShowDelayMs(fresh.showDelayMs());
             controller->setShowsDeeper(fresh.showsDeeper());
             controller->setIgnoreLoneShift(fresh.ignoreLoneShift());
+            controller->setArrangesByModifier(fresh.arrangesByModifier());
             appearance->apply(fresh);
 
             if (auto *layer = LayerShellQt::Window::get(window)) {

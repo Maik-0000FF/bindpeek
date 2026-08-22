@@ -75,6 +75,7 @@ void Appearance::apply(const Settings &settings) {
     m_alignsAtEnd = settings.alignsAtEnd();
     m_showsDeeper = settings.showsDeeper();
     m_deeperInSections = settings.deeperInSections();
+    m_arrangesByModifier = settings.arrangesByModifier();
     m_showContinuations = settings.showsContinuations();
 
     // A panel put against an edge takes that edge whole: top and bottom are
@@ -180,6 +181,8 @@ bool Appearance::alignsAtEnd() const { return m_alignsAtEnd; }
 bool Appearance::showsDeeper() const { return m_showsDeeper; }
 
 bool Appearance::deeperInSections() const { return m_deeperInSections; }
+
+bool Appearance::arrangesByModifier() const { return m_arrangesByModifier; }
 bool Appearance::showContinuations() const { return m_showContinuations; }
 bool Appearance::spanHorizontal() const { return m_spanHorizontal; }
 bool Appearance::spanVertical() const { return m_spanVertical; }

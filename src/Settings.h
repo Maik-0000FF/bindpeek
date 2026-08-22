@@ -21,6 +21,21 @@ inline constexpr char kFooter[] = "footer";
 inline constexpr char kSections[] = "sections";
 } // namespace disclosure
 
+// The two ways of arranging the groups on the panel.
+//
+// Source takes the headings the compositor itself uses: the application under
+// KDE, the submap under Hyprland. Modifiers ignores those and heads a group
+// with the combination its shortcuts belong to, so the panel reads left to
+// right by how many keys are still wanted: what fires now, then one modifier
+// away, then two.
+//
+// Named here for the same reason as the words above: the file writes one of
+// them and everything acting on it has to mean the same word.
+namespace arrangement {
+inline constexpr char kSource[] = "source";
+inline constexpr char kModifiers[] = "modifiers";
+} // namespace arrangement
+
 // Where the panel's content sits along the edge it spans. One of these words;
 // knownAlignments() lists them in the order the editor offers them.
 //
@@ -64,6 +79,14 @@ public:
     // How the shortcuts that need a further modifier are shown. One of
     // knownDisclosures(); see the words there for what each does.
     QString disclosure() const;
+
+    // How the groups are arranged. One of knownArrangements().
+    QString arrangement() const;
+
+    // The question that word answers, asked as it is meant: whether a group
+    // is headed by the combination its shortcuts want rather than by the
+    // heading the compositor gave them.
+    bool arrangesByModifier() const;
 
     // The three questions the word above answers, asked as they are meant
     // rather than compared as text at every place that cares. One word, one
@@ -203,6 +226,7 @@ public:
     void setEdgeInsetPx(int value);
     void setOverlayEnabled(bool value);
     void setDisclosure(const QString &value);
+    void setArrangement(const QString &value);
     void setAlignment(const QString &value);
     void setIgnoreLoneShift(bool value);
     void setTheme(const QString &value);
@@ -237,6 +261,14 @@ public:
     //             combination under a heading of its own
     static QStringList knownDisclosures();
 
+    // The two ways of arranging the groups, in the order the editor offers
+    // them:
+    //
+    //   source     the headings the compositor uses, an application or a
+    //              submap
+    //   modifiers  a group per combination, nearest first
+    static QStringList knownArrangements();
+
     // The three places the content can sit along the spanned axis, in the
     // order the editor offers them: against the beginning of that axis, in
     // the middle, against its end.
@@ -246,6 +278,7 @@ private:
     int m_showDelayMs;
     bool m_overlayEnabled;
     QString m_disclosure;
+    QString m_arrangement;
     QString m_alignment;
     bool m_ignoreLoneShift;
     Position m_position;

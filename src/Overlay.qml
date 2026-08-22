@@ -100,6 +100,7 @@ Window {
         alignsAtStart: Appearance.alignsAtStart
         alignsAtEnd: Appearance.alignsAtEnd
         deeperInSections: Appearance.deeperInSections
+        arrangesByModifier: Appearance.arrangesByModifier
         showContinuations: Appearance.showContinuations
         continuations: OverlayController.continuations
 

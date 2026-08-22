@@ -30,10 +30,10 @@ ColumnLayout {
     // description, deeper, section, caps }.
     required property var entry
 
-    // Whether the shortcuts that want a further modifier are shown under
-    // headings of their own. Where they are, the heading above this row
-    // already names the modifiers and the row carries the key alone.
-    required property bool deeperInSections
+    // Whether the row carries its key alone. It does wherever something above
+    // it already names the modifiers: the key caps that head a section, or a
+    // group headed by the combination itself.
+    required property bool showsKeyOnly
 
     // How wide the shortcut column of this group is. Measured and capped by
     // the card, so every row of one group lines up.
@@ -54,7 +54,7 @@ ColumnLayout {
             // absurdly long combination cannot push the descriptions off the
             // panel; it is elided instead.
             Layout.preferredWidth: block.shortcutWidth
-            text: block.deeperInSections ? block.entry.key : block.entry.shortcut
+            text: block.showsKeyOnly ? block.entry.key : block.entry.shortcut
             // Colour, not weight: the shortcut that fires on the next key
             // carries the brand colour, the ones further off are set plainly.
             //

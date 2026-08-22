@@ -84,6 +84,37 @@ Window {
 
     // --- small building blocks -------------------------------------------
 
+    // The list as the arrangement setting would have it, which for the
+    // preview means doing here what the controller does for the real panel:
+    // a group per combination, nearest first, keeping the order the sample
+    // was written in inside each of them.
+    //
+    // Written out a second time rather than shared, because there is nothing
+    // to share with: the controller works on binds and modifiers in C++, this
+    // works on the made-up list this file holds. What has to agree is the
+    // shape of the answer, and that is what the preview shows.
+    function previewGroups(groups) {
+        if (!Appearance.arrangesByModifier)
+            return groups;
+        var rows = [];
+        for (var g = 0; g < groups.length; ++g)
+            for (var e = 0; e < groups[g].entries.length; ++e)
+                rows.push(groups[g].entries[e]);
+        rows.sort(function (left, right) {
+            return left.caps.length - right.caps.length;
+        });
+        var out = [];
+        for (var i = 0; i < rows.length; ++i) {
+            if (out.length === 0 || out[out.length - 1].name !== rows[i].section)
+                out.push({
+                    name: rows[i].section,
+                    entries: []
+                });
+            out[out.length - 1].entries.push(rows[i]);
+        }
+        return out;
+    }
+
     component Heading: Text {
         color: ui.textMuted
         font.family: ui.fontFamily
@@ -701,6 +732,21 @@ Window {
                                 }
                             }
 
+                            // Which headings the list is cut into: the ones
+                            // the session gives, or one per combination. The
+                            // preview beside it draws both, so the two words
+                            // are told apart by looking.
+                            Row_ {
+                                label: qsTr("Grouped by")
+                                Choice {
+                                    model: SettingsModel.arrangements
+                                    currentIndex: SettingsModel.arrangements.indexOf(SettingsModel.arrangement)
+                                    onActivated: function (i) {
+                                        SettingsModel.arrangement = SettingsModel.arrangements[i];
+                                    }
+                                }
+                            }
+
                             Heading {
                                 text: qsTr("Placement")
                             }
@@ -947,6 +993,7 @@ Window {
                             alignsAtStart: Appearance.alignsAtStart
                             alignsAtEnd: Appearance.alignsAtEnd
                             deeperInSections: Appearance.deeperInSections
+                            arrangesByModifier: Appearance.arrangesByModifier
                             showContinuations: Appearance.showContinuations
                             maxWidth: previewBox.width - ui.paddingBox * 2
                             maxHeight: previewBox.height - ui.paddingBox * 2
@@ -1029,13 +1076,18 @@ Window {
                                 }
                             ]
 
-                            // What the panel would actually list. A disclosure
-                            // that answers only the keys being held never gets
-                            // the deeper rows at all: the controller drops
-                            // them before the panel sees them, and a preview
-                            // that kept them would show the one thing the
-                            // setting is chosen by as no difference at all.
-                            groups: Appearance.showsDeeper ? sampleGroups : sampleGroups.map(function (group) {
+                            // The same list the controller would hand over,
+                            // put through the two settings that decide what
+                            // reaches the panel at all.
+                            //
+                            // A disclosure that answers only the keys being
+                            // held never gets the deeper rows: the controller
+                            // drops them before the panel sees them, and a
+                            // preview that kept them would show the one thing
+                            // the setting is chosen by as no difference at
+                            // all. The arrangement is the same case a second
+                            // time, one heading further up.
+                            groups: previewGroups(Appearance.showsDeeper ? sampleGroups : sampleGroups.map(function (group) {
                                 return {
                                     name: group.name,
                                     entries: group.entries.filter(function (entry) {
@@ -1044,7 +1096,7 @@ Window {
                                 };
                             }).filter(function (group) {
                                 return group.entries.length > 0;
-                            })
+                            }))
                         }
                     }
 

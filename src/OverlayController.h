@@ -71,6 +71,11 @@ public:
     // See Settings::ignoreLoneShift().
     void setIgnoreLoneShift(bool value);
 
+    // Whether the groups are headed by the combination their shortcuts want
+    // rather than by the heading the session gave them. See
+    // Settings::arrangesByModifier().
+    void setArrangesByModifier(bool value);
+
     QString subtitle() const;
     QVariantList groups() const;
     QVariantList continuations() const;
@@ -123,6 +128,7 @@ private:
     // Both from the settings; see the setters above.
     bool m_showsDeeper = true;
     bool m_ignoreLoneShift = true;
+    bool m_arrangesByModifier = false;
 
     bool m_panelVisible = false;
 };

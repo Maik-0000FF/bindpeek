@@ -25,6 +25,7 @@ program says which line it could not use and carries on with the default for it.
 | `edgeInsetPx` | 0 to 400 | `14` | How far a panel against an edge stops short of the two ends of it. 0 runs it corner to corner. Ignored for `center` |
 | `alignment` | `start`, `center`, `end` | `center` | Where the content sits along the edge the panel spans |
 | `disclosure` | `exact`, `inline`, `footer`, `sections` | `sections` | How shortcuts that need a further modifier are shown, see below |
+| `arrangement` | `source`, `modifiers` | `source` | Which headings the list is cut into, see below |
 | `ignoreLoneShift` | `true`, `false` | `true` | Whether a Shift held on its own is ignored. Shift alone is how capitals are typed, not how a shortcut is looked up |
 | `theme` | one of fourteen palettes | `bindpeek` | The palette |
 | `followSystemScheme` | `true`, `false` | `false` | Follow the desktop's light/dark setting |
@@ -64,6 +65,21 @@ what happens to the second kind.
 | `inline` | The rest in the same list, with the missing modifiers written in front of the key |
 | `footer` | A line at the bottom saying which modifier leads to how many more |
 | `sections` | Each further combination gets a block of its own, headed by its keys |
+
+## Arrangement: which headings the list is cut into
+
+A session hands its shortcuts out under headings of its own: the application
+under KDE, the submap under Hyprland. `arrangement` decides whether the panel
+keeps them.
+
+| Value | What you see |
+| --- | --- |
+| `source` | The headings the session gives, in the order it gives them |
+| `modifiers` | One group per combination, nearest first: what fires on the next key, then what wants one more modifier, then two |
+
+With `modifiers` a group is headed by the combination itself, so the key caps
+`sections` puts above each block would say the same thing twice and are left
+off. Every row then carries its key alone.
 
 ## Where the text in the panel comes from
 

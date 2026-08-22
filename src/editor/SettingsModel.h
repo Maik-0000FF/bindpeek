@@ -34,6 +34,8 @@ class SettingsModel : public QObject {
                    NOTIFY changed)
     Q_PROPERTY(
         QString disclosure READ disclosure WRITE setDisclosure NOTIFY changed)
+    Q_PROPERTY(QString arrangement READ arrangement WRITE setArrangement NOTIFY
+                   changed)
     // Where the content sits along the edge the panel spans. One of the three
     // words below, each of which is named on its own.
     Q_PROPERTY(
@@ -61,6 +63,7 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QStringList themes READ themes CONSTANT)
     Q_PROPERTY(QStringList positions READ positions CONSTANT)
     Q_PROPERTY(QStringList disclosures READ disclosures CONSTANT)
+    Q_PROPERTY(QStringList arrangements READ arrangements CONSTANT)
     // The three words, each under its own name. A list would leave every
     // reader of it to work out from a position which end a word means, and
     // three readers would work it out three times.
@@ -100,6 +103,7 @@ public:
     int edgeInsetPx() const;
     bool overlayEnabled() const;
     QString disclosure() const;
+    QString arrangement() const;
     QString alignment() const;
     bool ignoreLoneShift() const;
     QString theme() const;
@@ -118,6 +122,7 @@ public:
     void setEdgeInsetPx(int value);
     void setOverlayEnabled(bool value);
     void setDisclosure(const QString &value);
+    void setArrangement(const QString &value);
     void setAlignment(const QString &value);
     void setIgnoreLoneShift(bool value);
     void setTheme(const QString &value);
@@ -133,6 +138,7 @@ public:
     QStringList themes() const;
     QStringList positions() const;
     QStringList disclosures() const;
+    QStringList arrangements() const;
     QString alignmentStart() const;
     QString alignmentCenter() const;
     QString alignmentEnd() const;

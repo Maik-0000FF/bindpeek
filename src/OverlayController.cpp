@@ -27,6 +27,26 @@ constexpr char kRoleKey[] = "key";
 constexpr char kRoleModifier[] = "modifier";
 constexpr char kRoleCount[] = "count";
 
+// One row of the panel while it is being built: what the shortcut is still
+// missing, and the shortcut itself.
+using Row = QPair<QStringList, Bind>;
+
+// What fires on the next key first, then what is one modifier away, and so on.
+// Counted in modifiers, never in characters of their names: the two agree only
+// by accident of the four names in use, and a longer name would put a single
+// modifier behind a pair of them.
+//
+// Then by the text, so everything wanting the same further keys ends up next
+// to each other. Both arrangements need that: one heads a run wherever the
+// text changes, the other cuts a whole group there, and neither can do it
+// unless they are adjacent.
+bool nearerFirst(const Row &left, const Row &right) {
+    if (left.first.size() != right.first.size()) {
+        return left.first.size() < right.first.size();
+    }
+    return left.first < right.first;
+}
+
 } // namespace
 
 OverlayController::OverlayController(std::unique_ptr<Source> source,
@@ -68,6 +88,14 @@ void OverlayController::setShowsDeeper(bool value) {
 
 void OverlayController::setIgnoreLoneShift(bool value) {
     m_ignoreLoneShift = value;
+}
+
+void OverlayController::setArrangesByModifier(bool value) {
+    if (m_arrangesByModifier == value) {
+        return;
+    }
+    m_arrangesByModifier = value;
+    rebuild();
 }
 
 // Shift on its own is how capitals are typed, and answering that would put a
@@ -252,58 +280,78 @@ void OverlayController::rebuild() {
         }
     }
 
-    // Grouped by the same code the text output uses, so the panel and --list
-    // cannot disagree about what belongs under which heading.
-    //
-    // Grouped first and sorted afterwards, never the other way round: the
-    // headings follow the order in which they first occur, so sorting the
-    // whole list beforehand decides that order too. A section written after
-    // another would then jump in front of it merely because one of its
-    // shortcuts fires sooner, and where a configuration puts its sections is
-    // something it meant.
-    // Grouped by position rather than by copy, which is what lets the answers
-    // above be carried across the grouping.
-    const QList<BindGroupPositions> groups = groupBindPositions(visible);
-    m_groups.clear();
-    m_groups.reserve(groups.size());
-    for (const BindGroupPositions &group : groups) {
-        // Each shortcut of this heading with what it still wants, taken from
-        // the pass above rather than worked out again.
-        //
-        // Carried rather than recomputed because it is wanted three times
-        // over: to sort by, to write in front of the key, and to head a
-        // section with. The sort alone would ask it twice per comparison,
-        // which is a list built and joined for every step of an n log n walk,
-        // on every change of a modifier.
-        QList<QPair<QStringList, Bind>> rows;
-        rows.reserve(group.at.size());
-        for (const qsizetype at : group.at) {
+    // The blocks the panel draws, each a heading and the rows under it. What
+    // that heading is, is the one thing the two arrangements disagree about;
+    // everything after this point is the same for both.
+    QList<QPair<QString, QList<Row>>> blocks;
+
+    if (m_arrangesByModifier) {
+        // The headings the session gave these shortcuts are left aside, and
+        // the combination each of them wants becomes the heading instead.
+        // Sorted first and cut afterwards, which is the opposite of the branch
+        // below and for the same reason: here the order of the headings is
+        // exactly what is being asked for, nearest first, and the cuts follow
+        // from it.
+        QList<Row> rows;
+        rows.reserve(visible.size());
+        for (qsizetype at = 0; at < visible.size(); ++at) {
             rows.append({missingOf.at(at), visible.at(at)});
         }
-
-        // What fires on the next key first, then what is one modifier away,
-        // and so on. Counted in modifiers, never in characters of their
-        // names: the two agree only by accident of the four names in use, and
-        // a longer name would put a single modifier behind a pair of them.
-        //
-        // Then by the text, so everything wanting the same further keys ends
-        // up next to each other: the sections view heads a run wherever that
-        // text changes, and it can only do that if they are adjacent.
-        //
         // Stable, so the order the source listed them in survives inside each
-        // step: a configuration means the order it was written in.
-        std::stable_sort(rows.begin(), rows.end(),
-                         [](const QPair<QStringList, Bind> &left,
-                            const QPair<QStringList, Bind> &right) {
-                             if (left.first.size() != right.first.size()) {
-                                 return left.first.size() < right.first.size();
-                             }
-                             return left.first < right.first;
-                         });
+        // combination: a configuration means the order it was written in.
+        std::stable_sort(rows.begin(), rows.end(), nearerFirst);
 
+        for (const Row &row : std::as_const(rows)) {
+            QStringList caps = m_held;
+            caps.append(row.first);
+            const QString name =
+                caps.join(QString::fromLatin1(kShortcutSeparator));
+            if (blocks.isEmpty() || blocks.last().first != name) {
+                blocks.append({name, {}});
+            }
+            blocks.last().second.append(row);
+        }
+    } else {
+        // Grouped by the same code the text output uses, so the panel and
+        // --list cannot disagree about what belongs under which heading.
+        //
+        // Grouped first and sorted afterwards, never the other way round: the
+        // headings follow the order in which they first occur, so sorting the
+        // whole list beforehand decides that order too. A section written
+        // after another would then jump in front of it merely because one of
+        // its shortcuts fires sooner, and where a configuration puts its
+        // sections is something it meant.
+        // Grouped by position rather than by copy, which is what lets the
+        // answers above be carried across the grouping.
+        const QList<BindGroupPositions> groups = groupBindPositions(visible);
+        blocks.reserve(groups.size());
+        for (const BindGroupPositions &group : groups) {
+            // Each shortcut of this heading with what it still wants, taken
+            // from the pass above rather than worked out again.
+            //
+            // Carried rather than recomputed because it is wanted three times
+            // over: to sort by, to write in front of the key, and to head a
+            // section with. The sort alone would ask it twice per comparison,
+            // which is a list built and joined for every step of an n log n
+            // walk, on every change of a modifier.
+            QList<Row> rows;
+            rows.reserve(group.at.size());
+            for (const qsizetype at : group.at) {
+                rows.append({missingOf.at(at), visible.at(at)});
+            }
+            // Stable, for the reason given in the branch above.
+            std::stable_sort(rows.begin(), rows.end(), nearerFirst);
+            blocks.append({group.name, rows});
+        }
+    }
+
+    m_groups.clear();
+    m_groups.reserve(blocks.size());
+    for (const auto &block : std::as_const(blocks)) {
+        const QList<Row> &rows = block.second;
         QVariantList entries;
         entries.reserve(rows.size());
-        for (const auto &row : std::as_const(rows)) {
+        for (const Row &row : rows) {
             const QStringList &missing = row.first;
             const Bind &bind = row.second;
             // What is still missing is written in front of the key, so the
@@ -337,10 +385,10 @@ void OverlayController::rebuild() {
             entry.insert(QLatin1String(kRoleKey), bind.key);
             entries.append(entry);
         }
-        QVariantMap block;
-        block.insert(QLatin1String(kRoleName), group.name);
-        block.insert(QLatin1String(kRoleEntries), entries);
-        m_groups.append(block);
+        QVariantMap map;
+        map.insert(QLatin1String(kRoleName), block.first);
+        map.insert(QLatin1String(kRoleEntries), entries);
+        m_groups.append(map);
     }
 
     rebuildContinuations(reachable);

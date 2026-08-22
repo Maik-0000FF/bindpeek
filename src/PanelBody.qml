@@ -64,6 +64,20 @@ Rectangle {
     property bool deeperInSections: false
     property bool showContinuations: false
 
+    // Whether a group is headed by the combination its shortcuts want rather
+    // than by the heading the session gave them, which is the other question
+    // the list can be ordered by; see Settings::knownArrangements().
+    property bool arrangesByModifier: false
+
+    // The two things the panel makes of those settings, asked once here
+    // rather than at each of the three places that care.
+    //
+    // A group named after its combination says what the key caps above a run
+    // would say, so only one of the two is drawn. Either of them names the
+    // modifiers, so either of them leaves the rows carrying their key alone.
+    readonly property bool showsSectionHeads: panel.deeperInSections && !panel.arrangesByModifier
+    readonly property bool showsKeyOnly: panel.deeperInSections || panel.arrangesByModifier
+
     // Where the content sits on the plate. Both false is the middle.
     //
     // Only visible where the plate is larger than what it holds, which is at
@@ -241,6 +255,7 @@ Rectangle {
     onMaxHeightChanged: panel.refit()
     onGroupsAcrossChanged: panel.refit()
     onDeeperInSectionsChanged: panel.refit()
+    onArrangesByModifierChanged: panel.refit()
     onShowContinuationsChanged: panel.refit()
     onFitsToBoundsChanged: panel.refit()
 
@@ -433,7 +448,8 @@ Rectangle {
 
                         theme: panel.theme
                         group: groupCard.modelData
-                        deeperInSections: panel.deeperInSections
+                        showsSectionHeads: panel.showsSectionHeads
+                        showsKeyOnly: panel.showsKeyOnly
                         roomForCard: shortcutBox.roomForFlow
                         // Along a band the rows are spread sideways, which is
                         // the same question the groups themselves are asked

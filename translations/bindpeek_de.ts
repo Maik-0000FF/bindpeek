@@ -121,7 +121,7 @@
         <translation>Schließen</translation>
     </message>
     <message>
-        <location line="+159"/>
+        <location line="+190"/>
         <location line="+70"/>
         <source>(automatic)</source>
         <translation>(automatisch)</translation>
@@ -152,7 +152,7 @@
         <translation>Inhalt</translation>
     </message>
     <message>
-        <location line="+18"/>
+        <location line="+33"/>
         <source>Placement</source>
         <translation>Platzierung</translation>
     </message>
@@ -167,12 +167,12 @@
         <translation>Ausrichtung</translation>
     </message>
     <message>
-        <location line="-325"/>
+        <location line="-340"/>
         <source>Only applies to a panel at an edge</source>
         <translation>Gilt nur für ein Panel an einer Kante</translation>
     </message>
     <message>
-        <location line="+337"/>
+        <location line="+352"/>
         <source>Top</source>
         <translation>Oben</translation>
     </message>
@@ -192,7 +192,7 @@
         <translation>Links</translation>
     </message>
     <message>
-        <location line="-103"/>
+        <location line="-118"/>
         <source>Overlay</source>
         <translation>Overlay</translation>
     </message>
@@ -207,7 +207,12 @@
         <translation>Das Panel ist aus. Auf dem Bildschirm erscheint nichts.</translation>
     </message>
     <message>
-        <location line="+91"/>
+        <location line="+61"/>
+        <source>Grouped by</source>
+        <translation>Gruppiert nach</translation>
+    </message>
+    <message>
+        <location line="+45"/>
         <source>Centred</source>
         <translation>Mittig</translation>
     </message>
@@ -297,7 +302,7 @@
         <translation>Vorschau</translation>
     </message>
     <message>
-        <location line="+62"/>
+        <location line="+63"/>
         <source>Programs</source>
         <translation>Programme</translation>
     </message>
@@ -317,7 +322,7 @@
         <translation>Fenster schließen</translation>
     </message>
     <message>
-        <location line="-509"/>
+        <location line="-525"/>
         <source>About</source>
         <translation>Über</translation>
     </message>
@@ -325,7 +330,7 @@
 <context>
     <name>PanelBody</name>
     <message>
-        <location filename="../src/PanelBody.qml" line="+470"/>
+        <location filename="../src/PanelBody.qml" line="+486"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
@@ -338,7 +343,7 @@
 <context>
     <name>Settings</name>
     <message>
-        <location filename="../src/Settings.cpp" line="+192"/>
+        <location filename="../src/Settings.cpp" line="+194"/>
         <source>%1: &quot;%2&quot; is not true or false, using %3</source>
         <translation>%1: &quot;%2&quot; ist weder true noch false, verwende %3</translation>
     </message>
@@ -882,13 +887,13 @@
         <translation>bindpeek läuft bereits.</translation>
     </message>
     <message>
-        <location line="+66"/>
+        <location line="+67"/>
         <location line="+9"/>
         <source>The overlay could not be loaded.</source>
         <translation>Das Overlay konnte nicht geladen werden.</translation>
     </message>
     <message>
-        <location line="+145"/>
+        <location line="+146"/>
         <source>Print the shortcuts as text instead of showing the overlay.</source>
         <translation>Kürzel als Text ausgeben statt das Overlay zu zeigen.</translation>
     </message>
@@ -938,8 +943,8 @@
         <translation>Für %1 gibt es noch kein Backend.</translation>
     </message>
     <message>
-        <location line="-253"/>
-        <location line="+271"/>
+        <location line="-255"/>
+        <location line="+273"/>
         <source>Note: %1</source>
         <translation>Hinweis: %1</translation>
     </message>

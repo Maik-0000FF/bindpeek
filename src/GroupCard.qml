@@ -20,9 +20,12 @@ ColumnLayout {
     // One group as OverlayController hands it out: { name, entries }.
     required property var group
 
-    // Whether the shortcuts that want a further modifier are shown under
-    // headings of their own.
-    required property bool deeperInSections
+    // Whether a run is headed by the key caps of its combination.
+    required property bool showsSectionHeads
+
+    // Whether the rows carry their key alone, which they do wherever
+    // something above them already names the modifiers.
+    required property bool showsKeyOnly
 
     // The height the card has to stay within. Zero while the panel does not
     // know it yet.
@@ -89,7 +92,7 @@ ColumnLayout {
         var widest = "";
         var entries = card.group.entries;
         for (var i = 0; i < entries.length; ++i) {
-            var cell = card.deeperInSections ? entries[i].key : entries[i].shortcut;
+            var cell = card.showsKeyOnly ? entries[i].key : entries[i].shortcut;
             if (cell.length > widest.length)
                 widest = cell;
         }
@@ -389,7 +392,7 @@ ColumnLayout {
                     RowLayout {
                         id: runHeading
 
-                        visible: card.deeperInSections
+                        visible: card.showsSectionHeads
                         spacing: card.theme.spacingRow
                         Layout.topMargin: card.theme.spacingGroup
                         // The gap to a wrapped column, carried by every row
@@ -455,7 +458,7 @@ ColumnLayout {
 
                                     theme: card.theme
                                     entry: entryDelegate.modelData
-                                    deeperInSections: card.deeperInSections
+                                    showsKeyOnly: card.showsKeyOnly
                                     shortcutWidth: Math.min(shortcutMetrics.width, card.theme.columnShortcut)
                                 }
                             }
