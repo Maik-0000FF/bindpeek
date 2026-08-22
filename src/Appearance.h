@@ -63,6 +63,12 @@ class Appearance : public QObject {
     // combination itself, so the key caps that would say the same thing above
     // each run are left off and every row carries its key alone.
     Q_PROPERTY(bool arrangesByModifier READ arrangesByModifier NOTIFY changed)
+    // The order the modifiers are named in, which is the order the panel
+    // writes them in and the order the line at the foot counts them. Handed
+    // over so the preview can sort its made-up list the way the controller
+    // sorts the real one, rather than keeping a second opinion about which
+    // modifier comes first.
+    Q_PROPERTY(QStringList modifierOrder READ modifierOrder CONSTANT)
     // Where the content sits along the axis the compositor stretches. Both
     // false is the middle, which is where a panel that spans nothing also
     // ends up: there is no room to move it in.
@@ -110,6 +116,7 @@ public:
     bool showsDeeper() const;
     bool deeperInSections() const;
     bool arrangesByModifier() const;
+    QStringList modifierOrder() const;
     bool showContinuations() const;
     bool alignsAtStart() const;
     bool alignsAtEnd() const;

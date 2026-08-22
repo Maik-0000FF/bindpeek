@@ -153,15 +153,24 @@ void TestOverlay::arrangingByModifierHeadsEachCombinationNearestFirst() {
     const QStringList held = {QStringLiteral("SUPER")};
     const QStringList superShift = {QStringLiteral("SUPER"),
                                     QStringLiteral("SHIFT")};
+    const QStringList superAlt = {QStringLiteral("SUPER"),
+                                  QStringLiteral("ALT")};
+    const QStringList superCtrl = {QStringLiteral("SUPER"),
+                                   QStringLiteral("CTRL")};
     const QStringList superCtrlShift = {QStringLiteral("SUPER"),
                                         QStringLiteral("CTRL"),
                                         QStringLiteral("SHIFT")};
     // Written deepest first and spread over two headings, so the order below
     // can only come from the arrangement and not from the source.
+    //
+    // ALT and CTRL are in it because they are the pair the two orders disagree
+    // about: the display order names CTRL first, the alphabet names ALT first.
     auto source = std::make_unique<StubSource>(QList<Bind>{
         bind(superCtrlShift, QStringLiteral("C"), QStringLiteral("Other")),
         bind(superShift, QStringLiteral("B"), QStringLiteral("resize")),
+        bind(superAlt, QStringLiteral("E"), QStringLiteral("Other")),
         bind(held, QStringLiteral("A"), QStringLiteral("Other")),
+        bind(superCtrl, QStringLiteral("F"), QStringLiteral("resize")),
         bind(superShift, QStringLiteral("D"), QStringLiteral("Other")),
     });
 
@@ -174,7 +183,8 @@ void TestOverlay::arrangingByModifierHeadsEachCombinationNearestFirst() {
     const QVariantList groups = controller.groups();
     QCOMPARE(
         headings(groups),
-        QStringList({QStringLiteral("SUPER"), QStringLiteral("SUPER+SHIFT"),
+        QStringList({QStringLiteral("SUPER"), QStringLiteral("SUPER+CTRL"),
+                     QStringLiteral("SUPER+ALT"), QStringLiteral("SUPER+SHIFT"),
                      QStringLiteral("SUPER+CTRL+SHIFT")}));
     // Both of the SUPER+SHIFT shortcuts under the one heading, in the order
     // the source listed them, although they arrived under two of its own.

@@ -100,8 +100,31 @@ Window {
         for (var g = 0; g < groups.length; ++g)
             for (var e = 0; e < groups[g].entries.length; ++e)
                 rows.push(groups[g].entries[e]);
+        // Nearest first, and among equals by where the modifiers stand in the
+        // display order. Both keys are needed: without the second, two
+        // combinations of the same length come out in whichever order the
+        // sample happens to list them, and the preview then heads its groups
+        // differently from the panel it is a preview of. The order itself is
+        // asked for rather than written down again, so there is one opinion
+        // about which modifier comes first.
+        var order = Appearance.modifierOrder;
+        function placeOf(caps) {
+            var places = [];
+            for (var i = 0; i < caps.length; ++i) {
+                var at = order.indexOf(caps[i]);
+                places.push(at < 0 ? order.length : at);
+            }
+            return places;
+        }
         rows.sort(function (left, right) {
-            return left.caps.length - right.caps.length;
+            if (left.caps.length !== right.caps.length)
+                return left.caps.length - right.caps.length;
+            var here = placeOf(left.caps);
+            var there = placeOf(right.caps);
+            for (var i = 0; i < here.length; ++i)
+                if (here[i] !== there[i])
+                    return here[i] - there[i];
+            return 0;
         });
         var out = [];
         for (var i = 0; i < rows.length; ++i) {
@@ -1087,7 +1110,7 @@ Window {
                             // the setting is chosen by as no difference at
                             // all. The arrangement is the same case a second
                             // time, one heading further up.
-                            groups: previewGroups(Appearance.showsDeeper ? sampleGroups : sampleGroups.map(function (group) {
+                            groups: win.previewGroups(Appearance.showsDeeper ? sampleGroups : sampleGroups.map(function (group) {
                                 return {
                                     name: group.name,
                                     entries: group.entries.filter(function (entry) {

@@ -3,6 +3,8 @@
 
 #include "Appearance.h"
 
+#include "Source.h"
+
 #include <QGuiApplication>
 #include <QScreen>
 
@@ -183,6 +185,10 @@ bool Appearance::showsDeeper() const { return m_showsDeeper; }
 bool Appearance::deeperInSections() const { return m_deeperInSections; }
 
 bool Appearance::arrangesByModifier() const { return m_arrangesByModifier; }
+
+QStringList Appearance::modifierOrder() const {
+    return bindpeek::modifierOrder();
+}
 bool Appearance::showContinuations() const { return m_showContinuations; }
 bool Appearance::spanHorizontal() const { return m_spanHorizontal; }
 bool Appearance::spanVertical() const { return m_spanVertical; }

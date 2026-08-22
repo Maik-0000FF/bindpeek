@@ -184,6 +184,7 @@ void TestSettings::saveRoundTripsEveryValue() {
     written.setEdgeInsetPx(12);
     written.setOverlayEnabled(false);
     written.setDisclosure(QStringLiteral("sections"));
+    written.setArrangement(QStringLiteral("modifiers"));
     written.setAlignment(QStringLiteral("end"));
     written.setIgnoreLoneShift(false);
     written.setTheme(QStringLiteral("contrast"));
@@ -211,6 +212,9 @@ void TestSettings::saveRoundTripsEveryValue() {
     QCOMPARE(read.edgeInsetPx(), 12);
     QCOMPARE(read.overlayEnabled(), false);
     QCOMPARE(read.disclosure(), QStringLiteral("sections"));
+    QCOMPARE(read.arrangement(), QStringLiteral("modifiers"));
+    // Asked as the panel asks it, for the reason given at the alignment below.
+    QCOMPARE(read.arrangesByModifier(), true);
     QCOMPARE(read.alignment(), QStringLiteral("end"));
     // The two questions the word is asked as, which is how everything else
     // reads it: a word that survives the round trip and answers the wrong

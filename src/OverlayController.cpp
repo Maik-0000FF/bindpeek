@@ -31,20 +31,40 @@ constexpr char kRoleCount[] = "count";
 // missing, and the shortcut itself.
 using Row = QPair<QStringList, Bind>;
 
+// Where a modifier stands in the order the panel names them everywhere else.
+int placeOf(const QString &modifier) {
+    const qsizetype at = modifierOrder().indexOf(modifier);
+    return at < 0 ? static_cast<int>(modifierOrder().size())
+                  : static_cast<int>(at);
+}
+
 // What fires on the next key first, then what is one modifier away, and so on.
 // Counted in modifiers, never in characters of their names: the two agree only
 // by accident of the four names in use, and a longer name would put a single
 // modifier behind a pair of them.
 //
-// Then by the text, so everything wanting the same further keys ends up next
-// to each other. Both arrangements need that: one heads a run wherever the
-// text changes, the other cuts a whole group there, and neither can do it
-// unless they are adjacent.
+// Then by where those modifiers stand in the display order, so everything
+// wanting the same further keys ends up next to each other. Both arrangements
+// need that much: one heads a run wherever the combination changes, the other
+// cuts a whole group there, and neither can do it unless they are adjacent.
+//
+// By that order rather than by the alphabet, although the alphabet would sort
+// them just as adjacently. Under the arrangement that heads a group with its
+// combination, this is what the headings are read in, and the line at the foot
+// counts the same modifiers in the display order: two lists of the same four
+// words in two different orders, one under the other.
 bool nearerFirst(const Row &left, const Row &right) {
     if (left.first.size() != right.first.size()) {
         return left.first.size() < right.first.size();
     }
-    return left.first < right.first;
+    for (qsizetype at = 0; at < left.first.size(); ++at) {
+        const int here = placeOf(left.first.at(at));
+        const int there = placeOf(right.first.at(at));
+        if (here != there) {
+            return here < there;
+        }
+    }
+    return false;
 }
 
 } // namespace
