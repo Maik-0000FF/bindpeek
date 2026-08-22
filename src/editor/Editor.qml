@@ -83,67 +83,78 @@ Window {
     }
 
     // --- small building blocks -------------------------------------------
+    // The rows in the order the controller would put them: what fires on the
+    // next key first, then what is one modifier away, and among equals by
+    // where those modifiers stand in the display order.
+    //
+    // The order itself is asked for rather than written down here, so there is
+    // one opinion about which modifier comes first.
+    //
+    // Where the row was written is the last key, and it is not decoration.
+    // Measured on this engine, a sort moves four rows a comparison calls
+    // equal, so without it the order the sample was written in would be lost
+    // and the preview would list what no panel lists. The C++ side keeps it
+    // with a stable sort; this keeps it by asking.
+    function sortedEntries(entries) {
+        var order = Appearance.modifierOrder;
+        var rows = [];
+        for (var i = 0; i < entries.length; ++i)
+            rows.push({
+                at: i,
+                entry: entries[i]
+            });
+        rows.sort(function (left, right) {
+            if (left.entry.caps.length !== right.entry.caps.length)
+                return left.entry.caps.length - right.entry.caps.length;
+            for (var j = 0; j < left.entry.caps.length; ++j) {
+                var here = order.indexOf(left.entry.caps[j]);
+                var there = order.indexOf(right.entry.caps[j]);
+                if (here < 0)
+                    here = order.length;
+                if (there < 0)
+                    there = order.length;
+                if (here !== there)
+                    return here - there;
+            }
+            return left.at - right.at;
+        });
+        var out = [];
+        for (var k = 0; k < rows.length; ++k)
+            out.push(rows[k].entry);
+        return out;
+    }
 
-    // The list as the arrangement setting would have it, which for the
-    // preview means doing here what the controller does for the real panel:
-    // a group per combination, nearest first, keeping the order the sample
-    // was written in inside each of them.
+    // The made-up list put through both arrangements, which for the preview
+    // means doing here what the controller does for the real panel: the rows
+    // of every group in its order, and where the setting asks for it, a group
+    // per combination instead of the headings the sample carries.
     //
     // Written out a second time rather than shared, because there is nothing
     // to share with: the controller works on binds and modifiers in C++, this
     // works on the made-up list this file holds. What has to agree is the
     // shape of the answer, and that is what the preview shows.
     function previewGroups(groups) {
-        if (!Appearance.arrangesByModifier)
-            return groups;
-        var rows = [];
-        for (var g = 0; g < groups.length; ++g)
-            for (var e = 0; e < groups[g].entries.length; ++e)
-                rows.push({
-                    at: rows.length,
-                    entry: groups[g].entries[e]
-                });
-        // Nearest first, and among equals by where the modifiers stand in the
-        // display order. Both keys are needed: without the second, two
-        // combinations of the same length come out in whichever order the
-        // sample happens to list them, and the preview then heads its groups
-        // differently from the panel it is a preview of. The order itself is
-        // asked for rather than written down again, so there is one opinion
-        // about which modifier comes first.
-        var order = Appearance.modifierOrder;
-        function placeOf(caps) {
-            var places = [];
-            for (var i = 0; i < caps.length; ++i) {
-                var at = order.indexOf(caps[i]);
-                places.push(at < 0 ? order.length : at);
-            }
-            return places;
-        }
-        // Where each row started, as the last key of the sort. The engine's
-        // sort is not a stable one: measured here, four rows a comparison
-        // calls equal come back in another order than they went in, so the
-        // order the sample was written in would be lost inside a combination
-        // and the preview would list what no panel lists. The C++ side keeps
-        // it with a stable sort; this keeps it by asking.
-        rows.sort(function (left, right) {
-            if (left.entry.caps.length !== right.entry.caps.length)
-                return left.entry.caps.length - right.entry.caps.length;
-            var here = placeOf(left.entry.caps);
-            var there = placeOf(right.entry.caps);
-            for (var i = 0; i < here.length; ++i)
-                if (here[i] !== there[i])
-                    return here[i] - there[i];
-            return left.at - right.at;
-        });
         var out = [];
-        for (var i = 0; i < rows.length; ++i) {
-            var entry = rows[i].entry;
-            if (out.length === 0 || out[out.length - 1].name !== entry.section)
+        if (!Appearance.arrangesByModifier) {
+            for (var g = 0; g < groups.length; ++g)
                 out.push({
-                    name: entry.section,
+                    name: groups[g].name,
+                    entries: win.sortedEntries(groups[g].entries)
+                });
+            return out;
+        }
+        var all = [];
+        for (var h = 0; h < groups.length; ++h)
+            for (var e = 0; e < groups[h].entries.length; ++e)
+                all.push(groups[h].entries[e]);
+        var rows = win.sortedEntries(all);
+        for (var i = 0; i < rows.length; ++i) {
+            if (out.length === 0 || out[out.length - 1].name !== rows[i].section)
+                out.push({
+                    name: rows[i].section,
                     entries: []
                 });
-            out[out.length - 1].entries.push(entry);
+            out[out.length - 1].entries.push(rows[i]);
         }
         return out;
     }

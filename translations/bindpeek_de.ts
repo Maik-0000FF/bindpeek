@@ -121,7 +121,7 @@
         <translation>Schließen</translation>
     </message>
     <message>
-        <location line="+223"/>
+        <location line="+234"/>
         <location line="+70"/>
         <source>(automatic)</source>
         <translation>(automatisch)</translation>

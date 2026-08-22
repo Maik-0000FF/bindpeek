@@ -43,6 +43,7 @@ constexpr Contract kContracts[] = {
     {"Appearance", "editor/Editor.qml", "Appearance.h"},
     {"SettingsModel", "editor/Editor.qml", "editor/SettingsModel.h"},
     {"OverlayControl", "editor/Editor.qml", "editor/OverlayProcess.h"},
+    {"AppInfo", "editor/Editor.qml", "AppInfo.h"},
     {"AppInfo", "editor/AboutDialog.qml", "AppInfo.h"},
 };
 
@@ -236,6 +237,22 @@ QSet<QString> membersUsedByQml(const QString &qml, const char *object) {
     auto it = pattern.globalMatch(qml);
     while (it.hasNext()) {
         used.insert(it.next().captured(1));
+    }
+
+    // The other way a member is reached, and the one a dot never shows: a
+    // Binding names its target and then its property as a string. Nothing
+    // reads that string but the engine, so a renamed member leaves the binding
+    // in place and dead, which is the exact failure this file exists to catch.
+    //
+    // Bounded rather than greedy, because the two lines belong to one Binding
+    // block and the next one further down is somebody else's target.
+    const QRegularExpression bound(
+        QStringLiteral("target:\\s*%1\\b[^}]{0,400}?property:\\s*"
+                       "\"([A-Za-z_][A-Za-z0-9_]*)\"")
+            .arg(QLatin1String(object)));
+    auto bindings = bound.globalMatch(qml);
+    while (bindings.hasNext()) {
+        used.insert(bindings.next().captured(1));
     }
     return used;
 }
