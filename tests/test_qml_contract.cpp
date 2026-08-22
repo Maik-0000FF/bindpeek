@@ -287,6 +287,7 @@ class TestQmlContract : public QObject {
 
 private slots:
     void bothFilesAreReadable();
+    void aMemberNamedAsTextIsSeen();
     void qmlUsesOnlyExistingMembers();
     void everyRoleIsReadByItsQml();
     void themeListsAgree();
@@ -311,6 +312,34 @@ void TestQmlContract::bothFilesAreReadable() {
         QVERIFY2(!membersOfferedByController(header).isEmpty(),
                  contract.header);
     }
+}
+
+// The rule that sees a member named as text, measured on its own rather than
+// through a file.
+//
+// The pairs below cannot say whether it still works. They pass as long as
+// anything at all was found, and every file that binds a property this way
+// also reaches the same object with a dot somewhere else, so a rule that
+// quietly stopped matching would leave the gate green and the member
+// uncovered. That silence is the state this file exists to end.
+//
+// The form covered is the one Qt's own documentation writes, target first and
+// the property under it. Written the other way round, or with a brace between
+// the two, it is not seen, and that is left as it is: what is measured here is
+// the spelling the project uses, and a rule that tried to match every possible
+// arrangement of the same two lines would be a parser rather than a check.
+void TestQmlContract::aMemberNamedAsTextIsSeen() {
+    const QString qml = QStringLiteral("Binding {\n"
+                                       "    target: AppInfo\n"
+                                       "    property: \"darkSurface\"\n"
+                                       "    value: true\n"
+                                       "}\n");
+    QVERIFY(membersUsedByQml(qml, "AppInfo")
+                .contains(QStringLiteral("darkSurface")));
+    // And it belongs to the object that was named, not to whichever one is
+    // asked about.
+    QVERIFY(!membersUsedByQml(qml, "SettingsModel")
+                 .contains(QStringLiteral("darkSurface")));
 }
 
 void TestQmlContract::qmlUsesOnlyExistingMembers() {
