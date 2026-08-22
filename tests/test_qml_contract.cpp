@@ -323,15 +323,21 @@ void TestQmlContract::qmlUsesOnlyExistingMembers() {
 // type either: renaming a role is a one-line change in C++ that leaves every
 // reader of it reading undefined, silently and only once a panel is on screen.
 //
-// Two readers exist. PanelBody.qml draws the real list, and the settings
-// window fills the same shape with an invented one for its preview; a role
-// that reaches only one of them makes the preview a different thing from the
-// panel, which is the one property it has to have.
+// Two readers exist. The panel draws the real list, and the settings window
+// fills the same shape with an invented one for its preview; a role that
+// reaches only one of them makes the preview a different thing from the panel,
+// which is the one property it has to have.
+//
+// The panel is three files, and they are read as one: the plate hands the
+// groups to a card and the card hands one entry to a block, so which of them
+// spells out a given role is a matter of where the split fell.
 void TestQmlContract::everyRoleIsReadByItsQml() {
     const QString controller =
         readFile(QStringLiteral(BINDPEEK_SRC "/OverlayController.cpp"));
     const QString panel =
-        readFile(QStringLiteral(BINDPEEK_SRC "/PanelBody.qml"));
+        readFile(QStringLiteral(BINDPEEK_SRC "/PanelBody.qml")) +
+        readFile(QStringLiteral(BINDPEEK_SRC "/GroupCard.qml")) +
+        readFile(QStringLiteral(BINDPEEK_SRC "/EntryBlock.qml"));
     const QString editor =
         readFile(QStringLiteral(BINDPEEK_SRC "/editor/Editor.qml"));
     QVERIFY(!controller.isEmpty());
@@ -367,7 +373,7 @@ void TestQmlContract::everyRoleIsReadByItsQml() {
         QVERIFY2(
             read.match(panel).hasMatch(),
             qPrintable(
-                QStringLiteral("PanelBody.qml never reads .%1").arg(name)));
+                QStringLiteral("no file of the panel reads .%1").arg(name)));
         QVERIFY2(written.match(preview).hasMatch(),
                  qPrintable(
                      QStringLiteral("the preview in Editor.qml never fills %1")

@@ -325,7 +325,7 @@
 <context>
     <name>PanelBody</name>
     <message>
-        <location filename="../src/PanelBody.qml" line="+680"/>
+        <location filename="../src/PanelBody.qml" line="+455"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>

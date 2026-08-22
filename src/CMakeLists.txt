@@ -8,12 +8,14 @@
 # here every qsTr() in the interface is invisible to it.
 set(BINDPEEK_OVERLAY_QML
   Overlay.qml
+  EntryBlock.qml
+  GroupCard.qml
   PanelBody.qml
   Theme.qml
 )
-# Theme.qml and PanelBody.qml are in both on purpose: the preview in the
-# settings window is the overlay panel itself, drawn from the overlay tokens,
-# not a second copy of either.
+# The panel, the parts it is built from and the tokens it is drawn with are in
+# both lists on purpose: the preview in the settings window is the overlay
+# panel itself, not a second copy of any of them.
 set(BINDPEEK_EDITOR_QML
   editor/Editor.qml
   editor/AboutDialog.qml
@@ -21,6 +23,8 @@ set(BINDPEEK_EDITOR_QML
   editor/ConfirmDialog.qml
   editor/EditorTheme.qml
   editor/ThemedToolTip.qml
+  EntryBlock.qml
+  GroupCard.qml
   PanelBody.qml
   Theme.qml
 )
