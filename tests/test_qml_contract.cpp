@@ -329,17 +329,36 @@ void TestQmlContract::bothFilesAreReadable() {
 // the spelling the project uses, and a rule that tried to match every possible
 // arrangement of the same two lines would be a parser rather than a check.
 void TestQmlContract::aMemberNamedAsTextIsSeen() {
+    // Three bindings, and the middle one carries no property on purpose: it is
+    // what makes the last of the three checks mean anything.
     const QString qml = QStringLiteral("Binding {\n"
                                        "    target: AppInfo\n"
                                        "    property: \"darkSurface\"\n"
                                        "    value: true\n"
+                                       "}\n"
+                                       "\n"
+                                       "Binding {\n"
+                                       "    target: OverlayControl\n"
+                                       "    value: true\n"
+                                       "}\n"
+                                       "\n"
+                                       "Binding {\n"
+                                       "    target: SettingsModel\n"
+                                       "    property: \"somethingElse\"\n"
+                                       "    value: 1\n"
                                        "}\n");
     QVERIFY(membersUsedByQml(qml, "AppInfo")
                 .contains(QStringLiteral("darkSurface")));
-    // And it belongs to the object that was named, not to whichever one is
-    // asked about.
-    QVERIFY(!membersUsedByQml(qml, "SettingsModel")
-                 .contains(QStringLiteral("darkSurface")));
+    QVERIFY(membersUsedByQml(qml, "SettingsModel")
+                .contains(QStringLiteral("somethingElse")));
+    // A binding block ends at its brace, and the search has to end there too.
+    // Allowed to read on, it would reach the next block and hand this object a
+    // member somebody else named, which shows up as a file accused of using
+    // what it never asked for. The object above is bound to without naming a
+    // property, so the only property in reach is the one in the block after
+    // it: exactly the case a bound that stopped working would get wrong.
+    QVERIFY(!membersUsedByQml(qml, "OverlayControl")
+                 .contains(QStringLiteral("somethingElse")));
 }
 
 void TestQmlContract::qmlUsesOnlyExistingMembers() {
