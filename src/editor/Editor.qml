@@ -113,6 +113,30 @@ Window {
         radius: ui.radius
     }
 
+    // A bar that can be seen and taken hold of, not the thin marker that only
+    // appears while something is already being scrolled.
+    //
+    // Shown exactly while there is more than fits, which is what `size` says:
+    // a view showing all of its content reports one, anything less means the
+    // list goes on past its edge. A window too small for every setting is
+    // otherwise a window that appears to have fewer of them.
+    component Bar: ScrollBar {
+        id: bar
+
+        policy: bar.size < 1 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+        // As wide as the room the rows keep clear for it.
+        width: ui.scrollRoom
+
+        contentItem: Rectangle {
+            implicitWidth: ui.scrollBarWidth
+            radius: width / 2
+            color: bar.pressed ? ui.text : bar.hovered ? ui.lineHover : ui.textMuted
+        }
+        background: Rectangle {
+            color: "transparent"
+        }
+    }
+
     // A slider with its value spelled out, because a bare handle says nothing
     // about milliseconds or pixels.
     component ValueSlider: RowLayout {
@@ -182,14 +206,6 @@ Window {
     component Choice: ComboBox {
         id: cb
 
-        // What a row in the list keeps clear on its right.
-        //
-        // The bar is drawn over the list rather than beside it, which is what
-        // a scroll bar attached to a view is, so a row that used the full
-        // width would end underneath it. Kept clear whether or not the bar is
-        // there: ten pixels of air on a dropdown is not worth a binding that
-        // has to be right about when a list scrolls.
-        readonly property int scrollRoom: ui.scrollBarWidth + ui.scrollBarMargin * 2
         Layout.preferredWidth: ui.controlWidth
         font.family: ui.fontFamily
         font.pixelSize: ui.fontSize
@@ -245,26 +261,9 @@ Window {
                 implicitHeight: contentHeight
                 model: cb.popup.visible ? cb.delegateModel : null
 
-                // A bar that can be seen and taken hold of, not the thin
-                // marker that only appears while something is already being
-                // scrolled. A list of fourteen palettes in a box that shows
-                // eight of them has to say so before it is touched.
-                ScrollBar.vertical: ScrollBar {
-                    id: choiceBar
-                    policy: choiceList.contentHeight > choiceList.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-                    // As wide as the room the rows keep clear for it, which is
-                    // the same value asked once.
-                    width: cb.scrollRoom
-
-                    contentItem: Rectangle {
-                        implicitWidth: ui.scrollBarWidth
-                        radius: width / 2
-                        color: choiceBar.pressed ? ui.text : choiceBar.hovered ? ui.lineHover : ui.textMuted
-                    }
-                    background: Rectangle {
-                        color: "transparent"
-                    }
-                }
+                // A list of fourteen palettes in a box that shows eight of
+                // them has to say so before it is touched; see Bar.
+                ScrollBar.vertical: Bar {}
             }
         }
         delegate: ItemDelegate {
@@ -291,7 +290,7 @@ Window {
                 // name does not move sideways when the list opens, plus the
                 // room the bar takes on the other side.
                 leftPadding: ui.paddingControl
-                rightPadding: ui.paddingControl + cb.scrollRoom
+                rightPadding: ui.paddingControl + ui.scrollRoom
                 text: item.modelData === "" ? qsTr("(automatic)") : item.modelData
                 color: ui.text
                 font.family: ui.fontFamily
@@ -562,8 +561,18 @@ Window {
                     }
 
                     Layout.fillHeight: true
-                    Layout.preferredWidth: ui.settingsWidth
+                    // The rows keep their width and the bar is given room
+                    // beside them rather than over them, which is why this is
+                    // wider than the rows are.
+                    Layout.preferredWidth: ui.settingsWidth + ui.scrollRoom
+                    rightPadding: ui.scrollRoom
                     clip: true
+
+                    // A window shorter than the list is the ordinary case, not
+                    // the odd one: there are more settings here than fit a
+                    // small window, and without a bar the ones below the edge
+                    // are settings the reader has no reason to believe exist.
+                    ScrollBar.vertical: Bar {}
 
                     Connections {
                         target: win

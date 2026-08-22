@@ -96,6 +96,13 @@ QtObject {
     readonly property int scrollBarWidth: 6
     readonly property int scrollBarMargin: 2
 
+    // The two together, which is what a list keeps clear on its right.
+    //
+    // A bar attached to a view is drawn over the view rather than beside it,
+    // so a row that used the full width would end underneath it. Asked once
+    // here because both lists that scroll keep the same room.
+    readonly property int scrollRoom: scrollBarWidth + scrollBarMargin * 2
+
     // The switch: the drawn track, the knob that slides in it, and the gap
     // that keeps the knob off the track's edge.
     //
