@@ -240,24 +240,29 @@ jobs:
         # that carries the backend gets as far as reading the shortcut file.
         #
         # After the two steps above, and that is not a matter of taste: the
-        # answer here is a sentence, so a program that is missing or cannot be
-        # started answers with nothing and would be read as one that built the
-        # backend after all. Those two possibilities are ruled out by then.
+        # answer here is a sentence, so anything that keeps the program from
+        # printing one arrives as an empty answer. Those two steps take the
+        # likeliest of those out of the way first, a program that was never
+        # produced and one whose libraries cannot be resolved. What is left
+        # still lands here, which is why the failure below says what was
+        # missing from the answer instead of naming a cause it cannot know.
         #
-        # In the source language, because that sentence is translated and the
-        # word looked for is the English one. Nothing sets a language in this
-        # job today, which would leave the check working by luck.
+        # In the source language, and it takes both variables. The sentence is
+        # translated, and the catalogue is chosen from the languages Qt derives
+        # from the environment, where LANGUAGE is read before LC_ALL. Measured
+        # on Qt 6.11: LC_ALL=C on its own still answers in German wherever
+        # LANGUAGE asks for it.
         run: |
           . scripts/_style.sh
           PROJECT_ROOT="$PWD"
           . scripts/_paths.sh
-          report=$(LC_ALL=C "build/src/$PANEL" --environment kde --list 2>&1 || true)
+          report=$(LC_ALL=C LANGUAGE='' "build/src/$PANEL" --environment kde --list 2>&1 || true)
           case "$report" in
             *"no KDE backend"*)
               echo "ok: $report"
               ;;
             *)
-              echo "this lane built the KDE backend after all"
+              echo "the panel did not say it was built without the KDE backend:"
               echo "$report"
               exit 1
               ;;
