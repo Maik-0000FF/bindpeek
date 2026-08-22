@@ -28,6 +28,20 @@ Window {
 
     Theme {
         id: preview
+
+        // The display this window is on, rather than the one Appearance keeps.
+        //
+        // That one is the box that fits inside every screen attached, taken
+        // width and height apart: a wide screen next to an upright one answers
+        // with a square no monitor has. As the bound for a panel that has to
+        // fit wherever the compositor puts it, that is exactly right. As the
+        // answer to which way the groups run, it is a shape nobody is looking
+        // at, and the preview would draw a column while the panel drew a band.
+        //
+        // Only the shape is decided by these two here. What the preview may
+        // grow to is the box it sits in, which is handed to it further down.
+        screenWidth: win.screen ? win.screen.width : Appearance.screenWidth
+        screenHeight: win.screen ? win.screen.height : Appearance.screenHeight
     }
     // The editor wears the palette the overlay is set to, so a choice is seen
     // rather than described.

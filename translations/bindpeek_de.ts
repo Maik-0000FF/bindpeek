@@ -91,7 +91,7 @@
         <translation>bindpeek-Einstellungen</translation>
     </message>
     <message>
-        <location line="+26"/>
+        <location line="+40"/>
         <source>Restore the defaults?</source>
         <translation>Voreinstellungen wiederherstellen?</translation>
     </message>

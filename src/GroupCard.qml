@@ -256,6 +256,13 @@ ColumnLayout {
         // One at the least: a share too narrow for a single column is answered
         // by the longest column rather than by no column at all, and the panel
         // says at its foot what did not fit.
+        //
+        // Exact, with nothing left over. Measured, every width that goes into
+        // it is a whole number of pixels, so a card that fits on paper fits on
+        // the plate; were one ever fractional, the card would come out a few
+        // pixels wider than its share, and the panel would answer that the way
+        // it answers any overflow, by taking the type down. Slack against that
+        // would be a number nobody could name.
         var allowed = Math.max(1, Math.floor((card.widthShare + gap + card.theme.gutterWrap) / (widest + gap)));
         if (allowed === 1)
             return total;
