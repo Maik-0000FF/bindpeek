@@ -136,23 +136,35 @@ ColumnLayout {
         return height;
     }
 
-    // How many columns a run alone is wrapped into, which only happens where
-    // the run is taller than a whole column.
-    function innerColumns(run, bound, gap) {
+    // What a run alone comes to where it is taller than a whole column: how
+    // many columns it is wrapped into, and how tall it then stands.
+    //
+    // The height is the tallest of those columns and not the bound, because
+    // that is what the wrap below puts on the plate: the run is one block,
+    // however many columns it took inside itself. Counting it as a full column
+    // would push the run after it into a column of its own where there is
+    // still room under it, and the search would settle on a taller panel than
+    // the width asked for.
+    function innerShape(run, bound, gap) {
         var room = Math.max(1, bound - run.head);
         var columns = 1;
         var used = 0;
+        var tallest = 0;
         for (var i = 0; i < run.rows.length; ++i) {
             var row = run.rows[i];
             var lead = used > 0 ? gap : 0;
             if (used === 0 || used + lead + row <= room) {
                 used += lead + row;
             } else {
+                tallest = Math.max(tallest, used);
                 ++columns;
                 used = row;
             }
         }
-        return columns;
+        return {
+            columns: columns,
+            height: run.head + Math.max(tallest, used)
+        };
     }
 
     // How many columns the runs come to at a given column height.
@@ -179,8 +191,9 @@ ColumnLayout {
             if (used > 0) {
                 ++columns;
             }
-            columns += card.innerColumns(runs[i], bound, gap) - 1;
-            used = bound;
+            var shape = card.innerShape(runs[i], bound, gap);
+            columns += shape.columns - 1;
+            used = shape.height;
         }
         return columns;
     }

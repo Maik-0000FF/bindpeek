@@ -572,7 +572,21 @@ Window {
                     // the odd one: there are more settings here than fit a
                     // small window, and without a bar the ones below the edge
                     // are settings the reader has no reason to believe exist.
-                    ScrollBar.vertical: Bar {}
+                    //
+                    // Where it stands is written out here, and it has to be.
+                    // A view of this kind hands its own bar a parent, a place
+                    // and a height, and a bar put in its stead takes that with
+                    // it: only the look was meant to change. Measured without
+                    // these four lines, the bar comes out ten by four in the
+                    // top left corner of the rows, which is no bar at all.
+                    ScrollBar.vertical: Bar {
+                        id: settingsBar
+
+                        parent: settings
+                        x: settings.mirrored ? 0 : settings.width - settingsBar.width
+                        y: settings.topPadding
+                        height: settings.availableHeight
+                    }
 
                     Connections {
                         target: win

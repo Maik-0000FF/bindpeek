@@ -127,7 +127,7 @@
         <translation>(automatisch)</translation>
     </message>
     <message>
-        <location line="+346"/>
+        <location line="+360"/>
         <source>Behaviour</source>
         <translation>Verhalten</translation>
     </message>
@@ -167,12 +167,12 @@
         <translation>Ausrichtung</translation>
     </message>
     <message>
-        <location line="-311"/>
+        <location line="-325"/>
         <source>Only applies to a panel at an edge</source>
         <translation>Gilt nur für ein Panel an einer Kante</translation>
     </message>
     <message>
-        <location line="+323"/>
+        <location line="+337"/>
         <source>Top</source>
         <translation>Oben</translation>
     </message>
@@ -317,7 +317,7 @@
         <translation>Fenster schließen</translation>
     </message>
     <message>
-        <location line="-495"/>
+        <location line="-509"/>
         <source>About</source>
         <translation>Über</translation>
     </message>
