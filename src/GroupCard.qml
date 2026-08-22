@@ -216,12 +216,26 @@ ColumnLayout {
         var gap = card.theme.spacingRow;
         var widest = 0;
         var total = 0;
+        // The shortest a column may be, which is a heading with one row under
+        // it. A bound below that is one the wrap cannot meet: a run whose
+        // heading alone fills the column has no room left to put a row in, and
+        // what comes back is not a short column but a run that did not wrap at
+        // all, in a box that was told it would be short. That is a plate the
+        // size of nothing with the whole list drawn past its edge.
+        var floor = 0;
         for (var i = 0; i < runs.length; ++i) {
             widest = Math.max(widest, runs[i].width);
             total += card.runHeight(runs[i], gap) + (i > 0 ? gap : 0);
+            var tallestRow = 0;
+            for (var j = 0; j < runs[i].rows.length; ++j) {
+                tallestRow = Math.max(tallestRow, runs[i].rows[j]);
+            }
+            floor = Math.max(floor, runs[i].head + tallestRow);
         }
         if (widest <= 0 || total <= 0)
             return 0;
+        if (floor >= total)
+            return total;
 
         // How many columns of that width the share has room for. One at the
         // least: a share too narrow for a single column is answered by the
@@ -231,7 +245,7 @@ ColumnLayout {
         if (allowed === 1)
             return total;
 
-        var low = 1;
+        var low = floor;
         var high = total;
         var best = total;
         while (low <= high) {
@@ -306,8 +320,18 @@ ColumnLayout {
             return entryBox.roomForEntries > 0 ? entryBox.roomForEntries : card.unbounded;
         }
 
+        // What the wrap actually came to, in both directions, and never the
+        // bound it was given.
+        //
+        // The height was once capped at that bound, and it was the same
+        // mistake the width carries a paragraph about above: where the wrap
+        // cannot meet the bound, the cap turns a card that is too tall into a
+        // card that merely claims to be short, and the rows it holds are drawn
+        // past the edge of a plate built around the claim. Reported honestly,
+        // a card that came out too tall is an overflow like any other, and the
+        // panel answers it by taking the type down and saying so at the foot.
         Layout.preferredWidth: Math.max(0, entryFlow.implicitWidth - card.theme.gutterWrap)
-        Layout.preferredHeight: Math.min(entryFlow.implicitHeight, entryBox.columnHeight)
+        Layout.preferredHeight: entryFlow.implicitHeight
 
         Flow {
             id: entryFlow
@@ -409,8 +433,11 @@ ColumnLayout {
 
                         readonly property int roomForRows: Math.max(0, entryBox.columnHeight - runBlock.headingHeight)
 
+                        // What its wrap came to, for the reason the card gives
+                        // above: a box that reports the bound rather than the
+                        // rows it holds hides them instead of fitting them.
                         Layout.preferredWidth: runFlow.implicitWidth
-                        Layout.preferredHeight: runBox.roomForRows > 0 ? Math.min(runFlow.implicitHeight, runBox.roomForRows) : runFlow.implicitHeight
+                        Layout.preferredHeight: runFlow.implicitHeight
 
                         Flow {
                             id: runFlow
