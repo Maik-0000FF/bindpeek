@@ -244,11 +244,19 @@ ColumnLayout {
         if (floor >= total)
             return total;
 
-        // How many columns of that width the share has room for. One at the
-        // least: a share too narrow for a single column is answered by the
-        // longest column rather than by no column at all, and the panel says
-        // at its foot what did not fit.
-        var allowed = Math.max(1, Math.floor((card.widthShare + gap) / (widest + gap)));
+        // How many columns of that width the share has room for.
+        //
+        // Counted from what the card actually reports rather than from the
+        // wrap alone: N columns come to N widths and the gaps between them,
+        // less the one gutter the last column carries and the card does not
+        // keep. That leaves room for one more column than the widths and gaps
+        // alone would allow, and a card that left it unused would stand
+        // narrower and taller than its share asked for.
+        //
+        // One at the least: a share too narrow for a single column is answered
+        // by the longest column rather than by no column at all, and the panel
+        // says at its foot what did not fit.
+        var allowed = Math.max(1, Math.floor((card.widthShare + gap + card.theme.gutterWrap) / (widest + gap)));
         if (allowed === 1)
             return total;
 
@@ -387,7 +395,7 @@ ColumnLayout {
                     // narrower than one, and the wrap would be worked out from
                     // a width the card does not have.
                     readonly property int naturalWidth: {
-                        var widest = runHeading.visible ? runHeading.implicitWidth + card.theme.gutterWrap : 0;
+                        var widest = runHeading.visible ? runHeading.implicitWidth + runHeading.Layout.rightMargin : 0;
                         var rows = runFlow.children;
                         for (var i = 0; i < rows.length; ++i) {
                             widest = Math.max(widest, rows[i].implicitWidth);
