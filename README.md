@@ -161,10 +161,9 @@ a comment above every line. Both are read live. See
   push. Older releases are not held back on purpose, they simply carry a Qt
   this was not written against.
 - For the KDE backend only, KDE's KConfig framework. Where a distribution does
-  not carry it, and Ubuntu 24.04 and everything built on it do not, bindpeek
-  builds without that one backend and says so. Nothing else is affected, and a
-  system without the framework has no KDE Plasma 6 whose shortcuts there would
-  be to read.
+  not package it, bindpeek builds without that one backend and says so. Nothing
+  else is affected, and a system without the framework has no KDE Plasma 6
+  whose shortcuts there would be to read.
 
 Reading the shortcuts themselves is a second question, and there the answer is
 narrower: mango, Hyprland or KDE Plasma. On any other compositor the panel can

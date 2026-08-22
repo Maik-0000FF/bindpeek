@@ -41,9 +41,9 @@ the list as well.
 **One more that is wanted rather than needed**: KDE's KConfig framework, which
 only the KDE backend uses. It is listed and installed alongside the others, but
 where a distribution does not carry it the script says so and carries on, and
-the build leaves that one backend out. Ubuntu 24.04 and everything built on it
-are such a case; they have no KDE Plasma 6 either, so nothing is lost there
-that could have been used.
+the build leaves that one backend out. Declining it at the question does the
+same. Such a system has no KDE Plasma 6 either, so nothing is lost there that
+could have been used.
 
 The names differ per family and they live in exactly one place,
 `scripts/_packages.sh`, which is the file the script reads and the file the

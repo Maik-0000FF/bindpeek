@@ -72,9 +72,7 @@ pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
 # desktop that has KDE Plasma 6 in the first place; a distribution that does not
 # package the framework has no Plasma 6 to read either. Making the whole build
 # depend on it would keep the panel off machines whose compositor it supports
-# perfectly well: Ubuntu 24.04 and everything derived from it carry no KF6 at
-# all, so bindpeek could not be built there for want of a backend nobody there
-# can use.
+# perfectly well, for want of a backend nobody there can use.
 find_package(KF6Config QUIET)
 if(KF6Config_FOUND)
   set(BINDPEEK_WITH_KDE ON)

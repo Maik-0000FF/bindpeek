@@ -103,7 +103,14 @@ jobs:
           - distro: Fedora
             image: fedora:42
             bootstrap: dnf install -y git
-            cmake_extra: ''
+            # The lane that builds without the KDE backend, which is what a
+            # distribution carrying no KF6 ends up with. The package is
+            # installed here like everywhere else and the framework is refused
+            # at configure time instead, so this proves the build rather than
+            # the packaging: no lane runs on a family without it, and a path
+            # nothing exercises is a path that breaks unnoticed. The four other
+            # lanes keep building the backend itself.
+            cmake_extra: -DCMAKE_DISABLE_FIND_PACKAGE_KF6Config=ON
           - distro: openSUSE
             # The Tumbleweed base image carries busybox-gawk, which the Qt 6
             # development packages refuse to sit next to. Swapping it for the
@@ -166,8 +173,9 @@ jobs:
 
           # The package the KDE backend wants, installed where it exists. A
           # family that has none, or a release too old to carry it, builds
-          # without that backend rather than not at all, and this lane is where
-          # that is proved rather than assumed.
+          # without that backend rather than not at all; the lane that proves
+          # that is the one configuring with the framework switched off, which
+          # is the same build such a machine gets.
           if optional_dependencies_for && [ "${#OPTIONAL[@]}" -ne 0 ]; then
             printf 'optional: %s\n' "${OPTIONAL[@]}"
             install_packages "${OPTIONAL[@]}" ||

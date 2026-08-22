@@ -121,35 +121,64 @@ for package in "${OPTIONAL[@]}"; do
     fi
 done
 
+# What is lost without the framework, worded once and said wherever that
+# happens: the offer was declined here, or the distribution has no such package
+# to offer at all.
+WITHOUT_KDE=(
+    "Building without the KDE backend. Everything else works;"
+    "only a KDE Plasma session could not be read."
+)
+
 if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
     echo
     # The one question a run with nobody at the keyboard still answers with
     # yes: installing what is needed to build is the whole errand, and it adds
     # to the machine rather than changing what it allows.
     ask "Install the $((${#MISSING[@]} + ${#MISSING_OPTIONAL[@]})) missing package(s)? [Y/n]"
+
+    DECLINED=0
     case "$REPLY" in
-        [Nn]*)
+        [Nn]*) DECLINED=1 ;;
+    esac
+
+    # What a No means depends on what is missing, and the two are not one
+    # thing:
+    #
+    #   required   optional   answer     what happens
+    #   --------   --------   --------   ---------------------------------
+    #   none       none       not asked  nothing to install
+    #   none       some       yes        installed, a failure is tolerated
+    #   none       some       no         built without the KDE backend
+    #   some       any        yes        the required ones, then the rest
+    #   some       any        no         nothing to build with, the run ends
+    #
+    # A No while only the framework is missing refuses one backend, not the
+    # build. What is left is exactly the build a distribution gets that carries
+    # no such package, and that one is not treated as a reason to stop either.
+    if [ "$DECLINED" -eq 1 ]; then
+        if [ "${#MISSING[@]}" -ne 0 ]; then
             fail "Nothing to build with."
             exit 1
-            ;;
-    esac
-    if [ "${#MISSING[@]}" -ne 0 ]; then
-        install_packages "${MISSING[@]}"
-    fi
-    # Separately, and a failure here is not the end of the run. On a
-    # distribution that does not carry the framework at all, the package
-    # manager answers that it knows no such package, and the right thing then
-    # is to build without the backend rather than to stop: what is left out is
-    # the reading of KDE's shortcuts, and a system without the framework has no
-    # KDE Plasma 6 whose shortcuts there would be to read.
-    for package in "${MISSING_OPTIONAL[@]}"; do
-        if ! install_packages "$package"; then
-            warn "$package is not available here." \
-                "Building without the KDE backend. Everything else works;" \
-                "only a KDE Plasma session could not be read."
         fi
-    done
-    ok "installed"
+        warn "Left out: ${MISSING_OPTIONAL[*]}." "${WITHOUT_KDE[@]}"
+        ok "carrying on"
+    else
+        if [ "${#MISSING[@]}" -ne 0 ]; then
+            install_packages "${MISSING[@]}"
+        fi
+        # Separately, and a failure here is not the end of the run. On a
+        # distribution that does not carry the framework at all, the package
+        # manager answers that it knows no such package, and the right thing
+        # then is to build without the backend rather than to stop: what is
+        # left out is the reading of KDE's shortcuts, and a system without the
+        # framework has no KDE Plasma 6 whose shortcuts there would be to read.
+        for package in "${MISSING_OPTIONAL[@]}"; do
+            if ! install_packages "$package"; then
+                warn "$package is not available here." "${WITHOUT_KDE[@]}"
+            fi
+        done
+        ok "installed"
+    fi
 else
     ok "all present"
 fi
