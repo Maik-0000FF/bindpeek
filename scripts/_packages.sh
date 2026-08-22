@@ -79,8 +79,8 @@ dependencies_for() {
 # that a family without it still builds, without the KDE backend, rather than
 # not at all.
 #
-# The name is not the same everywhere and it is not everywhere: Ubuntu 24.04
-# and what is built on it carry no KF6 at all.
+# The name is not the same everywhere, and on a family that packages no KF6 at
+# all there is no name to give.
 #
 # shellcheck disable=SC2034
 # OPTIONAL is read by whoever called this.

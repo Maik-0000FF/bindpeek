@@ -129,6 +129,20 @@ WITHOUT_KDE=(
     "only a KDE Plasma session could not be read."
 )
 
+# Whether the build is told to look for the framework at all, handed to cmake
+# below either way rather than only when it is off.
+#
+# Off by default: the backend is built wherever the framework is there. Turned
+# on where the framework was refused at the question, so that the sentence
+# above is what actually happens: without it the search still finds a framework
+# that is installed under a name this script does not know, and the run would
+# say one thing and build another.
+#
+# Passed on every run because cmake remembers it. A run that left it out would
+# inherit the answer of the run before it, and a refusal once given would keep
+# the backend out of every later build in the same directory.
+DISABLE_KDE_LOOKUP=OFF
+
 if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
     echo
     # The one question a run with nobody at the keyboard still answers with
@@ -160,6 +174,7 @@ if [ "${#MISSING[@]}" -ne 0 ] || [ "${#MISSING_OPTIONAL[@]}" -ne 0 ]; then
             fail "Nothing to build with."
             exit 1
         fi
+        DISABLE_KDE_LOOKUP=ON
         warn "Left out: ${MISSING_OPTIONAL[*]}." "${WITHOUT_KDE[@]}"
         ok "carrying on"
     else
@@ -188,7 +203,8 @@ fi
 step "Building"
 # Ninja rather than the default generator: it is in the list above, so it is
 # there, and it does not rely on make being on a minimal machine.
-cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_DISABLE_FIND_PACKAGE_KF6Config="$DISABLE_KDE_LOOKUP"
 cmake --build "$BUILD_DIR" -j"$(nproc)"
 ok "built"
 
