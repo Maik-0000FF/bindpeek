@@ -296,6 +296,11 @@ Rectangle {
     readonly property int maxContentWidth: panel.maxWidth - panel.inset * 2
     readonly property int maxContentHeight: panel.maxHeight - panel.inset * 2
 
+    // Stands in for "no bound at all", where an extent has to be given and
+    // there is nothing yet to bound it by. Past any display, so a wrap
+    // measured against it never triggers.
+    readonly property int unbounded: 1 << 20
+
     implicitWidth: content.width + panel.inset * 2
     implicitHeight: content.height + panel.inset * 2
 
@@ -455,6 +460,8 @@ Rectangle {
                         }
 
                         Text {
+                            id: groupName
+
                             text: groupCard.modelData.name
                             color: panel.theme.accent
                             font.family: panel.theme.fontFamily
@@ -464,120 +471,181 @@ Rectangle {
                             Layout.maximumWidth: panel.theme.columnShortcut + panel.theme.columnDescription
                         }
 
-                        Repeater {
-                            model: groupCard.modelData.entries
+                        // The wrap inside one group, which is what a list that arrives
+                        // as a single group needs: a compositor that hands its binds
+                        // out ungrouped answers with one card, and the wrap between
+                        // cards has nothing to wrap. The column would then stand as
+                        // tall as the whole list, which along the top or bottom edge is
+                        // a panel the height of the screen.
+                        //
+                        // The same two boxes as above, and for the same reason: the
+                        // Flow wraps against a height taken from the panel's own bound,
+                        // and this item takes up as much as the wrap actually used.
+                        // Letting it wrap against the room the layout gives it is the
+                        // loop the outer one describes.
+                        //
+                        // The width is one gutter short of what the wrap measured:
+                        // every row carries a gutter on its right, including the rows
+                        // of the last column, and that one is not part of the card.
+                        Item {
+                            id: entryBox
 
-                            // A row that still wants another modifier is not the
-                            // one the next key fires, and it says so twice: the
-                            // keys it is missing stand in front of its own, and
-                            // it is set in the plain text colour rather than the
-                            // brand one. It stays in the list rather than being
-                            // hidden: that it is there at all is the answer to
-                            // "is there more under this hand".
-                            delegate: ColumnLayout {
-                                id: entryBlock
-                                required property var modelData
-                                required property int index
+                            // What is left for the rows once the heading has had its
+                            // share. Zero while nothing is known about the room, which
+                            // is what the bound below reads as "do not wrap at all".
+                            readonly property int roomForEntries: Math.max(0, shortcutBox.roomForFlow - groupName.height - groupCard.spacing)
 
-                                // The first row of a run of shortcuts belonging
-                                // to the same combination. The entries arrive
-                                // sorted by exactly that, so a run is found by
-                                // comparing with the row above rather than by
-                                // regrouping. The first row of a group opens
-                                // one as well: the combination that fires now
-                                // is a segment like any other.
-                                readonly property bool opensSection: entryBlock.index === 0 || groupCard.modelData.entries[entryBlock.index - 1].section !== entryBlock.modelData.section
+                            // The height a column may reach before the next row starts
+                            // a new one.
+                            //
+                            // Where the room is not known yet the wrap is off, and
+                            // deliberately so: a bound of nothing would give every row
+                            // a column of its own and ask the compositor for a surface
+                            // as wide as the whole list laid end to end. One tall
+                            // column is the panel as it was before the wrap, which is
+                            // the safe answer while the room is still being worked out.
+                            readonly property int columnHeight: entryBox.roomForEntries > 0 ? entryBox.roomForEntries : panel.unbounded
 
+                            Layout.preferredWidth: Math.min(Math.max(0, entryFlow.implicitWidth - panel.theme.gutterWrap), panel.maxContentWidth)
+                            Layout.preferredHeight: Math.min(entryFlow.implicitHeight, entryBox.columnHeight)
+
+                            Flow {
+                                id: entryFlow
+
+                                // Down the column and into the next one, in both shapes
+                                // of panel: the height is the scarce extent either way,
+                                // because the wrap between cards has already taken the
+                                // width it needed.
+                                flow: Flow.TopToBottom
                                 spacing: panel.theme.spacingRow
+                                width: panel.maxContentWidth
+                                height: entryBox.columnHeight
 
-                                // The combination this segment belongs to, one
-                                // key cap per modifier, drawn the way they sit
-                                // on the keyboard rather than written out as a
-                                // line of text. Every cap is marked: the ones
-                                // already held and the one still to press are
-                                // the same kind of thing, a key.
-                                //
-                                // The segment heading belongs to what follows
-                                // it, not to the row above, hence the margin
-                                // on top rather than below.
-                                RowLayout {
-                                    visible: panel.deeperInSections && entryBlock.opensSection
-                                    spacing: panel.theme.spacingRow
-                                    Layout.topMargin: panel.theme.spacingGroup
+                                Repeater {
+                                    model: groupCard.modelData.entries
 
-                                    Repeater {
-                                        model: entryBlock.modelData.caps
+                                    // A row that still wants another modifier is not
+                                    // the one the next key fires, and it says so twice:
+                                    // the keys it is missing stand in front of its own,
+                                    // and it is set in the plain text colour rather
+                                    // than the brand one. It stays in the list rather
+                                    // than being hidden: that it is there at all is the
+                                    // answer to "is there more under this hand".
+                                    delegate: ColumnLayout {
+                                        id: entryBlock
+                                        required property var modelData
+                                        required property int index
 
-                                        delegate: Rectangle {
-                                            id: keyCap
-                                            required property string modelData
+                                        // The first row of a run of shortcuts belonging
+                                        // to the same combination. The entries arrive
+                                        // sorted by exactly that, so a run is found by
+                                        // comparing with the row above rather than by
+                                        // regrouping. The first row of a group opens
+                                        // one as well: the combination that fires now
+                                        // is a segment like any other.
+                                        readonly property bool opensSection: entryBlock.index === 0 || groupCard.modelData.entries[entryBlock.index - 1].section !== entryBlock.modelData.section
 
-                                            implicitWidth: capLabel.implicitWidth + panel.theme.paddingPill * 2
-                                            implicitHeight: capLabel.implicitHeight + panel.theme.paddingPill
-                                            radius: panel.theme.radiusPill
-                                            color: panel.theme.surfaceHover
-                                            border.color: panel.theme.brand
-                                            border.width: panel.theme.borderWidthKey
+                                        spacing: panel.theme.spacingRow
 
-                                            Text {
-                                                id: capLabel
-                                                anchors.centerIn: parent
-                                                text: keyCap.modelData
-                                                color: panel.theme.brand
-                                                font.family: panel.theme.fontFamilyMono
-                                                font.pixelSize: panel.theme.fontSizeGroup
-                                                font.weight: Font.DemiBold
+                                        // The combination this segment belongs to, one
+                                        // key cap per modifier, drawn the way they sit
+                                        // on the keyboard rather than written out as a
+                                        // line of text. Every cap is marked: the ones
+                                        // already held and the one still to press are
+                                        // the same kind of thing, a key.
+                                        //
+                                        // The segment heading belongs to what follows
+                                        // it, not to the row above, hence the margin on
+                                        // top rather than below.
+                                        RowLayout {
+                                            visible: panel.deeperInSections && entryBlock.opensSection
+                                            spacing: panel.theme.spacingRow
+                                            Layout.topMargin: panel.theme.spacingGroup
+                                            // The gap to a wrapped column, carried by
+                                            // every row that can be the widest one in
+                                            // its column; see Theme.gutterWrap.
+                                            Layout.rightMargin: panel.theme.gutterWrap
+
+                                            Repeater {
+                                                model: entryBlock.modelData.caps
+
+                                                delegate: Rectangle {
+                                                    id: keyCap
+                                                    required property string modelData
+
+                                                    implicitWidth: capLabel.implicitWidth + panel.theme.paddingPill * 2
+                                                    implicitHeight: capLabel.implicitHeight + panel.theme.paddingPill
+                                                    radius: panel.theme.radiusPill
+                                                    color: panel.theme.surfaceHover
+                                                    border.color: panel.theme.brand
+                                                    border.width: panel.theme.borderWidthKey
+
+                                                    Text {
+                                                        id: capLabel
+                                                        anchors.centerIn: parent
+                                                        text: keyCap.modelData
+                                                        color: panel.theme.brand
+                                                        font.family: panel.theme.fontFamilyMono
+                                                        font.pixelSize: panel.theme.fontSizeGroup
+                                                        font.weight: Font.DemiBold
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
-                                }
 
-                                RowLayout {
-                                    id: entryRow
+                                        RowLayout {
+                                            id: entryRow
 
-                                    spacing: panel.theme.spacingColumn
+                                            spacing: panel.theme.spacingColumn
+                                            // See Theme.gutterWrap: the row carries the
+                                            // distance its column keeps from the one
+                                            // wrapped next to it.
+                                            Layout.rightMargin: panel.theme.gutterWrap
 
-                                    Text {
-                                        // Capped, so one absurdly long combination
-                                        // cannot push the descriptions off the
-                                        // panel; it is elided instead.
-                                        Layout.preferredWidth: Math.min(shortcutMetrics.width, panel.theme.columnShortcut)
-                                        // Under a segment heading the caps
-                                        // above already name the modifiers, so
-                                        // the row is the key alone. Without
-                                        // one it carries them itself.
-                                        text: panel.deeperInSections ? entryBlock.modelData.key : entryBlock.modelData.shortcut
-                                        // Colour, not weight: the shortcut
-                                        // that fires on the next key carries
-                                        // the brand colour, the ones further
-                                        // off are set plainly.
-                                        //
-                                        // Dimming was the obvious way and the
-                                        // wrong one. It can only lower
-                                        // contrast, and measured against the
-                                        // palettes here it pushes this column
-                                        // under 4.5:1 on six of them, while
-                                        // three carry a brand colour that sits
-                                        // below that undimmed anyway. What is
-                                        // one key further on would then be the
-                                        // least readable thing on the panel.
-                                        color: entryBlock.modelData.deeper ? panel.theme.text : panel.theme.brand
-                                        font.family: panel.theme.fontFamilyMono
-                                        font.pixelSize: panel.theme.fontSizeBody
-                                        elide: Text.ElideRight
-                                    }
+                                            Text {
+                                                // Capped, so one absurdly long
+                                                // combination cannot push the
+                                                // descriptions off the panel; it is
+                                                // elided instead.
+                                                Layout.preferredWidth: Math.min(shortcutMetrics.width, panel.theme.columnShortcut)
+                                                // Under a segment heading the caps
+                                                // above already name the modifiers, so
+                                                // the row is the key alone. Without one
+                                                // it carries them itself.
+                                                text: panel.deeperInSections ? entryBlock.modelData.key : entryBlock.modelData.shortcut
+                                                // Colour, not weight: the shortcut that
+                                                // fires on the next key carries the
+                                                // brand colour, the ones further off
+                                                // are set plainly.
+                                                //
+                                                // Dimming was the obvious way and the
+                                                // wrong one. It can only lower
+                                                // contrast, and measured against the
+                                                // palettes here it pushes this column
+                                                // under 4.5:1 on six of them, while
+                                                // three carry a brand colour that sits
+                                                // below that undimmed anyway. What is
+                                                // one key further on would then be the
+                                                // least readable thing on the panel.
+                                                color: entryBlock.modelData.deeper ? panel.theme.text : panel.theme.brand
+                                                font.family: panel.theme.fontFamilyMono
+                                                font.pixelSize: panel.theme.fontSizeBody
+                                                elide: Text.ElideRight
+                                            }
 
-                                    Text {
-                                        // Only as wide as it needs, up to the cap:
-                                        // a short description leaves the panel
-                                        // narrow, a long one is elided rather than
-                                        // widening the whole table.
-                                        Layout.maximumWidth: panel.theme.columnDescription
-                                        text: entryBlock.modelData.description
-                                        color: panel.theme.text
-                                        font.family: panel.theme.fontFamily
-                                        font.pixelSize: panel.theme.fontSizeBody
-                                        elide: Text.ElideRight
+                                            Text {
+                                                // Only as wide as it needs, up to the
+                                                // cap: a short description leaves the
+                                                // panel narrow, a long one is elided
+                                                // rather than widening the whole table.
+                                                Layout.maximumWidth: panel.theme.columnDescription
+                                                text: entryBlock.modelData.description
+                                                color: panel.theme.text
+                                                font.family: panel.theme.fontFamily
+                                                font.pixelSize: panel.theme.fontSizeBody
+                                                elide: Text.ElideRight
+                                            }
+                                        }
                                     }
                                 }
                             }

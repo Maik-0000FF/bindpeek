@@ -334,6 +334,15 @@ QtObject {
     readonly property int spacingRow: Math.round(fontSizeBody * 0.45)
     readonly property int spacingColumn: Math.round(fontSizeBody * 0.85)
 
+    // What a row adds on its right where a group wraps into a further column.
+    //
+    // The wrap is a Flow, and a Flow holds its rows and its columns the same
+    // distance apart. The rows want the tight row gap, so the rest of the way
+    // up to the group gap is carried by the rows themselves. Two columns of
+    // one group then stand exactly as far apart as two groups side by side,
+    // which is what keeps the plate reading as one table.
+    readonly property int gutterWrap: spacingGroup - spacingRow
+
     readonly property int columnShortcut: Math.round(fontSizeBody * 10)
     readonly property int columnDescription: Math.round(fontSizeBody * 18.5)
 
