@@ -40,11 +40,14 @@ namespace {
 // without ever exercising what it is here for.
 constexpr int kAskedFontSizePt = 48;
 
-// How long the fitting is given before the test calls it stuck. Generously
-// over the tens of milliseconds it takes here, because a loaded runner is
-// slower than this machine and a test that fails on a busy afternoon is worse
-// than no test.
-constexpr int kFitBudgetMs = 10000;
+// How long the fitting is given before the test calls it stuck.
+//
+// Far over the second or so it takes here, and deliberately so: the same
+// steps run again under a sanitizer, where every layout costs several times
+// more, and a test that fails on a busy afternoon is worse than no test. A
+// fitting that does come to rest never waits this out, only one that is
+// genuinely stuck does.
+constexpr int kFitBudgetMs = 60000;
 
 // The gap between two looks at the panel. Half a round, so a round cannot pass
 // unseen between two samples.
@@ -320,8 +323,13 @@ void TestPanelLayout::warningWaitsForTheFit_data() {
 
     QTest::newRow("fits once the type has come down")
         << manyGroups(6, 14) << 1400 << 800 << false;
+    // Small lists against a small bound rather than a huge list against a
+    // large one: the stepping is what takes the time, one point a round from
+    // the size asked for down to the floor, and every row of every group is
+    // laid out again on each of them. A list eight times the size answers the
+    // same question and takes eight times as long to do it.
     QTest::newRow("does not fit even at the floor")
-        << manyGroups(40, 30) << 500 << 260 << true;
+        << manyGroups(12, 12) << 320 << 160 << true;
 }
 
 // The line at the foot waits for the fitting.
