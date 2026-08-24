@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Maik-0000FF
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# What runs on every push: the two programs are built and tested in a container
-# of each supported distribution, the install and uninstall scripts are run
-# through end to end as a person would run them, the suite runs again under the
-# address and behaviour sanitizers, and the gates that can be run locally are
-# run again here with the toolchain the flake pins.
+# What runs on a request, and on the two branches that are kept: the two
+# programs are built and tested in a container of each supported distribution,
+# the install and uninstall scripts are run through end to end as a person
+# would run them, the suite runs again under the address and behaviour
+# sanitizers, and the gates that can be run locally are run again here with the
+# toolchain the flake pins.
 #
 # The point of the distribution containers is the package names. They exist in
 # one place, scripts/_packages.sh, and the lanes below install exactly that
@@ -19,8 +20,16 @@
 name: CI
 
 on:
+  # The branches that are kept on a push, everything else through its request.
+  #
+  # Both at once ran every lane twice for a branch that had a request open:
+  # the two are separate events and, by the group below, do not take each
+  # other away. The request is the more useful of the two, because it answers
+  # for what the merge would be rather than for the branch alone, and nothing
+  # reaches main or dev without one. A push to those two still answers, which
+  # is what leaves a record that the commit now standing there was good.
   push:
-    branches: ['**']
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
   schedule:
