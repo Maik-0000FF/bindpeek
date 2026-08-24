@@ -524,6 +524,10 @@ Rectangle {
         Text {
             id: warningText
 
+            // Named so a test can find this one item in the tree. Nothing in
+            // the program reads it.
+            objectName: "overflowWarning"
+
             Layout.fillWidth: true
             visible: shortcutFlow.overflows && panel.fitSettled
             text: qsTr("More than fits here. Press another modifier to narrow it down.")
