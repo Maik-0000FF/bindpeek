@@ -264,9 +264,18 @@ ColumnLayout {
         // answers with a fraction forty times out of forty. What rounds is the
         // layout around it, which came back whole forty times out of forty,
         // and what is counted here are those layouts and never the text
-        // itself. Were one ever fractional, the card would come out a few
-        // pixels wider than its share, and the panel would answer that the way
-        // it answers any overflow, by taking the type down. Slack against that
+        // itself.
+        //
+        // The fraction is not to be seen at naturalWidth, an int property, or
+        // at the run widths taken from it, which come out whole whatever the
+        // layout did. Nor at runHeading.implicitWidth or at the implicitWidth
+        // of a row: those are the layouts, and that they come back whole is
+        // the point. It shows on the raw Text inside a row, and on a key cap,
+        // which is a Rectangle and not a layout.
+        //
+        // Were one ever fractional, the card would come out a few pixels
+        // wider than its share, and the panel would answer that the way it
+        // answers any overflow, by taking the type down. Slack against that
         // would be a number nobody could name.
         var allowed = Math.max(1, Math.floor((card.widthShare + gap + card.theme.gutterWrap) / (widest + gap)));
         if (allowed === 1)
@@ -504,7 +513,16 @@ ColumnLayout {
                                     theme: card.theme
                                     entry: entryDelegate.modelData
                                     showsKeyOnly: card.showsKeyOnly
-                                    shortcutWidth: Math.min(shortcutMetrics.width, card.theme.columnShortcut)
+                                    // The advance the text moves by, not the
+                                    // ink it puts down. The two differ by up
+                                    // to a pixel or two, either way, and where
+                                    // the ink is the narrower of the two the
+                                    // column comes out too narrow for the very
+                                    // text it was measured from, which then
+                                    // elides its own last character. Rounded
+                                    // up rather than cut, because the property
+                                    // it lands in is an int.
+                                    shortcutWidth: Math.min(Math.ceil(shortcutMetrics.advanceWidth), card.theme.columnShortcut)
                                 }
                             }
                         }
