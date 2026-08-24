@@ -330,12 +330,12 @@
 <context>
     <name>PanelBody</name>
     <message>
-        <location filename="../src/PanelBody.qml" line="+493"/>
+        <location filename="../src/PanelBody.qml" line="+500"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
     <message>
-        <location line="+23"/>
+        <location line="+29"/>
         <source>More than fits here. Press another modifier to narrow it down.</source>
         <translation>Mehr als hier hineinpasst. Ein weiterer Modifier grenzt es ein.</translation>
     </message>
