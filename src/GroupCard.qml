@@ -514,12 +514,14 @@ ColumnLayout {
                                     entry: entryDelegate.modelData
                                     showsKeyOnly: card.showsKeyOnly
                                     // The advance the text moves by, not the
-                                    // ink it puts down. The two differ by a
-                                    // fraction, and a column measured from the
-                                    // ink comes out a shade too narrow for the
-                                    // very text it was measured from, which
-                                    // then elides its own last character.
-                                    // Rounded up for the same reason.
+                                    // ink it puts down. The two differ by up
+                                    // to a pixel or two, either way, and where
+                                    // the ink is the narrower of the two the
+                                    // column comes out too narrow for the very
+                                    // text it was measured from, which then
+                                    // elides its own last character. Rounded
+                                    // up rather than cut, because the property
+                                    // it lands in is an int.
                                     shortcutWidth: Math.min(Math.ceil(shortcutMetrics.advanceWidth), card.theme.columnShortcut)
                                 }
                             }
