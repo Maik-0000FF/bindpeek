@@ -31,6 +31,11 @@
         pkgs.kdePackages.kconfig
       ];
 
+      # Where the QML engine finds its modules. Needed twice: the dev shell runs
+      # from the build tree, and the sandboxed tests are not wrapped the way the
+      # installed programs are.
+      qmlImportPath = pkgs: "${pkgs.qt6.qtdeclarative}/lib/qt-6/qml";
+
       mkPkg =
         pkgs:
         pkgs.stdenv.mkDerivation {
@@ -60,7 +65,7 @@
           # without a font measures nothing at all, which would leave the
           # test either failing here or, worse, passing on zeroes.
           preCheck = ''
-            export QML2_IMPORT_PATH="${pkgs.qt6.qtdeclarative}/lib/qt-6/qml"
+            export QML2_IMPORT_PATH="${qmlImportPath pkgs}"
             export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
             export FONTCONFIG_FILE=${
               pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }
@@ -356,7 +361,7 @@
             shellHook = ''
               # QML runtime imports for build-tree runs. Installed binaries get
               # this baked in through wrapQtApps at packaging time.
-              export QML2_IMPORT_PATH="${pkgs.qt6.qtdeclarative}/lib/qt-6/qml''${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+              export QML2_IMPORT_PATH="${qmlImportPath pkgs}''${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
               export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
               # Layer-shell integration plugin, so the overlay becomes a real
               # layer surface regardless of what the system profile provides.
