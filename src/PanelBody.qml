@@ -417,10 +417,11 @@ Rectangle {
             // siblings depends on the table, so counting them is free of that.
             //
             // The line at the foot is the one exception and is reserved for
-            // whether it shows or not: it appears exactly when the wrap ran
-            // out of room, so asking whether it is visible would be asking the
-            // outcome of the very thing being measured. Reserving it costs one
-            // row of a panel that had room to spare, which is the cheaper
+            // whether it shows or not: it appears only where the wrap ran out
+            // of room, and now only once the fitting has come to rest as well,
+            // so asking whether it is visible would be asking the outcome of
+            // the very thing being measured, twice over. Reserving it costs
+            // one row of a panel that had room to spare, which is the cheaper
             // mistake by far.
             readonly property int roomForFlow: Math.max(0, panel.maxContentHeight - heading.height - warningText.implicitHeight - content.spacing * 2 - (messageText.visible ? messageText.height + content.spacing : 0) - (continuationRow.visible ? continuationRow.height + content.spacing : 0))
 
@@ -518,9 +519,8 @@ Rectangle {
         // And only once the type has come to rest. While a size is still being
         // searched for or stepped towards, the rows overflow by definition, so
         // a line saying so would be a verdict on a stage rather than on the
-        // answer. It would stand for as long as the fitting takes, ask for a
-        // modifier that nothing needs, and take a row of the very room it is
-        // reporting on.
+        // answer. It would stand for as long as the fitting takes and ask for
+        // a modifier that nothing needs.
         Text {
             id: warningText
 
