@@ -108,7 +108,19 @@ qt_add_translations(
   # A string whose source is gone is dropped rather than carried along as a
   # vanished entry. This target is the only thing that writes the catalogue, so
   # such an entry can never come back and is only noise in the next diff.
-  LUPDATE_OPTIONS -no-obsolete
+  #
+  # Line numbers are left out for the same reason, one step further. They said
+  # where a string stood, which moved whenever a line was inserted above it, so
+  # the gate that holds the catalogue against the source failed for changes
+  # that touched no string at all. Nothing reads them: a refresh matches on the
+  # English sentence and so does every check. The price is that Linguist can no
+  # longer jump to the place a string is written.
+  #
+  # The option has to be on every run, which holds for the same reason as the
+  # first paragraph above: nothing else writes the catalogue. lupdate offers
+  # to guess the setting from the file it is refreshing, but measured it does
+  # not, and a refresh without it writes every line number straight back.
+  LUPDATE_OPTIONS -no-obsolete -locations none
 )
 
 enable_testing()
