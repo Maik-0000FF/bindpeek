@@ -115,6 +115,12 @@ Rectangle {
     // too large for a moment.
     readonly property bool fitted: !fitsToBounds || (fit.phase !== fit.searching && fit.phase !== fit.confirming)
 
+    // Whether the type has come to rest, which is a narrower question than the
+    // one above: it is false while a size is being stepped towards as well.
+    // Read by the line at the foot, which says what did not fit and can only
+    // say it once there is nothing left to try.
+    readonly property bool fitSettled: !fitsToBounds || fit.phase === fit.idle
+
     // One layout round.
     //
     // The flow answers with the size it had before a change until the frame
@@ -508,11 +514,18 @@ Rectangle {
         // and a reader has no way of telling a list that ends from one that
         // was cut off; this line is the difference between the two. It costs a
         // row, which is why it only appears when there is something to report.
+        //
+        // And only once the type has come to rest. While a size is still being
+        // searched for or stepped towards, the rows overflow by definition, so
+        // a line saying so would be a verdict on a stage rather than on the
+        // answer. It would stand for as long as the fitting takes, ask for a
+        // modifier that nothing needs, and take a row of the very room it is
+        // reporting on.
         Text {
             id: warningText
 
             Layout.fillWidth: true
-            visible: shortcutFlow.overflows
+            visible: shortcutFlow.overflows && panel.fitSettled
             text: qsTr("More than fits here. Press another modifier to narrow it down.")
             color: panel.theme.warning
             font.family: panel.theme.fontFamily
