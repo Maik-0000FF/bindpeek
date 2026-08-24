@@ -264,9 +264,16 @@ ColumnLayout {
         // answers with a fraction forty times out of forty. What rounds is the
         // layout around it, which came back whole forty times out of forty,
         // and what is counted here are those layouts and never the text
-        // itself. Were one ever fractional, the card would come out a few
-        // pixels wider than its share, and the panel would answer that the way
-        // it answers any overflow, by taking the type down. Slack against that
+        // itself.
+        //
+        // The fraction is not to be seen at naturalWidth or at the run widths
+        // taken from it, which are int properties and come out whole whatever
+        // the layout did. It shows on runHeading.implicitWidth and on the
+        // implicitWidth of a row.
+        //
+        // Were one ever fractional, the card would come out a few pixels
+        // wider than its share, and the panel would answer that the way it
+        // answers any overflow, by taking the type down. Slack against that
         // would be a number nobody could name.
         var allowed = Math.max(1, Math.floor((card.widthShare + gap + card.theme.gutterWrap) / (widest + gap)));
         if (allowed === 1)
