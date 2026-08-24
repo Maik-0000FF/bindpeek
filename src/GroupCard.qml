@@ -266,10 +266,12 @@ ColumnLayout {
         // and what is counted here are those layouts and never the text
         // itself.
         //
-        // The fraction is not to be seen at naturalWidth or at the run widths
-        // taken from it, which are int properties and come out whole whatever
-        // the layout did. It shows on runHeading.implicitWidth and on the
-        // implicitWidth of a row.
+        // The fraction is not to be seen at naturalWidth, an int property, or
+        // at the run widths taken from it, which come out whole whatever the
+        // layout did. Nor at runHeading.implicitWidth or at the implicitWidth
+        // of a row: those are the layouts, and that they come back whole is
+        // the point. It shows on the raw Text inside a row, and on a key cap,
+        // which is a Rectangle and not a layout.
         //
         // Were one ever fractional, the card would come out a few pixels
         // wider than its share, and the panel would answer that the way it
