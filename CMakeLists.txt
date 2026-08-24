@@ -116,10 +116,10 @@ qt_add_translations(
   # English sentence and so does every check. The price is that Linguist can no
   # longer jump to the place a string is written.
   #
-  # The option has to be on every run, which is what the line above rests on:
-  # lupdate offers to guess the setting from the file it is refreshing, but
-  # measured it does not, and a refresh without it writes every line number
-  # straight back.
+  # The option has to be on every run, which holds for the same reason as the
+  # first paragraph above: nothing else writes the catalogue. lupdate offers
+  # to guess the setting from the file it is refreshing, but measured it does
+  # not, and a refresh without it writes every line number straight back.
   LUPDATE_OPTIONS -no-obsolete -locations none
 )
 
