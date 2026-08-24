@@ -504,7 +504,14 @@ ColumnLayout {
                                     theme: card.theme
                                     entry: entryDelegate.modelData
                                     showsKeyOnly: card.showsKeyOnly
-                                    shortcutWidth: Math.min(shortcutMetrics.width, card.theme.columnShortcut)
+                                    // The advance the text moves by, not the
+                                    // ink it puts down. The two differ by a
+                                    // fraction, and a column measured from the
+                                    // ink comes out a shade too narrow for the
+                                    // very text it was measured from, which
+                                    // then elides its own last character.
+                                    // Rounded up for the same reason.
+                                    shortcutWidth: Math.min(Math.ceil(shortcutMetrics.advanceWidth), card.theme.columnShortcut)
                                 }
                             }
                         }
