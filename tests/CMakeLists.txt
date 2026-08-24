@@ -112,3 +112,27 @@ target_include_directories(test_tray_wait
 target_link_libraries(test_tray_wait PRIVATE Qt6::Test)
 
 add_test(NAME tray_wait COMMAND test_tray_wait)
+
+# The panel itself, instantiated and measured. Appearance and the scheme reader
+# it holds are compiled in for the same reason as above: they are not in the
+# shared library. Quick comes along because this one needs a window, which is
+# why it is also the only test told to use the offscreen platform: it must run
+# where there is no display, and asking for one would fail the whole suite.
+add_executable(test_panel_layout
+  test_panel_layout.cpp
+  ${CMAKE_SOURCE_DIR}/src/Appearance.cpp
+  ${CMAKE_SOURCE_DIR}/src/SystemScheme.cpp
+)
+target_link_libraries(test_panel_layout PRIVATE bindpeek_sources Qt6::Gui
+                                                Qt6::DBus Qt6::Qml Qt6::Quick
+                                                Qt6::Test)
+# The QML is read from the source tree, so the test runs from any build
+# directory. Same path the contract test is handed.
+target_compile_definitions(test_panel_layout
+  PRIVATE BINDPEEK_SRC="${CMAKE_SOURCE_DIR}/src"
+)
+
+add_test(NAME panel_layout COMMAND test_panel_layout)
+set_tests_properties(panel_layout PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

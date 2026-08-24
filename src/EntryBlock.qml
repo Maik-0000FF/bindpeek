@@ -50,6 +50,10 @@ ColumnLayout {
         Layout.rightMargin: block.theme.gutterWrap
 
         Text {
+            // Named so a test can find this one item in the tree. Nothing in
+            // the program reads it.
+            objectName: "shortcutText"
+
             // The width the card measured, which is capped there so one
             // absurdly long combination cannot push the descriptions off the
             // panel; it is elided instead.
