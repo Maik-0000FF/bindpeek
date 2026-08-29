@@ -132,6 +132,16 @@ Rectangle {
     // match the refresh rate.
     readonly property int fitRoundMs: 16
 
+    // False while the object is still being put together.
+    //
+    // A literal is taken as the object is made, a binding only once it
+    // stands. Everything below that starts a round is therefore reachable
+    // before the theme handed in has been bound at all, which is nothing to
+    // measure against, and each round in that stretch is one the next throws
+    // away. So no size is looked for until everything has been set; the
+    // handler further down runs the one round that counts.
+    property bool made: false
+
     // The two ways to a size that fits.
     //
     // Out of sight, the range from the configured size down to the floor is
@@ -175,7 +185,7 @@ Rectangle {
     // Starts over, from the size that was asked for. Called for everything
     // that changes how much has to fit or how much room there is.
     function refit() {
-        if (!panel.fitsToBounds) {
+        if (!panel.made || !panel.fitsToBounds) {
             return;
         }
         if (panel.showing) {
@@ -196,7 +206,7 @@ Rectangle {
     // Ignored while anything else is under way, which would otherwise cut
     // that off halfway.
     function startAdjusting() {
-        if (!panel.fitsToBounds || fit.phase !== fit.idle) {
+        if (!panel.made || !panel.fitsToBounds || fit.phase !== fit.idle) {
             return;
         }
         fit.phase = fit.adjusting;
@@ -271,6 +281,18 @@ Rectangle {
     onShowContinuationsChanged: panel.refit()
     onFitsToBoundsChanged: panel.refit()
 
+    // The one round that counts, run when everything above has been set.
+    //
+    // Until here the handlers above have been holding back, so this is both
+    // the first size ever looked for and the only one looked for while the
+    // object is made, however the properties were written: a caller that
+    // spells every one of them as a literal gets its fit from here, and one
+    // that binds them all is no longer fitted once per binding.
+    Component.onCompleted: {
+        panel.made = true;
+        panel.refit();
+    }
+
     // A size that was just asked for is taken at once, in view or not.
     //
     // Everything else only ever lowers the type while the panel is being
@@ -280,7 +302,7 @@ Rectangle {
     // until the next gesture is a setting that appears to do nothing. Where
     // the new size does not fit, the step below takes it down again.
     function takeTheSizeAsked() {
-        if (!panel.fitsToBounds) {
+        if (!panel.made || !panel.fitsToBounds) {
             return;
         }
         if (!panel.showing) {
