@@ -151,6 +151,12 @@ namespace {
 // That is how both places that draw it do it, the overlay and the preview in
 // the settings window. The host carries a size of its own, because a panel
 // filling a host of nothing is a panel of nothing.
+//
+// One line is left open, and it is the one the two callers write differently:
+// the overlay knows its bound is a display and says so outright, the preview
+// hands one in. A literal is taken as the object is made and a binding only
+// once it stands, so which of the two it is decides how early the panel is
+// asked to measure. Both are spelled here rather than only the convenient one.
 constexpr char kHost[] = R"(
 import QtQuick
 
@@ -166,7 +172,7 @@ Item {
         objectName: "panel"
         anchors.fill: parent
         theme: hostTheme
-        fitsToBounds: Bench.fitsToBounds
+        fitsToBounds: %1
         showing: Bench.showing
         maxWidth: Bench.maxWidth
         maxHeight: Bench.maxHeight
@@ -175,6 +181,44 @@ Item {
     }
 }
 )";
+
+// How the two callers spell it; see kHost.
+const QString kBoundAsBinding = QStringLiteral("Bench.fitsToBounds");
+const QString kBoundAsLiteral = QStringLiteral("true");
+
+// Whether the fitting has come to rest at a size it actually looked for.
+//
+// Asking the panel alone is not enough. The flow answers with no size at all
+// until the first layout has run, so nothing overflows yet, and a search whose
+// try and confirmation both fall before that first frame comes to rest on the
+// size that was configured. The panel leaves that rest as soon as the overflow
+// shows itself, but a sample taken inside it reads as a fitting that is over,
+// which is a race against the first frame rather than a fitting to measure.
+//
+// The size is what both callers go on to ask about anyway, so requiring it
+// here costs nothing and cannot answer with the wrong rest.
+bool cameToRest(QQuickItem *panel, QObject *theme) {
+    return panel->property("fitSettled").toBool() &&
+           theme->property("fontSizePt").toInt() <
+               theme->property("configuredFontSizePt").toInt();
+}
+
+// Everything QML said while a panel was being made.
+//
+// A warning is not a failure to QtTest, so a panel that reached for something
+// it did not have yet went on passing every test in this file while saying so
+// on the way past. Collected rather than counted, because a test that fails
+// has to be able to print what was said.
+QStringList g_said;
+QtMessageHandler g_saidBefore = nullptr;
+
+void collectWhatWasSaid(QtMsgType type, const QMessageLogContext &context,
+                        const QString &message) {
+    g_said.append(message);
+    if (g_saidBefore != nullptr) {
+        g_saidBefore(type, context, message);
+    }
+}
 
 } // namespace
 
@@ -186,11 +230,13 @@ private slots:
     void shortcutColumnHoldsItsText();
     void warningWaitsForTheFit_data();
     void warningWaitsForTheFit();
+    void aLiteralBoundStillGetsItsFit();
 
 private:
     // Puts a panel measured against the bench on an offscreen window. Returns
     // the panel, or nullptr with the failure already reported.
-    QQuickItem *showPanel(QQuickView &view, Bench &bench);
+    QQuickItem *showPanel(QQuickView &view, Bench &bench,
+                          const QString &boundAs = kBoundAsBinding);
 
     QTemporaryDir m_home;
     std::unique_ptr<Settings> m_settings;
@@ -217,7 +263,8 @@ void TestPanelLayout::initTestCase() {
     m_appearance = std::make_unique<Appearance>(*m_settings, m_scheme.get());
 }
 
-QQuickItem *TestPanelLayout::showPanel(QQuickView &view, Bench &bench) {
+QQuickItem *TestPanelLayout::showPanel(QQuickView &view, Bench &bench,
+                                       const QString &boundAs) {
     view.engine()->rootContext()->setContextProperty(
         QStringLiteral("Appearance"), m_appearance.get());
     view.engine()->rootContext()->setContextProperty(QStringLiteral("Bench"),
@@ -228,7 +275,7 @@ QQuickItem *TestPanelLayout::showPanel(QQuickView &view, Bench &bench) {
     const QUrl base = QUrl::fromLocalFile(QStringLiteral(BINDPEEK_SRC) +
                                           QStringLiteral("/bench.qml"));
     auto *host = new QQmlComponent(view.engine(), &view);
-    host->setData(QByteArray(kHost), base);
+    host->setData(QString::fromLatin1(kHost).arg(boundAs).toUtf8(), base);
     if (host->isError()) {
         QTest::qFail(qPrintable(host->errorString()), __FILE__, __LINE__);
         return nullptr;
@@ -367,7 +414,7 @@ void TestPanelLayout::warningWaitsForTheFit() {
     bool settled = false;
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
-        settled = panel->property("fitSettled").toBool();
+        settled = cameToRest(panel, theme);
         if (!settled && warning->property("visible").toBool()) {
             ++stoodTooEarly;
         }
@@ -376,20 +423,67 @@ void TestPanelLayout::warningWaitsForTheFit() {
         }
     }
 
-    QVERIFY2(settled, "the fitting never came to rest");
+    QVERIFY2(settled, "the fitting never came to rest at a size it looked for");
     QCOMPARE(stoodTooEarly, 0);
 
-    // The type actually came down, so the samples above looked at a fitting
-    // that ran rather than at one that was over before it began.
+    // The type came down on the way, which the wait above already required:
+    // the samples looked at a fitting that ran rather than at one that was
+    // over before it began.
     const int asked = theme->property("configuredFontSizePt").toInt();
     const int settledAt = theme->property("fontSizePt").toInt();
     QCOMPARE(asked, kAskedFontSizePt);
-    QVERIFY2(settledAt < asked, "nothing was stepped down");
 
     QCOMPARE(warning->property("visible").toBool(), standsAtRest);
     if (standsAtRest) {
         QCOMPARE(settledAt, theme->property("minFontSizePt").toInt());
     }
+}
+
+// A bound spelled outright still gets its fit, and gets it quietly.
+//
+// The overlay writes its bound as a literal, and a literal is taken while the
+// object is being made, before the theme handed in has been bound to anything.
+// The panel started measuring right there and read the theme through it: a
+// TypeError at every start, and the round that threw it lost with it. What
+// kept that out of sight for so long is that a binding further down the same
+// document started the search over a moment later, so the panel came out
+// right and complained on the way.
+void TestPanelLayout::aLiteralBoundStillGetsItsFit() {
+    // Out of sight and bounded, which is the searching path the overlay takes
+    // before a panel is ever drawn.
+    Bench bench(manyGroups(6, 14), 1400, 800, true, false);
+
+    g_said.clear();
+    g_saidBefore = qInstallMessageHandler(collectWhatWasSaid);
+    QQuickView view;
+    QQuickItem *panel = showPanel(view, bench, kBoundAsLiteral);
+    qInstallMessageHandler(g_saidBefore);
+    g_saidBefore = nullptr;
+    QVERIFY(panel != nullptr);
+
+    const QStringList complaints =
+        g_said.filter(QStringLiteral("PanelBody.qml"));
+    QVERIFY2(complaints.isEmpty(),
+             qPrintable(QStringLiteral("said while the panel was made:\n") +
+                        complaints.join(QLatin1Char('\n'))));
+
+    // And it did look for a size, so the quiet above is not the quiet of a
+    // panel that never measured at all: the rest waited for below is one the
+    // type had to come down to reach.
+    QObject *theme = panel->property("theme").value<QObject *>();
+    QVERIFY(theme != nullptr);
+
+    QElapsedTimer clock;
+    clock.start();
+    bool settled = false;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        settled = cameToRest(panel, theme);
+        if (settled) {
+            break;
+        }
+    }
+    QVERIFY2(settled, "the fitting never came to rest at a size it looked for");
 }
 
 QTEST_MAIN(TestPanelLayout)
