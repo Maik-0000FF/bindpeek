@@ -42,9 +42,11 @@ on:
   # answers for the head of that branch and never for a merge, so a request
   # whose base has moved under it is not what this is for.
   #
-  # Offered only once this stands on the default branch, which is where GitHub
-  # reads the trigger from and nowhere else: the button and the endpoint appear
-  # after the next squash onto main, not with this commit.
+  # Offered once the default branch carries this trigger, which is what puts
+  # the button and the endpoint there at all, and run only for a branch whose
+  # own copy carries it too, because the run is read from the branch asked
+  # for. Both fall into place with the next squash onto main; a branch cut
+  # before that one has to catch up first.
   workflow_dispatch:
 
 permissions:
