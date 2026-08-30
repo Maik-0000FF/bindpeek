@@ -664,10 +664,24 @@ void TestPanelLayout::aSizeOnItsWayHoldsTheWalk() {
     QCOMPARE(warning->property("visible").toBool(), false);
 
     // Dropped: the walk that was held back runs.
+    //
+    // Waited for by what it is rather than for a length of time: the type has
+    // moved and nothing has come to rest, which is the middle of a walk on any
+    // machine. A fixed wait would be a guess about the font this one happens
+    // to have, and on a font that fits sooner the walk would be over by then.
+    bool walking = false;
+    QElapsedTimer walk;
+    walk.start();
     bench.setAwaitsItsSize(false);
-    QTest::qWait(kHeldRoundsMs);
-    const int walked = theme->property("fontSizePt").toInt();
-    QVERIFY2(walked < asked, "the walk never ran once the wait was over");
+    while (walk.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        if (theme->property("fontSizePt").toInt() < asked &&
+            !panel->property("fitSettled").toBool()) {
+            walking = true;
+            break;
+        }
+    }
+    QVERIFY2(walking, "the walk never ran once the wait was over");
 
     // Held again in the middle of that walk, which is a further modifier under
     // a panel already coming down: what it was stepping towards answers the

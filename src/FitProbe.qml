@@ -40,10 +40,6 @@ Item {
     // that is coming at all is here long before this. What this is for is the
     // answer that never comes: whoever waits on it is holding the panel on
     // screen still, and a wait without an end would hold it there for good.
-    //
-    // Measured from when the search left its rest, not from each question put
-    // to it. A run of questions in quick succession is answered in between, so
-    // only a search that is genuinely stuck reaches the end of this.
     property int budgetMs: 500
 
     // Whether the caller should go on holding what it has.
@@ -59,13 +55,25 @@ Item {
     // told about is one the panel walks its way to instead.
     signal found(int size)
 
-    // Whether the budget ran out on the search now under way.
+    // Whether the searching has run past the budget without coming to rest.
+    //
+    // A watch over the resting, not a stopwatch per question. A question put
+    // while the search is still running does not clear this and does not start
+    // the count again: what a caller is waiting on is an answer, and a search
+    // that has not produced one in half a second is not about to.
+    //
+    // Cleared at the next rest, so the question after that is waited on again.
     property bool gaveUp: false
 
+    // Kept ticking rather than fired once, so that a search which never rests
+    // is caught however many questions pass through it. A Timer that has run
+    // out puts itself out, and the binding below would only notice at the next
+    // change of rest, which is the very thing that is not happening.
     Timer {
         id: budget
 
         interval: probe.budgetMs
+        repeat: true
         running: !body.fitSettled
         onTriggered: probe.gaveUp = true
     }
