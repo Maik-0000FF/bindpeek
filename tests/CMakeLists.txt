@@ -136,16 +136,20 @@ add_test(NAME panel_layout COMMAND test_panel_layout)
 # A ceiling of its own, because this one waits rather than computes.
 #
 # Every wait in it gives a fitting a minute before calling it stuck, and twelve
-# of them run: ten written, and two of those run twice over, once per row of
-# the case that is fed a table. A run in which nothing ever rests therefore
-# takes twelve minutes and then says which fitting hung, which is the useful
-# half of the twenty-five the default would let it sit there.
+# of them run: ten are written, one of those is reached from two cases, and one
+# more sits in a case that is fed two rows of a table. A run in which nothing
+# ever rests would therefore spend twelve minutes waiting.
 #
-# So the ceiling is above that sum rather than on it. Cut at twelve minutes,
-# the worst run would die in the middle of the last wait and print nothing at
-# all, which is the one outcome this is meant to prevent. A passing run costs
-# eight seconds here and a small multiple of that under a sanitizer.
+# The ceiling is under that sum on purpose. Measured, a run cut short is not a
+# run lost: the verdicts already reached are on the way out line by line, and
+# killing the binary outright leaves every one of them behind. Ten minutes
+# therefore costs the last wait or two and keeps everything before it, which is
+# what names the fitting that hung.
+#
+# Not higher, because the lane this runs in is given thirty minutes for the
+# packages, the build and the suite together. A ceiling near that is one the
+# lane reaches first, and a lane taken away mid-run prints nothing at all.
 set_tests_properties(panel_layout PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-  TIMEOUT 900
+  TIMEOUT 600
 )
