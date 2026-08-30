@@ -53,6 +53,13 @@ constexpr int kFitBudgetMs = 60000;
 // unseen between two samples.
 constexpr int kSampleMs = 8;
 
+// How long a panel that is holding its size is watched.
+//
+// Twenty-five rounds. The walk this stands in for takes the type down a point
+// a round, so a walk that ran at all would be visible many times over by the
+// end of it.
+constexpr int kHeldRoundsMs = 400;
+
 // Everything under an item that carries the name, gathered down the visual
 // tree rather than the object tree.
 //
@@ -128,13 +135,32 @@ class Bench : public QObject {
     Q_PROPERTY(int maxHeight MEMBER m_maxHeight CONSTANT)
     Q_PROPERTY(bool fitsToBounds MEMBER m_fitsToBounds CONSTANT)
     Q_PROPERTY(bool showing MEMBER m_showing CONSTANT)
+    // The one input here that changes after the document stands, because the
+    // thing it describes is a wait: it is set before anything is built and
+    // dropped once the answer is in, and a test that could not drop it could
+    // only ever look at the waiting half.
+    Q_PROPERTY(bool awaitsItsSize READ awaitsItsSize WRITE setAwaitsItsSize
+                   NOTIFY awaitsItsSizeChanged)
 
 public:
     Bench(QVariantList groups, int maxWidth, int maxHeight, bool fitsToBounds,
-          bool showing)
+          bool showing, bool awaitsItsSize = false)
         : m_groups(std::move(groups)), m_maxWidth(maxWidth),
           m_maxHeight(maxHeight), m_fitsToBounds(fitsToBounds),
-          m_showing(showing) {}
+          m_showing(showing), m_awaitsItsSize(awaitsItsSize) {}
+
+    bool awaitsItsSize() const { return m_awaitsItsSize; }
+
+    void setAwaitsItsSize(bool value) {
+        if (m_awaitsItsSize == value) {
+            return;
+        }
+        m_awaitsItsSize = value;
+        emit awaitsItsSizeChanged();
+    }
+
+signals:
+    void awaitsItsSizeChanged();
 
 private:
     QVariantList m_groups;
@@ -142,6 +168,7 @@ private:
     int m_maxHeight;
     bool m_fitsToBounds;
     bool m_showing;
+    bool m_awaitsItsSize;
 };
 
 namespace {
@@ -174,6 +201,7 @@ Item {
         theme: hostTheme
         fitsToBounds: %1
         showing: Bench.showing
+        awaitsItsSize: Bench.awaitsItsSize
         maxWidth: Bench.maxWidth
         maxHeight: Bench.maxHeight
         heldText: "SUPER"
@@ -182,9 +210,51 @@ Item {
 }
 )";
 
+// The same panel with the probe beside it, which is how the overlay draws it.
+//
+// The probe reads everything that decides a size off the panel it answers for,
+// so there is one wiring here and not two; see FitProbe.qml.
+constexpr char kProbeHost[] = R"(
+import QtQuick
+
+Item {
+    width: Bench.maxWidth
+    height: Bench.maxHeight
+
+    Theme {
+        id: hostTheme
+    }
+
+    PanelBody {
+        id: panel
+        objectName: "panel"
+        anchors.fill: parent
+        theme: hostTheme
+        fitsToBounds: %1
+        showing: Bench.showing
+        awaitsItsSize: Bench.awaitsItsSize
+        maxWidth: Bench.maxWidth
+        maxHeight: Bench.maxHeight
+        heldText: "SUPER"
+        groups: Bench.groups
+    }
+
+    FitProbe {
+        objectName: "probe"
+        anchors.fill: parent
+        like: panel
+        screenWidth: hostTheme.screenWidth
+        screenHeight: hostTheme.screenHeight
+    }
+}
+)";
+
 // How the two callers spell it; see kHost.
 const QString kBoundAsBinding = QStringLiteral("Bench.fitsToBounds");
 const QString kBoundAsLiteral = QStringLiteral("true");
+// A panel that never fits itself, which is how the probe is asked about on its
+// own: whatever moves in the theme then moved because of the probe.
+const QString kBoundAsOff = QStringLiteral("false");
 
 // Whether the fitting has come to rest at a size it actually looked for.
 //
@@ -231,12 +301,15 @@ private slots:
     void warningWaitsForTheFit_data();
     void warningWaitsForTheFit();
     void aLiteralBoundStillGetsItsFit();
+    void theProbeAnswersWithoutTouchingThePanel();
+    void aSizeOnItsWayHoldsTheWalk();
 
 private:
     // Puts a panel measured against the bench on an offscreen window. Returns
     // the panel, or nullptr with the failure already reported.
     QQuickItem *showPanel(QQuickView &view, Bench &bench,
-                          const QString &boundAs = kBoundAsBinding);
+                          const QString &boundAs = kBoundAsBinding,
+                          const char *document = kHost);
 
     QTemporaryDir m_home;
     std::unique_ptr<Settings> m_settings;
@@ -264,7 +337,8 @@ void TestPanelLayout::initTestCase() {
 }
 
 QQuickItem *TestPanelLayout::showPanel(QQuickView &view, Bench &bench,
-                                       const QString &boundAs) {
+                                       const QString &boundAs,
+                                       const char *document) {
     view.engine()->rootContext()->setContextProperty(
         QStringLiteral("Appearance"), m_appearance.get());
     view.engine()->rootContext()->setContextProperty(QStringLiteral("Bench"),
@@ -275,7 +349,7 @@ QQuickItem *TestPanelLayout::showPanel(QQuickView &view, Bench &bench,
     const QUrl base = QUrl::fromLocalFile(QStringLiteral(BINDPEEK_SRC) +
                                           QStringLiteral("/bench.qml"));
     auto *host = new QQmlComponent(view.engine(), &view);
-    host->setData(QString::fromLatin1(kHost).arg(boundAs).toUtf8(), base);
+    host->setData(QString::fromLatin1(document).arg(boundAs).toUtf8(), base);
     if (host->isError()) {
         QTest::qFail(qPrintable(host->errorString()), __FILE__, __LINE__);
         return nullptr;
@@ -484,6 +558,103 @@ void TestPanelLayout::aLiteralBoundStillGetsItsFit() {
         }
     }
     QVERIFY2(settled, "the fitting never came to rest at a size it looked for");
+}
+
+// The size is worked out beside the panel, never in it.
+//
+// The panel here is told not to fit itself, so the theme it draws from stands
+// at the size that was configured and stays there. The probe measures the same
+// list against the same bound in a theme of its own and comes back with a
+// smaller one. That number is the whole of what the panel on screen is later
+// handed, in place of walking down to it.
+void TestPanelLayout::theProbeAnswersWithoutTouchingThePanel() {
+    // Shown, and far more than fits: the case where the panel would otherwise
+    // take its type down a point at a time in front of the reader.
+    Bench bench(manyGroups(6, 14), 1400, 800, false, true);
+    QQuickView view;
+    QQuickItem *panel = showPanel(view, bench, kBoundAsOff, kProbeHost);
+    QVERIFY(panel != nullptr);
+
+    QObject *probe =
+        view.rootObject()->findChild<QObject *>(QStringLiteral("probe"));
+    QVERIFY(probe != nullptr);
+
+    QObject *theme = panel->property("theme").value<QObject *>();
+    QVERIFY(theme != nullptr);
+    const int asked = theme->property("configuredFontSizePt").toInt();
+    QCOMPARE(asked, kAskedFontSizePt);
+
+    // Waited for the same way the panel is; see cameToRest. The probe searches
+    // with the panel's own fitting, so it meets the same first frame: an
+    // answer that arrives before anything was laid out is the size it started
+    // from, and the overflow takes it down from there a moment later.
+    QElapsedTimer clock;
+    clock.start();
+    int size = 0;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        size = probe->property("size").toInt();
+        if (probe->property("answered").toBool() && size > 0 && size < asked) {
+            break;
+        }
+        size = 0;
+    }
+    QVERIFY2(size > 0, "the probe never answered with a size that fits");
+
+    // And it got there without moving the panel: whatever the search wrote, it
+    // wrote into a theme of its own.
+    QCOMPARE(theme->property("fontSizePt").toInt(), asked);
+}
+
+// A size on its way holds the walk.
+//
+// While the probe measures, the panel on screen is told a size is coming. It
+// then keeps the one it has: stepping towards the same number in the meantime
+// is the walk the answer is there to replace, and it would be walked in front
+// of somebody reading the panel.
+//
+// The wait is ended here without an answer, which is the case the panel has to
+// come out of on its own. The walk that was held back runs then, so a size
+// that never arrives costs what it always cost and nothing stands in a size
+// that does not fit.
+void TestPanelLayout::aSizeOnItsWayHoldsTheWalk() {
+    // Shown, bounded, and waiting on a size from elsewhere.
+    Bench bench(manyGroups(6, 14), 1400, 800, true, true, true);
+    QQuickView view;
+    QQuickItem *panel = showPanel(view, bench);
+    QVERIFY(panel != nullptr);
+
+    QObject *theme = panel->property("theme").value<QObject *>();
+    QVERIFY(theme != nullptr);
+    const int asked = theme->property("configuredFontSizePt").toInt();
+    QCOMPARE(asked, kAskedFontSizePt);
+
+    const QList<QQuickItem *> warnings =
+        itemsNamed(panel, QStringLiteral("overflowWarning"));
+    QCOMPARE(warnings.size(), 1);
+    QQuickItem *warning = warnings.first();
+
+    QTest::qWait(kHeldRoundsMs);
+    QCOMPARE(theme->property("fontSizePt").toInt(), asked);
+    // Nothing has come to rest either, so the line at the foot says nothing:
+    // the rows overflow for as long as the wait lasts, and a verdict there
+    // would be a verdict on the wait.
+    QCOMPARE(panel->property("fitSettled").toBool(), false);
+    QCOMPARE(warning->property("visible").toBool(), false);
+
+    bench.setAwaitsItsSize(false);
+
+    QElapsedTimer clock;
+    clock.start();
+    bool settled = false;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        settled = cameToRest(panel, theme);
+        if (settled) {
+            break;
+        }
+    }
+    QVERIFY2(settled, "the walk never ran once the wait was over");
 }
 
 QTEST_MAIN(TestPanelLayout)

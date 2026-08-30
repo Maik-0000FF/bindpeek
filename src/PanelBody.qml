@@ -106,6 +106,19 @@ Rectangle {
     // is made. Set by whoever draws it.
     property bool showing: false
 
+    // Whether a size for what is being shown now is on its way from elsewhere.
+    //
+    // Set by whoever draws it, while a panel off screen works the size out;
+    // see FitProbe.qml. This one then holds the size it has rather than
+    // stepping towards a new one, because the step and the answer are two
+    // routes to the same number and only one of them happens out of sight.
+    //
+    // Nothing is held for good. Whoever sets this drops it again when the
+    // answer comes or fails to come, and the overflow below still asks for the
+    // type to be taken down once it is dropped, so a size that never arrives
+    // costs the walk that used to happen anyway.
+    property bool awaitsItsSize: false
+
     // Whether there is a size worth drawing.
     //
     // False until the object stands, and while the search runs, and the search
@@ -120,10 +133,11 @@ Rectangle {
     readonly property bool fitted: !fitsToBounds || (fit.made && fit.phase !== fit.searching && fit.phase !== fit.confirming)
 
     // Whether the type has come to rest, which is a narrower question than the
-    // one above: it is false while a size is being stepped towards as well.
-    // Read by the line at the foot, which says what did not fit and can only
-    // say it once there is nothing left to try.
-    readonly property bool fitSettled: !fitsToBounds || (fit.made && fit.phase === fit.idle)
+    // one above: it is false while a size is being stepped towards as well,
+    // and while one is on its way from elsewhere. Read by the line at the foot,
+    // which says what did not fit and can only say it once there is nothing
+    // left to try.
+    readonly property bool fitSettled: !fitsToBounds || (fit.made && !awaitsItsSize && fit.phase === fit.idle)
 
     // One layout round.
     //
@@ -196,6 +210,11 @@ Rectangle {
             return;
         }
         if (panel.showing) {
+            // A size for this very list is being worked out off screen, so
+            // there is nothing to step towards: the answer replaces the walk.
+            if (panel.awaitsItsSize) {
+                return;
+            }
             fit.phase = fit.adjusting;
             fitRound.restart();
             return;
@@ -211,9 +230,11 @@ Rectangle {
 
     // Takes up a size that no longer fits while the panel is being read.
     // Ignored while anything else is under way, which would otherwise cut
-    // that off halfway.
+    // that off halfway, and while a size is on its way from elsewhere: the
+    // rows overflow for as long as that takes, and stepping on that would be
+    // the walk the answer is there to replace.
     function startAdjusting() {
-        if (!fit.made || !panel.fitsToBounds || fit.phase !== fit.idle) {
+        if (!fit.made || !panel.fitsToBounds || panel.awaitsItsSize || fit.phase !== fit.idle) {
             return;
         }
         fit.phase = fit.adjusting;
@@ -288,6 +309,16 @@ Rectangle {
     onShowContinuationsChanged: panel.refit()
     onFitsToBoundsChanged: panel.refit()
 
+    // The wait for a size from elsewhere is over, whatever came of it.
+    //
+    // Where an answer came, it is already in and nothing overflows, so this
+    // ends in the one round it takes to see that. Where none came, this is the
+    // walk that was held back, and the panel takes itself down as it always
+    // did rather than standing in a size that does not fit.
+    onAwaitsItsSizeChanged: if (!panel.awaitsItsSize) {
+        panel.startAdjusting();
+    }
+
     // The one round that counts, run when everything above has been set.
     //
     // Until here the handlers above have been holding back, so this is both
@@ -317,6 +348,12 @@ Rectangle {
             return;
         }
         panel.theme.fontSizePt = panel.theme.configuredFontSizePt;
+        // The size asked for is taken either way. Where one that fits is
+        // already on its way, it lands in a moment and there is nothing to
+        // step towards in the meantime.
+        if (panel.awaitsItsSize) {
+            return;
+        }
         fit.phase = fit.adjusting;
         fitRound.restart();
     }

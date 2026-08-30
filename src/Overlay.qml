@@ -88,6 +88,11 @@ Window {
         // searching for a size out of sight and stepping towards one in
         // plain view.
         showing: panel.opacity > 0
+        // While a combination is held, the size for the list now standing is
+        // worked out off screen instead of stepped towards in front of the
+        // reader; see FitProbe.qml. Held until that answer is in or given up
+        // on, and no longer.
+        awaitsItsSize: !probe.answered
         // The bound here is a display, so a size that does not fit it is
         // lowered until everything is on screen.
         fitsToBounds: true
@@ -112,5 +117,26 @@ Window {
         heldText: OverlayController.subtitle
         message: OverlayController.message
         groups: OverlayController.groups
+    }
+
+    // The same panel again, off screen, measured against the same output. It
+    // answers with the size the list now standing wants, and the panel above
+    // takes that size in one go rather than walking down to it.
+    //
+    // Only while the panel is being read. Before that it is out of sight
+    // anyway, where it searches for its own size and does it well: an answer
+    // handed to it there would land in the middle of that search and be
+    // measured as though it had chosen it.
+    FitProbe {
+        id: probe
+
+        anchors.fill: parent
+        like: panel
+        screenWidth: theme.screenWidth
+        screenHeight: theme.screenHeight
+
+        onAnsweredChanged: if (probe.answered && probe.size > 0 && panel.showing) {
+            theme.fontSizePt = probe.size;
+        }
     }
 }
