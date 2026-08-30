@@ -133,6 +133,15 @@ target_compile_definitions(test_panel_layout
 )
 
 add_test(NAME panel_layout COMMAND test_panel_layout)
+# A ceiling of its own, because this one waits rather than computes.
+#
+# Every case here gives a fitting a minute to come to rest before calling it
+# stuck, and there are several of them, so a run in which nothing rests takes
+# minutes and reports it. Under the default of twenty-five minutes such a run
+# would sit there long after it had said everything it has to say. Ten minutes
+# is far above what a passing run costs, here or under a sanitizer, and far
+# below the wait it replaces.
 set_tests_properties(panel_layout PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+  TIMEOUT 600
 )

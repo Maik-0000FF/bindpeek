@@ -899,17 +899,25 @@ void TestPanelLayout::theLineAtTheFootStandsFromTheFirstFrame() {
     QCOMPARE(warnings.size(), 1);
     QQuickItem *warning = warnings.first();
 
+    // Waited for the panel's own size and nothing else.
+    //
+    // `fitted` says the panel has a size of its own and says nothing about
+    // whom it may be holding for, and it is what decides that the panel is
+    // drawn at all, so this is the moment the overlay puts it on screen and
+    // the moment this case is about. Waiting for the panel to have settled
+    // instead would be a later one, because settling also waits on the probe
+    // beside it, and the question here is what the first frame carries.
     QElapsedTimer clock;
     clock.start();
-    bool settled = false;
+    bool ownSize = false;
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
-        settled = cameToRest(panel, theme);
-        if (settled) {
+        if (panel->property("fitted").toBool()) {
+            ownSize = true;
             break;
         }
     }
-    QVERIFY2(settled, "the fitting never came to rest out of sight");
+    QVERIFY2(ownSize, "the fitting never came down out of sight");
     QCOMPARE(theme->property("fontSizePt").toInt(),
              theme->property("minFontSizePt").toInt());
     QVERIFY2(warning->property("visible").toBool(),
