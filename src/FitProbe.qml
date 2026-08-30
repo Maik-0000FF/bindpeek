@@ -34,57 +34,58 @@ Item {
     property int screenWidth: 0
     property int screenHeight: 0
 
-    // How long an answer is waited for.
+    // How long a caller holds what it has before giving up on an answer.
     //
     // The search costs about five rounds and a round is 16 ms, so an answer
     // that is coming at all is here long before this. What this is for is the
     // answer that never comes: whoever waits on it is holding the panel on
     // screen still, and a wait without an end would hold it there for good.
+    //
+    // Measured from when the search left its rest, not from each question put
+    // to it. A run of questions in quick succession is answered in between, so
+    // only a search that is genuinely stuck reaches the end of this.
     property int budgetMs: 500
 
-    // Whether the question has been answered, one way or the other.
-    //
-    // True once the search has come to rest, and true as well once the budget
-    // above has run out, because a caller waiting on this needs to be let go
-    // either way. `size` says which of the two it was.
-    readonly property bool answered: body.fitSettled || probe.gaveUp
+    // Whether the caller should go on holding what it has.
+    readonly property bool waiting: !body.fitSettled && !probe.gaveUp
 
-    // The size that fits, or zero where no answer was reached in time.
-    readonly property int size: probe.gaveUp ? 0 : body.theme.fontSizePt
+    // The size the search came to rest at.
+    readonly property int size: body.theme.fontSizePt
 
-    // Whether the budget ran out on the question now standing.
+    // The same number, at the moment it is reached.
     //
-    // Held until the next question rather than dropped at the next rest. An
-    // answer that arrives after the wait was given up on is one the panel has
-    // already stepped past, and taking it then would put the type back up in
-    // front of the reader, which is the one direction a gesture never moves.
+    // A caller cannot wait on `waiting` alone. Where the budget ran out first,
+    // the wait is already over when the answer lands, and an answer nobody is
+    // told about is one the panel walks its way to instead.
+    signal found(int size)
+
+    // Whether the budget ran out on the search now under way.
     property bool gaveUp: false
 
     Timer {
         id: budget
 
         interval: probe.budgetMs
+        running: !body.fitSettled
         onTriggered: probe.gaveUp = true
     }
 
-    // A question is put whenever the search leaves its rest, and answered when
-    // it comes back to one. That is the whole of the state here.
+    // Every rest is an answer, including one reached after the wait was given
+    // up on. It is worth telling: an answer can only ever lower the type, so a
+    // late one costs a redraw and nothing else.
+    //
+    // The first rest is the one the panel is made in, a moment before its first
+    // search starts. It carries the size that was configured, which is the size
+    // the panel already has, so nothing moves on it.
     Connections {
         target: body
         function onFitSettledChanged() {
-            if (body.fitSettled) {
-                budget.stop();
+            if (!body.fitSettled) {
                 return;
             }
             probe.gaveUp = false;
-            budget.restart();
+            probe.found(probe.size);
         }
-    }
-
-    // The first question is put while the object is being made, so the signal
-    // above has already passed by the time anything could hear it.
-    Component.onCompleted: if (!body.fitSettled) {
-        budget.restart();
     }
 
     Theme {

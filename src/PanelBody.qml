@@ -229,16 +229,36 @@ Rectangle {
     }
 
     // Takes up a size that no longer fits while the panel is being read.
-    // Ignored while anything else is under way, which would otherwise cut
-    // that off halfway, and while a size is on its way from elsewhere: the
-    // rows overflow for as long as that takes, and stepping on that would be
-    // the walk the answer is there to replace.
+    //
+    // Ignored while anything else is under way, which would otherwise cut that
+    // off halfway. Ignored as well while a size for the list now standing is
+    // on its way and the panel is in plain view: the rows overflow for as long
+    // as that takes, and stepping on that is the walk the answer replaces. Out
+    // of sight there is nothing to spare, so the overflow is taken up there
+    // whether an answer is coming or not.
     function startAdjusting() {
-        if (!fit.made || !panel.fitsToBounds || panel.awaitsItsSize || fit.phase !== fit.idle) {
+        if (!fit.made || !panel.fitsToBounds || fit.phase !== fit.idle) {
+            return;
+        }
+        if (panel.showing && panel.awaitsItsSize) {
             return;
         }
         fit.phase = fit.adjusting;
         fitRound.restart();
+    }
+
+    // A size worked out for the list now standing, from somewhere that could
+    // try it out of sight; see FitProbe.qml.
+    //
+    // Only ever lowers. That search starts from the size that was asked for
+    // every time, so its answer to a list that grew shorter is larger than
+    // what stands, and taking it would put the type back up in front of the
+    // reader. Which way a gesture moves is settled above, and it is one way.
+    function takeTheSizeFound(size) {
+        if (!fit.made || !panel.fitsToBounds || !panel.showing || size <= 0) {
+            return;
+        }
+        panel.theme.fontSizePt = Math.min(panel.theme.fontSizePt, size);
     }
 
     function stepFit() {
@@ -309,13 +329,36 @@ Rectangle {
     onShowContinuationsChanged: panel.refit()
     onFitsToBoundsChanged: panel.refit()
 
-    // The wait for a size from elsewhere is over, whatever came of it.
-    //
-    // Where an answer came, it is already in and nothing overflows, so this
-    // ends in the one round it takes to see that. Where none came, this is the
-    // walk that was held back, and the panel takes itself down as it always
-    // did rather than standing in a size that does not fit.
-    onAwaitsItsSizeChanged: if (!panel.awaitsItsSize) {
+    // A wait for a size from elsewhere, beginning and ending. Only in plain
+    // view: out of sight the panel searches for its own size and is quicker at
+    // it than anything waited for.
+    onAwaitsItsSizeChanged: {
+        if (!panel.showing) {
+            return;
+        }
+        if (panel.awaitsItsSize) {
+            // A size is coming for the list now standing, so what was being
+            // stepped towards answers the list before it. Called off rather
+            // than left to run, or it would walk the type on through the wait
+            // and past the answer. Only the walk: a search out of sight is
+            // this panel's own and nothing here is quicker.
+            if (fit.phase === fit.adjusting) {
+                fitRound.stop();
+                fit.phase = fit.idle;
+            }
+            return;
+        }
+        // The wait is over and the rows are held to, whatever came of it.
+        // Where a size came it is already in and nothing overflows, so this
+        // ends in the one round it takes to see that; where none came, this is
+        // the walk that was held back.
+        //
+        // Judged straight away rather than after a round of grace. A size
+        // written in this frame could be read against the layout of the frame
+        // before it, which is what the confirmation after a search is for, but
+        // measured with three hundred entries and the walk starting in the
+        // same breath as the answer it never was: the rows were laid out
+        // against the size that had just arrived before the round came back.
         panel.startAdjusting();
     }
 

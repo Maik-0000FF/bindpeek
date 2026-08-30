@@ -92,7 +92,7 @@ Window {
         // worked out off screen instead of stepped towards in front of the
         // reader; see FitProbe.qml. Held until that answer is in or given up
         // on, and no longer.
-        awaitsItsSize: !probe.answered
+        awaitsItsSize: probe.waiting
         // The bound here is a display, so a size that does not fit it is
         // lowered until everything is on screen.
         fitsToBounds: true
@@ -123,10 +123,9 @@ Window {
     // answers with the size the list now standing wants, and the panel above
     // takes that size in one go rather than walking down to it.
     //
-    // Only while the panel is being read. Before that it is out of sight
-    // anyway, where it searches for its own size and does it well: an answer
-    // handed to it there would land in the middle of that search and be
-    // measured as though it had chosen it.
+    // Every answer is offered, including one that arrives after the wait for
+    // it was given up on. What is done with it is the panel's to decide: it
+    // takes one only while it is being read, and only downwards.
     FitProbe {
         id: probe
 
@@ -135,8 +134,6 @@ Window {
         screenWidth: theme.screenWidth
         screenHeight: theme.screenHeight
 
-        onAnsweredChanged: if (probe.answered && probe.size > 0 && panel.showing) {
-            theme.fontSizePt = probe.size;
-        }
+        onFound: size => panel.takeTheSizeFound(size)
     }
 }
