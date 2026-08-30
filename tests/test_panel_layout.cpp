@@ -834,7 +834,7 @@ void TestPanelLayout::theWalkDoesNotUndercutALateAnswer() {
     theme->setProperty("fontSizePt", asked);
     bool walking = false;
     clock.restart();
-    while (clock.elapsed() < kHeldRoundsMs) {
+    while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
         // The overflow shows itself a layout later, not in this frame, and it
         // is the overflow that asks for the walk.
