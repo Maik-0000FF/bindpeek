@@ -186,6 +186,23 @@ Item {
 const QString kBoundAsBinding = QStringLiteral("Bench.fitsToBounds");
 const QString kBoundAsLiteral = QStringLiteral("true");
 
+// Whether the fitting has come to rest at a size it actually looked for.
+//
+// Asking the panel alone is not enough. The flow answers with no size at all
+// until the first layout has run, so nothing overflows yet, and a search whose
+// try and confirmation both fall before that first frame comes to rest on the
+// size that was configured. The panel leaves that rest as soon as the overflow
+// shows itself, but a sample taken inside it reads as a fitting that is over,
+// which is a race against the first frame rather than a fitting to measure.
+//
+// The size is what both callers go on to ask about anyway, so requiring it
+// here costs nothing and cannot answer with the wrong rest.
+bool cameToRest(QQuickItem *panel, QObject *theme) {
+    return panel->property("fitSettled").toBool() &&
+           theme->property("fontSizePt").toInt() <
+               theme->property("configuredFontSizePt").toInt();
+}
+
 // Everything QML said while a panel was being made.
 //
 // A warning is not a failure to QtTest, so a panel that reached for something
@@ -397,7 +414,7 @@ void TestPanelLayout::warningWaitsForTheFit() {
     bool settled = false;
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
-        settled = panel->property("fitSettled").toBool();
+        settled = cameToRest(panel, theme);
         if (!settled && warning->property("visible").toBool()) {
             ++stoodTooEarly;
         }
@@ -406,15 +423,15 @@ void TestPanelLayout::warningWaitsForTheFit() {
         }
     }
 
-    QVERIFY2(settled, "the fitting never came to rest");
+    QVERIFY2(settled, "the fitting never came to rest at a size it looked for");
     QCOMPARE(stoodTooEarly, 0);
 
-    // The type actually came down, so the samples above looked at a fitting
-    // that ran rather than at one that was over before it began.
+    // The type came down on the way, which the wait above already required:
+    // the samples looked at a fitting that ran rather than at one that was
+    // over before it began.
     const int asked = theme->property("configuredFontSizePt").toInt();
     const int settledAt = theme->property("fontSizePt").toInt();
     QCOMPARE(asked, kAskedFontSizePt);
-    QVERIFY2(settledAt < asked, "nothing was stepped down");
 
     QCOMPARE(warning->property("visible").toBool(), standsAtRest);
     if (standsAtRest) {
@@ -451,7 +468,8 @@ void TestPanelLayout::aLiteralBoundStillGetsItsFit() {
                         complaints.join(QLatin1Char('\n'))));
 
     // And it did look for a size, so the quiet above is not the quiet of a
-    // panel that never measured at all.
+    // panel that never measured at all: the rest waited for below is one the
+    // type had to come down to reach.
     QObject *theme = panel->property("theme").value<QObject *>();
     QVERIFY(theme != nullptr);
 
@@ -460,15 +478,12 @@ void TestPanelLayout::aLiteralBoundStillGetsItsFit() {
     bool settled = false;
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
-        settled = panel->property("fitSettled").toBool();
+        settled = cameToRest(panel, theme);
         if (settled) {
             break;
         }
     }
-    QVERIFY2(settled, "the fitting never came to rest");
-    QVERIFY2(theme->property("fontSizePt").toInt() <
-                 theme->property("configuredFontSizePt").toInt(),
-             "nothing was stepped down");
+    QVERIFY2(settled, "the fitting never came to rest at a size it looked for");
 }
 
 QTEST_MAIN(TestPanelLayout)
