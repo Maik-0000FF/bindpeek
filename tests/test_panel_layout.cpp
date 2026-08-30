@@ -134,7 +134,10 @@ class Bench : public QObject {
     Q_PROPERTY(int maxWidth MEMBER m_maxWidth CONSTANT)
     Q_PROPERTY(int maxHeight MEMBER m_maxHeight CONSTANT)
     Q_PROPERTY(bool fitsToBounds MEMBER m_fitsToBounds CONSTANT)
-    Q_PROPERTY(bool showing MEMBER m_showing CONSTANT)
+    // Set before anything is built like the rest, and changeable afterwards
+    // for the one question that is about the change itself: what the panel
+    // does at the moment it goes from measured to read.
+    Q_PROPERTY(bool showing READ showing WRITE setShowing NOTIFY showingChanged)
     // The one input here that changes after the document stands, because the
     // thing it describes is a wait: it is set before anything is built and
     // dropped once the answer is in, and a test that could not drop it could
@@ -149,6 +152,16 @@ public:
           m_maxHeight(maxHeight), m_fitsToBounds(fitsToBounds),
           m_showing(showing), m_awaitsItsSize(awaitsItsSize) {}
 
+    bool showing() const { return m_showing; }
+
+    void setShowing(bool value) {
+        if (m_showing == value) {
+            return;
+        }
+        m_showing = value;
+        emit showingChanged();
+    }
+
     bool awaitsItsSize() const { return m_awaitsItsSize; }
 
     void setAwaitsItsSize(bool value) {
@@ -160,6 +173,7 @@ public:
     }
 
 signals:
+    void showingChanged();
     void awaitsItsSizeChanged();
 
 private:
@@ -332,6 +346,7 @@ private slots:
     void theSizeFoundOnlyEverLowers();
     void theWalkDoesNotUndercutTheAnswer();
     void theWalkDoesNotUndercutALateAnswer();
+    void theLineAtTheFootStandsFromTheFirstFrame();
 
 private:
     // Puts a panel measured against the bench on an offscreen window. Returns
@@ -858,6 +873,60 @@ void TestPanelLayout::theWalkDoesNotUndercutALateAnswer() {
     }
     QVERIFY2(settled, "the fitting never came to rest after the late answer");
     QCOMPARE(theme->property("fontSizePt").toInt(), fits);
+}
+
+// The line at the foot is there in the first frame the panel is read in.
+//
+// A panel is measured out of sight and only then shown, so everything it says
+// has been settled before anyone sees it. The probe beside it must not undo
+// that: if it starts measuring at the moment the panel is shown, the panel is
+// waiting on it in its first frame, nothing has come to rest, and the line
+// saying what did not fit is missing. It arrives a few rounds later and grows
+// the plate by its own height under the reader's eyes, which is the stutter
+// the panel is built to avoid.
+void TestPanelLayout::theLineAtTheFootStandsFromTheFirstFrame() {
+    // A list that does not fit even at the floor, which is the case the line
+    // exists for, and out of sight to begin with.
+    Bench bench(manyGroups(12, 12), 320, 160, true, false);
+    QQuickView view;
+    QQuickItem *panel = showPanel(view, bench, kBoundAsBinding, kProbeHost);
+    QVERIFY(panel != nullptr);
+
+    QObject *theme = panel->property("theme").value<QObject *>();
+    QVERIFY(theme != nullptr);
+    const QList<QQuickItem *> warnings =
+        itemsNamed(panel, QStringLiteral("overflowWarning"));
+    QCOMPARE(warnings.size(), 1);
+    QQuickItem *warning = warnings.first();
+
+    QElapsedTimer clock;
+    clock.start();
+    bool settled = false;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        settled = cameToRest(panel, theme);
+        if (settled) {
+            break;
+        }
+    }
+    QVERIFY2(settled, "the fitting never came to rest out of sight");
+    QCOMPARE(theme->property("fontSizePt").toInt(),
+             theme->property("minFontSizePt").toInt());
+    QVERIFY2(warning->property("visible").toBool(),
+             "the line was not there before the panel was shown");
+
+    // Shown. From here the panel is being read, and nothing it had settled may
+    // come undone.
+    bench.setShowing(true);
+    int wentAway = 0;
+    clock.restart();
+    while (clock.elapsed() < kHeldRoundsMs) {
+        QTest::qWait(kSampleMs);
+        if (!warning->property("visible").toBool()) {
+            ++wentAway;
+        }
+    }
+    QCOMPARE(wentAway, 0);
 }
 
 QTEST_MAIN(TestPanelLayout)

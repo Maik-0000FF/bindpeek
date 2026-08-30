@@ -113,15 +113,19 @@ Item {
         opacity: 0
 
         theme: probeTheme
-        // Measured only while the panel it answers for is being read, and out
-        // of sight of anyone even then, which is what makes it halve its way
-        // to an answer instead of stepping towards one.
+        // Always measuring, which is what makes it halve its way to an answer
+        // instead of stepping towards one: this one is never on screen.
         //
-        // Not before that: a panel not yet on screen searches for its own size
-        // and takes no answer from here, so the same search beside it would be
-        // run twice over for a number nobody reads, on the one stretch where
-        // it is felt, between the key going down and the panel appearing.
-        fitsToBounds: probe.like.showing
+        // Including while the panel it answers for is still out of sight,
+        // where its answer is thrown away. That looks like work for nothing
+        // and was tried the other way: measuring only once the panel is read
+        // puts the search into the very moment of being shown, so the panel
+        // waits on it in its first frame, nothing has come to rest, and the
+        // line at the foot saying what did not fit is missing from that frame.
+        // It then arrives a few rounds later and grows the plate under the
+        // reader's eyes. The work here is out of sight and beside the panel's
+        // own search rather than in front of it; the stutter was not.
+        fitsToBounds: true
         showing: false
 
         groupsAcross: probe.like.groupsAcross
