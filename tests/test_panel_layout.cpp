@@ -246,8 +246,6 @@ Item {
         objectName: "probe"
         anchors.fill: parent
         like: panel
-        screenWidth: hostTheme.screenWidth
-        screenHeight: hostTheme.screenHeight
 
         onFound: size => panel.takeTheSizeFound(size)
     }

@@ -119,9 +119,10 @@ Window {
         groups: OverlayController.groups
     }
 
-    // The same panel again, off screen, measured against the same output. It
-    // answers with the size the list now standing wants, and the panel above
-    // takes that size in one go rather than walking down to it.
+    // The same panel again, off screen, against the same bound: it reads that
+    // and everything else that decides a size off the panel above. It answers
+    // with the size the list now standing wants, and the panel above takes
+    // that size in one go rather than walking down to it.
     //
     // Every answer is offered, including one that arrives after the wait for
     // it was given up on. What is done with it is the panel's to decide: it
@@ -131,8 +132,6 @@ Window {
 
         anchors.fill: parent
         like: panel
-        screenWidth: theme.screenWidth
-        screenHeight: theme.screenHeight
 
         onFound: size => panel.takeTheSizeFound(size)
     }

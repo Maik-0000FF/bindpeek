@@ -29,11 +29,6 @@ Item {
     // same breath.
     required property PanelBody like
 
-    // The output the panel is on, which is the bound the theme below is
-    // measured against; see Theme.screenWidth.
-    property int screenWidth: 0
-    property int screenHeight: 0
-
     // How long a caller holds what it has before giving up on an answer.
     //
     // The search costs about five rounds and a round is 16 ms, so an answer
@@ -96,11 +91,14 @@ Item {
         }
     }
 
+    // A theme of its own, and for one reason: it is where the search writes
+    // the size it is trying.
+    //
+    // Nothing measured against a display is taken from here. The bound comes
+    // from the panel below, which has it from whoever draws it, so this one is
+    // never asked which output anything is on.
     Theme {
         id: probeTheme
-
-        screenWidth: probe.screenWidth
-        screenHeight: probe.screenHeight
     }
 
     // Off screen, but laid out.
@@ -115,10 +113,15 @@ Item {
         opacity: 0
 
         theme: probeTheme
-        // The bound is the same display the panel on screen is measured
-        // against, and this one is never on screen, which is what makes it
-        // halve its way to an answer instead of stepping towards one.
-        fitsToBounds: true
+        // Measured only while the panel it answers for is being read, and out
+        // of sight of anyone even then, which is what makes it halve its way
+        // to an answer instead of stepping towards one.
+        //
+        // Not before that: a panel not yet on screen searches for its own size
+        // and takes no answer from here, so the same search beside it would be
+        // run twice over for a number nobody reads, on the one stretch where
+        // it is felt, between the key going down and the panel appearing.
+        fitsToBounds: probe.like.showing
         showing: false
 
         groupsAcross: probe.like.groupsAcross
