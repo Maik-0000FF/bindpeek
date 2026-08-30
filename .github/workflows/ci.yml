@@ -45,8 +45,8 @@ on:
   # Offered once the default branch carries this trigger, which is what puts
   # the button and the endpoint there at all, and run only for a branch whose
   # own copy carries it too, because the run is read from the branch asked
-  # for. Both fall into place with the next squash onto main; a branch cut
-  # before that one has to catch up first.
+  # for. Both fall into place with the next squash onto main; a branch that
+  # does not yet carry this commit has to catch up first.
   workflow_dispatch:
 
 permissions:
