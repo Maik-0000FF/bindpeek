@@ -37,16 +37,23 @@ on:
     # through the summer and 09:00 through the winter. A scheduled run only
     # ever fires on the default branch.
     - cron: '0 8 * * 1'
+  # Asked for by hand, which is the way to an answer the triggers above do not
+  # give. Two of those: a branch with no request open, which nothing else runs
+  # any more, and a request whose base moved under it, because a request only
+  # answers again when its own head changes.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# One run per branch at a time. A second push while the first is still going
-# makes the first answer a question nobody is asking any more, and thirteen
-# lanes is a lot of machine to spend on it.
+# One run per request at a time. A further revision while the first is still
+# going makes it answer a question nobody is asking any more, and thirteen
+# lanes is a lot of machine to spend on it. Per request rather than per branch
+# because the two branches that are kept are the only ones pushed, and they are
+# held open below.
 #
-# Not on the two branches that are kept. A run there is the record that a
-# commit was good, and a commit that never got an answer has no record at all.
+# Not on those two. A run there is the record that a commit was good, and a
+# commit that never got an answer has no record at all.
 #
 # What holds that open is the name of the group, not the switch below. A run
 # waiting its turn is taken away by the next one to queue whatever the switch
@@ -59,6 +66,13 @@ permissions:
 # so without this it would share a group with a push of that same commit and
 # one of the two would take the other away, minutes before the run that exists
 # to look at exactly that commit with fresh eyes.
+#
+# Keeping the ref in the name as well costs one duplicate, and a certain one:
+# after a squash onto main the kept dev is set to that same commit, so two
+# pushes carry one commit under two names and each takes all thirteen lanes.
+# Keying on the commit alone would put the two in one group, but the group
+# cancels, so the second would take away the main run that is the record and
+# begin again from nothing. The duplicate is the cheaper of the two.
 concurrency:
   group: >-
     ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{
