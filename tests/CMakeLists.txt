@@ -133,6 +133,25 @@ target_compile_definitions(test_panel_layout
 )
 
 add_test(NAME panel_layout COMMAND test_panel_layout)
+# A ceiling of its own, because this one waits rather than computes.
+#
+# Its cases hand a fitting a minute to come to rest before calling it stuck,
+# and several of them do it in turn, so a run where nothing rests sits there
+# for minutes. A run that passes takes about eight seconds here, and a small
+# multiple of that under a sanitizer. Ten minutes leaves every passing run
+# alone and ends the stuck one.
+#
+# Deliberately no sum over the individual waits. A failed check returns from
+# the case it is in, so the waits written after it are never reached, and a
+# total worked out from the waits alone comes out far above what a stuck run
+# actually costs. The value below does not rest on such a total, and neither
+# does the next wait somebody adds.
+#
+# The other bound is the lane. The narrowest one this runs in has thirty
+# minutes for the packages, the build and the whole suite together, so a
+# ceiling up near that is one the lane reaches first, and a run that ends with
+# its lane ends for a reason that says nothing about any fitting.
 set_tests_properties(panel_layout PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+  TIMEOUT 600
 )
