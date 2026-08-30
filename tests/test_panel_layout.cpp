@@ -210,7 +210,9 @@ Item {
 }
 )";
 
-// The same panel with the probe beside it, which is how the overlay draws it.
+// The same panel with the probe beside it, wired the way the overlay wires
+// them and in that order: the panel waits on the probe, and an answer reaches
+// it through the panel's own door rather than through the test's hand.
 //
 // The probe reads everything that decides a size off the panel it answers for,
 // so there is one wiring here and not two; see FitProbe.qml.
@@ -232,7 +234,7 @@ Item {
         theme: hostTheme
         fitsToBounds: %1
         showing: Bench.showing
-        awaitsItsSize: Bench.awaitsItsSize
+        awaitsItsSize: probe.waiting
         maxWidth: Bench.maxWidth
         maxHeight: Bench.maxHeight
         heldText: "SUPER"
@@ -240,11 +242,14 @@ Item {
     }
 
     FitProbe {
+        id: probe
         objectName: "probe"
         anchors.fill: parent
         like: panel
         screenWidth: hostTheme.screenWidth
         screenHeight: hostTheme.screenHeight
+
+        onFound: size => panel.takeTheSizeFound(size)
     }
 }
 )";
@@ -285,7 +290,11 @@ int waitForTheProbe(QObject *probe, int asked) {
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
         const int size = probe->property("size").toInt();
-        if (!probe->property("waiting").toBool() && size > 0 && size < asked) {
+        // Come to rest, and not let go of because the wait ran out: the size
+        // standing at that moment is one of the sizes the search was trying,
+        // which is not an answer to anything.
+        if (!probe->property("waiting").toBool() &&
+            !probe->property("gaveUp").toBool() && size > 0 && size < asked) {
             return size;
         }
     }
@@ -324,6 +333,7 @@ private slots:
     void aSizeOnItsWayHoldsTheWalk();
     void theSizeFoundOnlyEverLowers();
     void theWalkDoesNotUndercutTheAnswer();
+    void theWalkDoesNotUndercutALateAnswer();
 
 private:
     // Puts a panel measured against the bench on an offscreen window. Returns
@@ -737,7 +747,11 @@ void TestPanelLayout::theSizeFoundOnlyEverLowers() {
 void TestPanelLayout::theWalkDoesNotUndercutTheAnswer() {
     // More than fits at the size asked for, so the rows are overflowing while
     // the panel holds its size. That is the state the answer arrives in.
-    Bench bench(manyGroups(6, 14), 1400, 800, true, true, true);
+    //
+    // Nothing here hands the size over or ends the wait: the host wires the
+    // two together the way the overlay does, so the answer and the end of the
+    // wait reach the panel in the order they reach it in the program.
+    Bench bench(manyGroups(6, 14), 1400, 800, true, true);
     QQuickView view;
     QQuickItem *panel = showPanel(view, bench, kBoundAsBinding, kProbeHost);
     QVERIFY(panel != nullptr);
@@ -750,16 +764,9 @@ void TestPanelLayout::theWalkDoesNotUndercutTheAnswer() {
     QVERIFY(theme != nullptr);
     const int asked = theme->property("configuredFontSizePt").toInt();
     QCOMPARE(asked, kAskedFontSizePt);
-    QCOMPARE(theme->property("fontSizePt").toInt(), asked);
 
     const int found = waitForTheProbe(probe, asked);
     QVERIFY2(found > 0, "the probe never answered with a size that fits");
-
-    // Handed over and the wait ended in the same breath, which is how the two
-    // reach the panel when the answer comes from the probe beside it.
-    QVERIFY(QMetaObject::invokeMethod(panel, "takeTheSizeFound",
-                                      Q_ARG(QVariant, QVariant(found))));
-    bench.setAwaitsItsSize(false);
 
     QElapsedTimer clock;
     clock.start();
@@ -773,6 +780,72 @@ void TestPanelLayout::theWalkDoesNotUndercutTheAnswer() {
     }
     QVERIFY2(settled, "the fitting never came to rest after the answer");
     QCOMPARE(theme->property("fontSizePt").toInt(), found);
+}
+
+// An answer that arrives in the middle of a walk is not walked past.
+//
+// Where the wait for a size runs out first, the panel is already taking itself
+// down when the answer lands. A round armed before that comes back on an
+// overflow measured against the size before it, and takes the answer down one
+// further point for something it had already fixed. The type only ever goes
+// down, so that point is gone for the rest of the gesture.
+void TestPanelLayout::theWalkDoesNotUndercutALateAnswer() {
+    // Shown and bounded with nothing waited for, so the panel walks its own
+    // way down first and says what fits here.
+    Bench bench(manyGroups(6, 14), 1400, 800, true, true);
+    QQuickView view;
+    QQuickItem *panel = showPanel(view, bench);
+    QVERIFY(panel != nullptr);
+
+    QObject *theme = panel->property("theme").value<QObject *>();
+    QVERIFY(theme != nullptr);
+    const int asked = theme->property("configuredFontSizePt").toInt();
+    QCOMPARE(asked, kAskedFontSizePt);
+
+    QElapsedTimer clock;
+    clock.start();
+    bool settled = false;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        settled = cameToRest(panel, theme);
+        if (settled) {
+            break;
+        }
+    }
+    QVERIFY2(settled, "the fitting never came to rest");
+    const int fits = theme->property("fontSizePt").toInt();
+
+    // Put back to the size asked for, which is what the rows overflow at, so
+    // the panel starts walking down again.
+    theme->setProperty("fontSizePt", asked);
+    bool walking = false;
+    clock.restart();
+    while (clock.elapsed() < kHeldRoundsMs) {
+        QTest::qWait(kSampleMs);
+        // The overflow shows itself a layout later, not in this frame, and it
+        // is the overflow that asks for the walk.
+        if (theme->property("fontSizePt").toInt() < asked) {
+            walking = true;
+            break;
+        }
+    }
+    QVERIFY2(walking, "the walk never started again");
+
+    // And the answer lands in the middle of it, a size that is known to fit.
+    QVERIFY(QMetaObject::invokeMethod(panel, "takeTheSizeFound",
+                                      Q_ARG(QVariant, QVariant(fits))));
+
+    clock.restart();
+    settled = false;
+    while (clock.elapsed() < kFitBudgetMs) {
+        QTest::qWait(kSampleMs);
+        settled = cameToRest(panel, theme);
+        if (settled) {
+            break;
+        }
+    }
+    QVERIFY2(settled, "the fitting never came to rest after the late answer");
+    QCOMPARE(theme->property("fontSizePt").toInt(), fits);
 }
 
 QTEST_MAIN(TestPanelLayout)

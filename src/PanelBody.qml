@@ -259,6 +259,19 @@ Rectangle {
             return;
         }
         panel.theme.fontSizePt = Math.min(panel.theme.fontSizePt, size);
+        // A walk already under way is given its full round again, which is
+        // what every other place that writes a size here does.
+        //
+        // It can be under way: where the wait ran out first, the panel is
+        // taking itself down as the answer arrives. A round armed before this
+        // write would come back on an overflow measured against the size
+        // before it and take the answer down a further point, which the type
+        // never goes back up from. Seen once at a shortened wait, not
+        // reproduced since, and the line stands on the consistency rather
+        // than on that.
+        if (fit.phase === fit.adjusting) {
+            fitRound.restart();
+        }
     }
 
     function stepFit() {
@@ -299,6 +312,16 @@ Rectangle {
     }
 
     function stepAdjustment() {
+        // In plain view with a size already on its way, this walk answers the
+        // list before this one and stops here.
+        //
+        // Asked at the step rather than only where the walk is started: out of
+        // sight a walk runs whether an answer is coming or not, and the panel
+        // can be in plain view by the time that walk comes round again.
+        if (panel.showing && panel.awaitsItsSize) {
+            fit.phase = fit.idle;
+            return;
+        }
         // Nothing to take down, or nothing left to take: either way this is
         // over. Where it is the floor that ends it, the line at the foot of
         // the panel says what was left out.
@@ -336,16 +359,10 @@ Rectangle {
         if (!panel.showing) {
             return;
         }
+        // The wait has begun. A walk already under way is left to the step
+        // itself, which ends it the next time it comes round; a search out of
+        // sight is this panel's own and nothing waited for is quicker.
         if (panel.awaitsItsSize) {
-            // A size is coming for the list now standing, so what was being
-            // stepped towards answers the list before it. Called off rather
-            // than left to run, or it would walk the type on through the wait
-            // and past the answer. Only the walk: a search out of sight is
-            // this panel's own and nothing here is quicker.
-            if (fit.phase === fit.adjusting) {
-                fitRound.stop();
-                fit.phase = fit.idle;
-            }
             return;
         }
         // The wait is over and the rows are held to, whatever came of it.
