@@ -8,6 +8,7 @@
 # here every qsTr() in the interface is invisible to it.
 set(BINDPEEK_OVERLAY_QML
   Overlay.qml
+  FitProbe.qml
   EntryBlock.qml
   GroupCard.qml
   PanelBody.qml
