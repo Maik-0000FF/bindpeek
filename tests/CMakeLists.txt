@@ -135,13 +135,17 @@ target_compile_definitions(test_panel_layout
 add_test(NAME panel_layout COMMAND test_panel_layout)
 # A ceiling of its own, because this one waits rather than computes.
 #
-# Every case here gives a fitting a minute to come to rest before calling it
-# stuck, and there are several of them, so a run in which nothing rests takes
-# minutes and reports it. Under the default of twenty-five minutes such a run
-# would sit there long after it had said everything it has to say. Ten minutes
-# is far above what a passing run costs, here or under a sanitizer, and far
-# below the wait it replaces.
+# Every wait in it gives a fitting a minute before calling it stuck, and twelve
+# of them run: ten written, and two of those run twice over, once per row of
+# the case that is fed a table. A run in which nothing ever rests therefore
+# takes twelve minutes and then says which fitting hung, which is the useful
+# half of the twenty-five the default would let it sit there.
+#
+# So the ceiling is above that sum rather than on it. Cut at twelve minutes,
+# the worst run would die in the middle of the last wait and print nothing at
+# all, which is the one outcome this is meant to prevent. A passing run costs
+# eight seconds here and a small multiple of that under a sanitizer.
 set_tests_properties(panel_layout PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-  TIMEOUT 600
+  TIMEOUT 900
 )

@@ -899,25 +899,27 @@ void TestPanelLayout::theLineAtTheFootStandsFromTheFirstFrame() {
     QCOMPARE(warnings.size(), 1);
     QQuickItem *warning = warnings.first();
 
-    // Waited for the panel's own size and nothing else.
+    // Waited for the rest, and not for `fitted`.
     //
-    // `fitted` says the panel has a size of its own and says nothing about
-    // whom it may be holding for, and it is what decides that the panel is
-    // drawn at all, so this is the moment the overlay puts it on screen and
-    // the moment this case is about. Waiting for the panel to have settled
-    // instead would be a later one, because settling also waits on the probe
-    // beside it, and the question here is what the first frame carries.
+    // `fitted` is the nearer answer to what this case is about, because it is
+    // what puts the panel on screen. It is also true of a search that
+    // concluded before anything was laid out, on the size that was asked for,
+    // which is the race the rest below is worded against: measured with the
+    // overflow held false for half a second, breaking on `fitted` ends this
+    // loop at the size asked for and the floor below is missed, three runs out
+    // of three. What is waited for here is therefore a moment or two later
+    // than the first frame. Nothing under it needs the earlier one.
     QElapsedTimer clock;
     clock.start();
-    bool ownSize = false;
+    bool settled = false;
     while (clock.elapsed() < kFitBudgetMs) {
         QTest::qWait(kSampleMs);
-        if (panel->property("fitted").toBool()) {
-            ownSize = true;
+        settled = cameToRest(panel, theme);
+        if (settled) {
             break;
         }
     }
-    QVERIFY2(ownSize, "the fitting never came down out of sight");
+    QVERIFY2(settled, "the fitting never came to rest out of sight");
     QCOMPARE(theme->property("fontSizePt").toInt(),
              theme->property("minFontSizePt").toInt());
     QVERIFY2(warning->property("visible").toBool(),
