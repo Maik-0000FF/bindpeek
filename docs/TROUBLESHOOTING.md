@@ -47,18 +47,18 @@ focus and break the very shortcut you were looking at.
 
 `bindpeek --list` needs no screen at all and prints the same list as text. On a
 session it cannot recognise, name the one to read: `--environment mango`,
-`hyprland` or `kde`.
+`hyprland`, `sway` or `kde`.
 
 ### "No supported environment detected"
 
 The session was not recognised. Force one:
 
 ```bash
-bindpeek --environment mango      # or hyprland, or kde
+bindpeek --environment mango      # or hyprland, sway, or kde
 ```
 
 If that works, the detection is what is missing, and an issue with the output of
-`env | grep -i -E 'xdg|wayland|hyprland|mango'` is worth opening.
+`env | grep -i -E 'xdg|wayland|hyprland|mango|sway'` is worth opening.
 
 ### "bindpeek is already running as process N"
 
@@ -76,12 +76,18 @@ bindpeek --list
 
 - **Nothing at all**: the session's configuration was found but held no
   shortcut this program recognises. On mango, only lines beginning with `bind=`
-  count; `mousebind=` and `axisbind=` are not keyboard shortcuts.
+  count; `mousebind=` and `axisbind=` are not keyboard shortcuts. On sway, only
+  `bindsym` counts: `bindcode` names a key by its number and has no name to
+  show, and `bindswitch` and `bindgesture` are not keys at all.
+- **Fewer than you have bound, on sway**: what an `include` line pulls in is
+  not part of what bindpeek reads, and the binds in those files are therefore
+  missing. It says so in a line above the list rather than passing over it.
 - **Raw action names in the right column**: those are actions with no
   description of their own, and no text to derive one from either. See
   [Configuration](CONFIGURATION.md#where-the-text-in-the-panel-comes-from).
 - **Headings with more in them than you expected**: a mango heading is the text
-  of your own `# --- ... ---` comment, taken exactly as it stands.
+  of your own `# --- ... ---` comment, taken exactly as it stands. A sway
+  heading is the name of the mode the bind stands in.
 
 ## The panel shows an old configuration
 

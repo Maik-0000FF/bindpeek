@@ -75,8 +75,8 @@ what happens to the second kind.
 ## Arrangement: which headings the list is cut into
 
 A session hands its shortcuts out under headings of its own: the application
-under KDE, the submap under Hyprland. `arrangement` decides whether the panel
-keeps them.
+under KDE, the submap under Hyprland, the mode under sway. `arrangement`
+decides whether the panel keeps them.
 
 | Value | What you see |
 | --- | --- |
@@ -103,12 +103,15 @@ something.
   other comment line is a note and leaves the grouping alone.
 - **Hyprland** groups by submap, a submap being a mode of its own and its binds
   working only while it is on.
+- **sway** groups by mode, which is the same idea under another name: what is
+  written inside `mode "resize" { … }` is headed by that mode. A block that is
+  not a mode, a `bar` among them, changes nothing about the heading.
 - **KDE Plasma** groups by the component the shortcut belongs to, under the
   name that component gives itself.
 
 Anything that falls outside all of that, a mango bind written before the first
-section comment or a Hyprland bind in no submap, is collected under one heading
-at the end.
+section comment, a Hyprland bind in no submap or a sway bind in no mode, is
+collected under one heading at the end.
 
 **The description**, the text on the right, is a different matter per session:
 
@@ -119,6 +122,9 @@ at the end.
 - **mango** has nowhere to put one. A line is
   `bind=MODIFIERS,KEY,ACTION,PARAMS` and there is no field for a description, so
   the text is worked out from the action name alone.
+- **sway** has nowhere either. A line is `bindsym KEYS COMMAND`, so the command
+  is what there is: a word sway knows becomes a sentence for it, and anything
+  else is shown as written.
 
 Where the text is worked out rather than read, an action bindpeek does not know
 is shown by its raw name together with its parameters. That is worth knowing,

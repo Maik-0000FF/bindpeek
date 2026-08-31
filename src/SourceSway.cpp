@@ -358,7 +358,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // "config", filled from the buffer that is written only while the main
         // file is being read. i3 grew a second property for the included
         // files; sway, whose IPC follows i3's, has not. Given a file through
-        // --source, nothing opens it either.
+        // --source, the line is not followed either.
         if (keyword == QLatin1String(kKeywordInclude)) {
             // The line, not the files: one of these may name a whole
             // directory, and how many files that is cannot be known from
