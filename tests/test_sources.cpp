@@ -1548,11 +1548,24 @@ void TestSources::swaySaysWhenAFileWasNotHandedOut() {
     // included file is not in the reply, and the binds in it are missing from
     // the list. That has to be said, or a list missing half the shortcuts
     // looks like a complete one.
-    SourceSway source(sample(QStringLiteral("sway-config")));
+    //
+    // A configuration of nothing else, so the whole note is this one sentence
+    // and the check hangs on neither a word of it nor the language it is in.
     QString note;
-    source.read(&note);
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("include /etc/sway/config.d/*\n"), &note);
 
-    QVERIFY2(note.contains(QStringLiteral("included")), qPrintable(note));
+    QVERIFY(binds.isEmpty());
+    QVERIFY2(!note.isEmpty(), "an unfollowed include has to be reported");
+
+    // Counted per line, not per file: one line may name a whole directory,
+    // and how many files that is cannot be known from here. Two lines
+    // therefore say two, however many files each of them stands for.
+    QString twoLines;
+    SourceSway::parseConfig(
+        QStringLiteral("include /etc/sway/config.d/*\ninclude ~/extra\n"),
+        &twoLines);
+    QVERIFY2(twoLines.contains(QStringLiteral("2")), qPrintable(twoLines));
 }
 
 void TestSources::swayHeadsBindsWithTheirMode() {

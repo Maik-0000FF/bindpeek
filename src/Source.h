@@ -40,9 +40,11 @@ inline constexpr char kShortcutSeparator[] = "+";
 // Separator between the sentences of one report.
 //
 // A backend that had to leave several kinds of thing out says so in one line,
-// and the tests count the sentences in it by this. Spelled here because three
-// places would otherwise spell it: the two backends that report this way, and
-// the test that reads what they wrote.
+// joined by this. Spelled here because every backend that reports this way
+// would otherwise spell it again, and so would a test reading what they wrote.
+//
+// Not a way of counting the sentences: a sentence may hold this character
+// itself, and one of Hyprland's does.
 inline constexpr char kNoteSeparator[] = "; ";
 
 // Group name used when a source does not provide one. Translated, so it is a

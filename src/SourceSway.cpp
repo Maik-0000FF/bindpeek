@@ -258,8 +258,10 @@ QString unquoted(QString text) {
 //   bindgesture swipe:3:right exec foo {    | the same
 //   bindcode 24 exec foo {                  | a key without a name, counted,
 //                                           | and not a block either
-//   include /etc/sway/config.d/*            | reported: its binds are not in
-//                                           | what the compositor hands out
+//   include /etc/sway/config.d/*            | reported: what it pulls in is
+//                                           | not part of what was read, and
+//                                           | one line is counted once
+//                                           | however many files it names
 //   bindsym Group2 exec foo                 | skipped: a group and no key
 //   bindsym $mod+x ""                       | kept, named "no command"
 //   bindsym $mod+x exec ""                  | kept, named "exec": the word
@@ -276,8 +278,9 @@ QString unquoted(QString text) {
 // *note collects what is missing from the list and why, one sentence each:
 // a line that would have been a keyboard shortcut and could not be shown as
 // one (a pointer button, a keycode, a modifier with no name, a line with
-// nothing left to bind or nothing to run), and a file the compositor read but
-// does not hand out, whose binds are missing for a different reason.
+// nothing left to bind or nothing to run), and a line that pulls further
+// configuration in, whose binds are missing for a different reason: they are
+// not part of what was read here at all.
 //
 // A switch and a gesture are in neither group. Neither was ever going to
 // appear on a keyboard cheat sheet, and a note about them would say something
@@ -297,7 +300,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     int skippedCode = 0;
     int skippedModifier = 0;
     int skippedEmpty = 0;
-    int included = 0;
+    int includeLines = 0;
 
     const QStringList lines = text.split(QLatin1Char('\n'));
     for (const QString &raw : lines) {
@@ -356,7 +359,10 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // read. i3 grew a second property for the included files; sway, whose
         // IPC follows i3's, has not.
         if (keyword == QLatin1String(kKeywordInclude)) {
-            ++included;
+            // The line, not the files: one of these may name a whole
+            // directory, and how many files that is cannot be known from
+            // here.
+            ++includeLines;
             continue;
         }
 
@@ -476,12 +482,12 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
                 "cannot name",
                 nullptr, skippedModifier);
         }
-        if (included > 0) {
+        if (includeLines > 0) {
             notes << QCoreApplication::translate(
                 "SourceSway",
-                "%n included file(s) not read: the compositor hands out its "
-                "main file only",
-                nullptr, included);
+                "%n include line(s) not followed: what they pull in is not "
+                "part of the answer",
+                nullptr, includeLines);
         }
         if (skippedEmpty > 0) {
             notes << QCoreApplication::translate(

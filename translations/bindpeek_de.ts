@@ -805,10 +805,10 @@
         </translation>
     </message>
     <message numerus="yes">
-        <source>%n included file(s) not read: the compositor hands out its main file only</source>
+        <source>%n include line(s) not followed: what they pull in is not part of the answer</source>
         <translation>
-            <numerusform>eine eingebundene Datei nicht gelesen: der Kompositor gibt nur seine Hauptdatei heraus</numerusform>
-            <numerusform>%n eingebundene Dateien nicht gelesen: der Kompositor gibt nur seine Hauptdatei heraus</numerusform>
+            <numerusform>einer include-Zeile nicht gefolgt: was sie hereinholt, ist nicht Teil der Antwort</numerusform>
+            <numerusform>%n include-Zeilen nicht gefolgt: was sie hereinholen, ist nicht Teil der Antwort</numerusform>
         </translation>
     </message>
     <message numerus="yes">
