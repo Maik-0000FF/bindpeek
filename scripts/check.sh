@@ -291,31 +291,34 @@ fi
 # Two questions, because the documentation names them in two ways.
 #
 # First, every place that lists them has to list all of them. A listing is a
-# mention of the option that names more than one session; a mention that names
+# line that mentions the option and names more than one session; a line naming
 # exactly one is an example of the option, not a list of what it takes, and
 # there are several of those.
 #
+# One line, never a window over the lines after it. A window was tried twice
+# and is the wrong tool for prose: it has to guess where a sentence ends, and
+# every guess is wrong somewhere. Two lines was too much for a markdown table,
+# whose rows carry no blank line between them, so a neighbouring row naming a
+# session covered for one the listing had lost. The documentation is written
+# to suit instead: where a listing would wrap, the line break goes before it.
+#
 # Asked per listing and not per file: several listings in one file would
 # otherwise cover for each other, and one of them could lose a name unnoticed.
-# Up to two lines after are taken along, because a sentence wraps, and a fifth
-# name will wrap it once more. They stop at a blank line or at the next mention
-# of the option, which is where a sentence has ended in either case.
-#
-# Read in one pass rather than with grep -A, which groups matches that sit next
-# to each other into one block: right for a wrapped sentence, wrong for two
-# example lines in a row, which would become one listing naming two sessions
-# and fail while being perfectly correct.
 #
 # Files discovered rather than named, like everything else here: a page added
 # later is asked the same question without anyone remembering to add it.
 #
-# Whole words, decided by cutting each listing into runs of the characters a
-# name may be spelled with and comparing what comes out. grep -w is not enough
-# here: it treats a dash and a dot as boundaries, so "kde-connect",
-# "hyprland.conf" and "sway-bar" would each stand in for the session they
-# merely begin with, and all three are plausible on these very pages. A
-# trailing dot is dropped before the comparison, because a sentence may end on
-# the name itself.
+# Whole words, decided by cutting the line into runs of the characters a name
+# may be spelled with and comparing what comes out. grep -w is not enough: it
+# treats a dash, a dot and a slash as boundaries, so "kde-connect",
+# "hyprland.conf", "sway-bar" and a link ending in "/sway" would each stand in
+# for the session they merely contain, and all of them are plausible on these
+# very pages. A trailing dot is dropped before the comparison, because a
+# sentence may end on the name itself.
+#
+# Case matters here and not below: this is the option's own vocabulary, which
+# is lower case, while the prose the second question reads names a session the
+# way its own project writes it.
 listings_seen=0
 listing_fails=0
 while IFS= read -r file; do
@@ -330,47 +333,25 @@ while IFS= read -r file; do
             ;;
         esac
     done < <(awk -v wanted="$environments" '
-        # Every line that mentions the option opens a listing, which runs on
-        # for up to two more lines: a sentence wraps, and a fifth name will
-        # wrap it once more. It ends at a blank line or at the next mention,
-        # which is where a sentence has ended in either case.
-        #
-        # Read in one pass rather than with grep -A, which groups matches that
-        # sit next to each other into one block: right for a wrapped sentence,
-        # wrong for two example lines in a row, which would become one listing
-        # naming two sessions and fail while being perfectly correct.
-        { line[NR] = $0 }
-        END {
+        /--environment/ {
             split(wanted, names, " ")
-            for (i = 1; i <= NR; i++) {
-                if (line[i] !~ /--environment/) continue
-                record = line[i]
-                for (j = i + 1; j <= NR && j <= i + 2; j++) {
-                    if (line[j] ~ /--environment/) break
-                    if (line[j] ~ /^[[:space:]]*$/) break
-                    record = record " " line[j]
-                }
-
-                # Cut into words the way a name is spelled, then compare whole.
-                delete present
-                text = record
-                while (match(text, /[a-zA-Z0-9._-]+/)) {
-                    word = substr(text, RSTART, RLENGTH)
-                    text = substr(text, RSTART + RLENGTH)
-                    sub(/\.$/, "", word)
-                    present[tolower(word)] = 1
-                }
-
-                named = 0
-                for (n in names) if (present[names[n]]) named++
-                # One name is an example of the option, not a list of what it
-                # takes, and there are several of those.
-                if (named < 2) continue
-                print "listing"
-                for (n in names)
-                    if (!present[names[n]])
-                        print "lists the environments without \x27" names[n] "\x27: " record
+            delete present
+            text = $0
+            while (match(text, /[a-zA-Z0-9._\/-]+/)) {
+                word = substr(text, RSTART, RLENGTH)
+                text = substr(text, RSTART + RLENGTH)
+                sub(/\.$/, "", word)
+                present[word] = 1
             }
+
+            named = 0
+            for (i = 1; i in names; i++) if (present[names[i]]) named++
+            if (named < 2) next
+
+            print "listing"
+            for (i = 1; i in names; i++)
+                if (!present[names[i]])
+                    print "lists the environments without \x27" names[i] "\x27: " $0
         }' "$file")
 done < <(sources '*.md')
 [ "$listing_fails" = 0 ] || exit 1
@@ -389,24 +370,39 @@ fi
 # from. Neither spells the option, so the question above passes them by, and
 # both are places a new backend is easy to forget.
 #
-# Case is ignored here, and only here: prose names a session the way its own
-# project writes it, "Hyprland" and "KDE Plasma", while the option takes the
-# lower-case word. Both are right where they stand.
+# Whole words again, and for the same reasons, but without regard to case:
+# prose writes "Hyprland" and "KDE Plasma", the option takes the lower-case
+# word, and both are right where they stand.
 #
 # What this catches is a page that does not know a session at all, which is
 # what a forgotten backend looks like. It cannot catch a page that names it in
 # one paragraph and forgets it in the next: prose carries no mark saying which
-# sentence is meant to be a complete list, and guessing at that produced more
-# false alarms than finds. The architecture page is left out for the same
+# sentence is meant to be a complete list, and guessing at that is what the
+# window above was, twice. The architecture page is left out for the same
 # reason from the other side: it names the backends by their file names, where
 # the session name is part of a longer word.
 for file in README.md docs/HOW-IT-WORKS.md; do
-    for name in $environments; do
-        grep -qwiF -- "$name" "$file" || {
-            echo "$file never names the environment '$name'" >&2
-            exit 1
+    missing=$(awk -v wanted="$environments" '
+        {
+            text = $0
+            while (match(text, /[a-zA-Z0-9._\/-]+/)) {
+                word = substr(text, RSTART, RLENGTH)
+                text = substr(text, RSTART + RLENGTH)
+                sub(/\.$/, "", word)
+                present[tolower(word)] = 1
+            }
         }
-    done
+        END {
+            split(wanted, names, " ")
+            for (i = 1; i in names; i++)
+                if (!present[names[i]]) print names[i]
+        }' "$file")
+    if [ -n "$missing" ]; then
+        for name in $missing; do
+            echo "$file never names the environment '$name'" >&2
+        done
+        exit 1
+    fi
 done
 echo "$environments"
 

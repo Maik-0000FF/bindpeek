@@ -46,8 +46,8 @@ GNOME/Mutter does not carry, and coming up as an ordinary window would take the
 focus and break the very shortcut you were looking at.
 
 `bindpeek --list` needs no screen at all and prints the same list as text. On a
-session it cannot recognise, name the one to read: `--environment mango`,
-`hyprland`, `sway` or `kde`.
+session it cannot recognise, name the one to read:
+`--environment mango`, `hyprland`, `sway` or `kde`.
 
 ### "No supported environment detected"
 
