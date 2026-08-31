@@ -76,18 +76,22 @@ bindpeek --list
 
 - **Nothing at all**: the session's configuration was found but held no
   shortcut this program recognises. On mango, only lines beginning with `bind=`
-  count; `mousebind=` and `axisbind=` are not keyboard shortcuts. On sway, only
-  `bindsym` counts: `bindcode` names a key by its number and has no name to
-  show, and `bindswitch` and `bindgesture` are not keys at all.
-- **Fewer than you have bound, on sway**: five things are left out, and each
-  of them is counted in a line above the list rather than passed over. What an
-  `include` line pulls in is not part of what bindpeek reads. A pointer button
-  is not a key. A `bindcode` names a key by its number and has no name to show.
-  A bind wanting `Mod2`, `Mod3`, `Mod5` or `Lock` cannot be followed, because
-  the panel reads Super, Ctrl, Alt and Shift and nothing else, and showing it
-  under the modifiers it does read would put it under a combination that does
-  not fire it. And a line with no command, or none left after a group prefix,
-  binds nothing to show.
+  count; `mousebind=` and `axisbind=` are not keyboard shortcuts. On sway, of
+  the four words that bind something, only `bindsym` counts; the point below
+  says why.
+- **Fewer than you have bound, on sway**: five of the reasons are counted in a
+  line above the list rather than passed over. What an `include` line pulls in
+  is not part of what bindpeek reads. A pointer button is not a key. A
+  `bindcode` names a key by its number and has no name to show. A bind wanting
+  `Mod2`, `Mod3`, `Mod5` or `Lock` cannot be followed, because the panel reads
+  Super, Ctrl, Alt and Shift and nothing else, and showing it under the
+  modifiers it does read would put it under a combination that does not fire
+  it. And a line with nothing to run, or with no key left once the group is
+  taken off it, binds nothing that could be shown.
+
+  `bindswitch` and `bindgesture` are left out as well and are not counted: a
+  lid and a touchpad are not keys, so a note about them would say something is
+  missing where nothing is.
 - **Raw action names in the right column**: those are actions with no
   description of their own, and no text to derive one from either. See
   [Configuration](CONFIGURATION.md#where-the-text-in-the-panel-comes-from).

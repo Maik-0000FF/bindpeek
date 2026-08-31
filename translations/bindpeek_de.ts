@@ -903,12 +903,8 @@
         <translation>Kürzel als Text ausgeben statt das Overlay zu zeigen.</translation>
     </message>
     <message>
-        <source>Force the environment: mango, hyprland, sway or kde.</source>
-        <translation>Umgebung erzwingen: mango, hyprland, sway oder kde.</translation>
-    </message>
-    <message>
-        <source>No supported environment detected. Force one with --environment mango|hyprland|sway|kde.</source>
-        <translation>Keine unterstützte Umgebung erkannt. Mit --environment mango|hyprland|sway|kde erzwingen.</translation>
+        <source>Force the environment: %1.</source>
+        <translation>Umgebung erzwingen: %1.</translation>
     </message>
     <message>
         <source>name</source>
@@ -925,6 +921,10 @@
     <message>
         <source>Print the held modifiers as they change, for checking that the event devices are readable.</source>
         <translation>Gehaltene Modifier bei jeder Änderung ausgeben, zur Prüfung ob die Eingabegeräte lesbar sind.</translation>
+    </message>
+    <message>
+        <source>No supported environment detected. Force one with --environment %1.</source>
+        <translation>Keine unterstützte Umgebung erkannt. Mit --environment %1 erzwingen.</translation>
     </message>
     <message>
         <source>Unknown environment &quot;%1&quot;. Allowed: %2.</source>

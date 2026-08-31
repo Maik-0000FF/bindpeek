@@ -126,10 +126,11 @@ outside any section is usually written before the first one.
   the text is worked out from the action name alone.
 - **sway** has nowhere either. A line is `bindsym KEYS COMMAND`, so the command
   is what there is. `exec` and `exec_always` hand their argument through, which
-  is what most lines are: `bindsym $mod+Return exec foot` reads as `foot`.
-  Another word sway knows becomes a sentence for it, `kill` as "Close window",
-  and a word it does not know is shown with its argument as it stands. Quotes
-  are dropped either way: they are punctuation of the configuration file.
+  is what most lines are: `bindsym $mod+Return exec foot` reads as `foot`. For
+  about two dozen further commands bindpeek carries a sentence of its own,
+  `kill` as "Close window". Everything else, and sway knows far more words than
+  that, is shown with its argument as it stands. Quotes are dropped either way:
+  they are punctuation of the configuration file.
 
 Where the text is worked out rather than read, an action bindpeek does not know
 is shown by its raw name together with its parameters. That is worth knowing,

@@ -86,6 +86,20 @@ constexpr char kOptionEnvironment[] = "environment";
 constexpr char kOptionSource[] = "source";
 constexpr char kOptionKeys[] = "keys";
 
+// The environments this program can read, in the order they are offered.
+//
+// The two texts that name them are built from this rather than spelling it
+// again: a fifth one should be a line here and nowhere else, and the same
+// spelling in five places is what let the readme fall behind once already.
+QStringList knownEnvironments() {
+    return {
+        QLatin1String(kEnvironmentMango),
+        QLatin1String(kEnvironmentHyprland),
+        QLatin1String(kEnvironmentSway),
+        QLatin1String(kEnvironmentKde),
+    };
+}
+
 // Detects the running environment. Empty string when nothing matches: then it
 // is reported instead of guessed.
 QString detectEnvironment() {
@@ -441,8 +455,8 @@ int main(int argc, char **argv) {
             "Print the shortcuts as text instead of showing the overlay."));
     const QCommandLineOption optionEnvironment(
         QLatin1String(kOptionEnvironment),
-        QCoreApplication::translate(
-            "main", "Force the environment: mango, hyprland, sway or kde."),
+        QCoreApplication::translate("main", "Force the environment: %1.")
+            .arg(knownEnvironments().join(QStringLiteral(", "))),
         QCoreApplication::translate("main", "name"));
     const QCommandLineOption optionSource(
         QLatin1String(kOptionSource),
@@ -476,22 +490,17 @@ int main(int argc, char **argv) {
     if (environment.isEmpty()) {
         err << QCoreApplication::translate(
                    "main", "No supported environment detected. Force one with "
-                           "--environment mango|hyprland|sway|kde.")
+                           "--environment %1.")
+                   .arg(knownEnvironments().join(QLatin1Char('|')))
             << '\n';
         return 1;
     }
 
-    const QStringList knownEnvironments = {
-        QLatin1String(kEnvironmentMango),
-        QLatin1String(kEnvironmentHyprland),
-        QLatin1String(kEnvironmentSway),
-        QLatin1String(kEnvironmentKde),
-    };
-    if (!knownEnvironments.contains(environment)) {
+    if (!knownEnvironments().contains(environment)) {
         err << QCoreApplication::translate(
                    "main", "Unknown environment \"%1\". Allowed: %2.")
                    .arg(environment,
-                        knownEnvironments.join(QStringLiteral(", ")))
+                        knownEnvironments().join(QStringLiteral(", ")))
             << '\n';
         return 1;
     }
