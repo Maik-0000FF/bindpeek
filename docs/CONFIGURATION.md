@@ -133,9 +133,11 @@ outside any section is usually written before the first one.
   they are punctuation of the configuration file.
 
 Where the text is worked out rather than read, an action bindpeek does not know
-is shown by its raw name together with its parameters. That is worth knowing,
-because it is also how a dead line looks: a shortcut carried over from another
-compositor whose action this one has never heard of appears with its bare
+is shown by its raw name together with its parameters. On sway that is the
+ordinary case for anything outside the two dozen words above, and says nothing
+about the bind. Elsewhere it is also how a dead line looks: a shortcut carried
+over from another compositor whose action this one has never heard of appears
+with its bare
 action name, while everything the program understands reads as plain language.
 
 bindpeek never asks the compositor whether an action exists. It shows what the

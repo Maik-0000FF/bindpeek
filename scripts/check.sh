@@ -260,6 +260,53 @@ if [ "$(printf '%s' "$german_plain" | escape)" != "$translated" ]; then
     exit 1
 fi
 
+step "the docs name the environments the program names"
+# The list of environments lives in main.cpp and every text in the program is
+# built from it. The documentation cannot read a C++ function, so it carries
+# its own copies, and a copy is a thing that falls behind: it did once already.
+#
+# Read out of the program rather than out of its source, so what is compared is
+# what a reader is actually told. Out of the refusal and not out of --help:
+# Qt wraps an option's text at the width of the terminal, and the list is the
+# first thing to be broken across lines once a fourth name is in it.
+#
+# The name asked for has to be one no environment will ever have, because the
+# refusal is what is being read.
+#
+# LC_ALL and LANGUAGE both, because Qt picks its catalogue through
+# QLocale::uiLanguages(), which weighs LANGUAGE above LC_ALL: with only the
+# first set, a German session reads a German sentence and finds no list in it.
+#
+# The refusal is a failure, so the program leaves with a non-zero status and
+# the pipeline has to be allowed to: without this the run stops here rather
+# than reading what it came for.
+refusal=$(LC_ALL=C LANGUAGE=C "$BUILD_DIR/src/bindpeek" \
+    --environment 'not-an-environment' --list 2>&1 | head -n 1 || true)
+environments=$(sed -n 's/.*: \(.*\)\./\1/p' <<<"$refusal" | tr -d ' ' | tr ',' ' ')
+if [ -z "$environments" ]; then
+    echo "could not read the environments out of: $refusal" >&2
+    exit 1
+fi
+
+# Checked where the documentation actually lists them, which is the lines that
+# mention the option, plus the line after: the troubleshooting page wraps its
+# sentence. Looking at the whole file instead would pass on any page that
+# mentions an environment anywhere, which is every one of them.
+for file in README.md docs/TROUBLESHOOTING.md; do
+    listings=$(grep -A1 -- '--environment' "$file")
+    if [ -z "$listings" ]; then
+        echo "$file never mentions --environment" >&2
+        exit 1
+    fi
+    for name in $environments; do
+        grep -q -- "$name" <<<"$listings" || {
+            echo "$file lists the environments without '$name'" >&2
+            exit 1
+        }
+    done
+done
+echo "$environments"
+
 step "qmlformat (dry run)"
 # qmlformat has no check mode, so its output is compared with the file. Without
 # this gate a QML reindent goes unnoticed: clang-format does not touch .qml.

@@ -88,16 +88,22 @@ constexpr char kOptionKeys[] = "keys";
 
 // The environments this program can read, in the order they are offered.
 //
-// The two texts that name them are built from this rather than spelling it
-// again: a fifth one should be a line here and nowhere else, and the same
-// spelling in five places is what let the readme fall behind once already.
-QStringList knownEnvironments() {
-    return {
+// Every text in the program that names them is built from this rather than
+// spelling it again: the same list in several places is what let one of them
+// fall behind once already. The documentation cannot read this, so a gate in
+// scripts/check.sh measures what it says against what --help prints.
+//
+// Written out with commas and no conjunction, which is what a joined list can
+// give in every language: an "or" would have to come from the catalogue and
+// would put the list back into a translated sentence.
+const QStringList &knownEnvironments() {
+    static const QStringList names = {
         QLatin1String(kEnvironmentMango),
         QLatin1String(kEnvironmentHyprland),
         QLatin1String(kEnvironmentSway),
         QLatin1String(kEnvironmentKde),
     };
+    return names;
 }
 
 // Detects the running environment. Empty string when nothing matches: then it
