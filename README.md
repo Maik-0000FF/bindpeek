@@ -21,6 +21,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
 compositor is actually configured with and shows them while you hold the keys,
 without taking the keyboard away from you.
 
+https://github.com/user-attachments/assets/a3a87b0d-c594-4b73-8b79-2d401ee96a66
+
+The panel in all five positions and all fourteen palettes, with one and two
+modifiers held, and the plate fading out from under the text at the end.
+
 Nobody remembers every combination they once bound. The usual answer is to open
 the configuration file in a second window and read it, which is the one thing
 you cannot do while holding the keys you are asking about. bindpeek puts the
