@@ -14,6 +14,12 @@ can be edited without this page next to it. **Delete a line to fall back to its
 default.** Anything unusable is reported rather than quietly corrected: the
 program says which line it could not use and carries on with the default for it.
 
+![The settings window, with the panel itself as the preview beside the controls](../assets/settings-window.png)
+
+The preview on the right is not a picture of the panel, it is the panel, built
+from the same files the overlay is built from. What a control does is therefore
+visible before the file is written.
+
 ## The settings
 
 | Key | Values | Default | What it does |

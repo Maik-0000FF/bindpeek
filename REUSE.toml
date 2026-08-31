@@ -13,9 +13,10 @@ path = "tests/samples/**"
 SPDX-FileCopyrightText = "2026 Maik-0000FF"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
-# A picture carries no comments. Rendered from the mark beside it, because a
-# Markdown viewer that shows no vector graphics is common enough that the front
-# page cannot depend on one.
+# A picture carries no comments. Two kinds live here: the mark, rendered from
+# the vector beside it because a Markdown viewer that shows no vector graphics
+# is common enough that the front page cannot depend on one, and pictures of
+# the program taken from a running session.
 [[annotations]]
 path = "assets/*.png"
 SPDX-FileCopyrightText = "2026 Maik-0000FF"
