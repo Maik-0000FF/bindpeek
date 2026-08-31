@@ -56,9 +56,26 @@ constexpr char kFlagPrefix[] = "--";
 constexpr char kVariablePrefix[] = "$";
 constexpr char kComboSeparator[] = "+";
 
-// The prefix that restricts a bind to one keyboard group. It says nothing
-// about which keys are held, so it is dropped and the bind kept.
+// What restricts a bind to one keyboard group. It says nothing about which
+// keys are held, so it is dropped and the bind kept.
+//
+// sway splits the combination at every "+" and tests each part for these, so
+// they stand wherever the configuration put them, not only in front. Read from
+// its own source, where Mode_switch is an alias for Group2.
 constexpr char kGroupPrefix[] = "Group";
+constexpr char kGroupAlias[] = "Mode_switch";
+
+// The option a mode block may carry, which is none of its name.
+constexpr char kModeMarkupFlag[] = "--pango_markup";
+
+// A ceiling on the length a reply announces before a byte of it is read.
+//
+// The socket is named by an environment variable, so what answers is not
+// guaranteed to be sway, and a length word is four bytes that can say four
+// gigabytes. Reading into a buffer of that size happens on the thread that
+// draws. A configuration is text a person wrote; eight megabytes is far above
+// any of them and far below what hurts.
+constexpr int kMaxReplyBytes = 8 * 1024 * 1024;
 
 // Pointer buttons, which are not keyboard shortcuts and do not belong on a
 // keyboard cheat sheet. sway writes them either way round.
@@ -141,10 +158,15 @@ QString actionText(const QString &command) {
         return rest;
     }
 
-    const QString text =
-        QCoreApplication::translate("SourceSway", found.value());
-    return text.contains(QStringLiteral("%1")) ? text.arg(tail).trimmed()
-                                               : text;
+    QString text = QCoreApplication::translate("SourceSway", found.value());
+    if (!text.contains(QStringLiteral("%1"))) {
+        return text;
+    }
+    const QString filled = text.arg(tail).trimmed();
+    // "exec" with nothing after it fills in as nothing at all, and Source.h
+    // promises a description. The word that was written is the only thing
+    // left to say, and it is better than a blank line.
+    return filled.isEmpty() ? head : filled;
 }
 
 // Splits a line into words, keeping what is inside double quotes together.
@@ -212,7 +234,11 @@ QString unquoted(QString text) {
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
-    QStringList modes; // the open mode blocks, innermost last
+    // One entry per open block, innermost last: the name for a mode block,
+    // nothing for any other. sway has blocks that are not modes, "bar" among
+    // them, and counting their braces as a mode's would end a heading early
+    // and put the binds after it under the wrong one.
+    QStringList blocks;
     int skippedPointer = 0;
     int skippedCode = 0;
     int skippedModifier = 0;
@@ -228,8 +254,8 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
 
         // A closing brace ends the innermost block, whatever it was.
         if (line.startsWith(QLatin1String(kBlockClose))) {
-            if (!modes.isEmpty()) {
-                modes.removeLast();
+            if (!blocks.isEmpty()) {
+                blocks.removeLast();
             }
             continue;
         }
@@ -267,11 +293,14 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
 
         // A mode block opens a heading; "mode <name>" without a brace is a
         // command that switches to one and is not a block at all.
-        if (keyword == QLatin1String(kKeywordMode) && !parts.isEmpty() &&
-            line.endsWith(QLatin1String(kBlockOpen))) {
-            parts.removeAll(QLatin1String(kBlockOpen));
-            parts.removeAll(QStringLiteral("--pango_markup"));
-            modes.append(unquoted(parts.join(QLatin1Char(' '))).trimmed());
+        if (line.endsWith(QLatin1String(kBlockOpen))) {
+            if (keyword == QLatin1String(kKeywordMode) && !parts.isEmpty()) {
+                parts.removeAll(QLatin1String(kBlockOpen));
+                parts.removeAll(QLatin1String(kModeMarkupFlag));
+                blocks.append(unquoted(parts.join(QLatin1Char(' '))).trimmed());
+            } else {
+                blocks.append(QString());
+            }
             continue;
         }
 
@@ -279,6 +308,12 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // read from an included file is not in the answer, and neither are
         // the binds in it. Counted and reported, because a list quietly
         // missing half the shortcuts is worse than one that says so.
+        //
+        // Read from its own source rather than assumed. The GET_CONFIG branch
+        // of its IPC server puts one property in the reply, "config", filled
+        // from the buffer that is written only while the main file is being
+        // read. i3 grew a second property for the included files; sway, whose
+        // IPC follows i3's, has not.
         if (keyword == QLatin1String(kKeywordInclude)) {
             ++included;
             continue;
@@ -308,14 +343,14 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         QString combo = parts.takeFirst();
         const QString command = parts.join(QLatin1Char(' '));
 
-        // The keyboard group is a restriction, not a key.
-        if (combo.startsWith(QLatin1String(kGroupPrefix))) {
-            const qsizetype cut = combo.indexOf(QLatin1Char('+'));
-            combo = cut < 0 ? QString() : combo.mid(cut + 1);
-        }
-
         QStringList tokens =
             combo.split(QLatin1String(kComboSeparator), Qt::SkipEmptyParts);
+        // The keyboard group is a restriction, not a key, and it stands
+        // wherever it was written rather than only in front.
+        tokens.removeIf([](const QString &token) {
+            return token.startsWith(QLatin1String(kGroupPrefix)) ||
+                   token == QLatin1String(kGroupAlias);
+        });
         if (tokens.isEmpty()) {
             ++skippedEmpty;
             continue;
@@ -351,7 +386,15 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         bind.modifiers = orderModifiers(modifiers);
         bind.key = normalizeKey(key);
         bind.description = actionText(command);
-        bind.group = modes.isEmpty() ? defaultGroupName() : modes.constLast();
+        // The innermost mode that is still open, if any: a block inside one
+        // does not change what heads the binds.
+        QString heading;
+        for (const QString &block : blocks) {
+            if (!block.isEmpty()) {
+                heading = block;
+            }
+        }
+        bind.group = heading.isEmpty() ? defaultGroupName() : heading;
         binds.append(bind);
     }
 
@@ -424,7 +467,12 @@ QByteArray reply(QLocalSocket &socket, QDeadlineTimer deadline,
                  QString *error) {
     QByteArray header;
     while (header.size() < kHeaderLength) {
-        if (!socket.waitForReadyRead(
+        // Asked only when nothing is buffered. The reply may well have
+        // arrived while the request was still being written, and waiting for
+        // more that never comes would spend the whole budget and then report
+        // silence over an answer that is already in hand.
+        if (socket.bytesAvailable() == 0 &&
+            !socket.waitForReadyRead(
                 static_cast<int>(deadline.remainingTime()))) {
             *error = QCoreApplication::translate(
                 "SourceSway", "The compositor did not answer.");
@@ -441,6 +489,19 @@ QByteArray reply(QLocalSocket &socket, QDeadlineTimer deadline,
 
     std::uint32_t length = 0;
     std::memcpy(&length, header.constData() + kMagicLength, sizeof(length));
+    // Believed only as far as it is plausible. What is read next is asked for
+    // in one go, so a length word of four gigabytes would be four gigabytes
+    // asked of the thread that draws, from a socket whose address came out of
+    // the environment.
+    if (length > static_cast<std::uint32_t>(kMaxReplyBytes)) {
+        *error =
+            QCoreApplication::translate(
+                "SourceSway",
+                "The compositor announced an answer of %1 bytes, which is more "
+                "than a configuration ever is.")
+                .arg(length);
+        return {};
+    }
 
     QByteArray payload;
     while (static_cast<std::uint32_t>(payload.size()) < length) {
@@ -461,23 +522,32 @@ QByteArray reply(QLocalSocket &socket, QDeadlineTimer deadline,
 } // namespace
 
 QList<Bind> SourceSway::read(QString *error) const {
+    // Written through one place rather than at each turn: the pointer is
+    // allowed to be null, which every backend here honours, and six separate
+    // checks are six chances to forget one.
+    const auto report = [error](const QString &message) {
+        if (error != nullptr) {
+            *error = message;
+        }
+    };
+
     QString text;
 
     if (!m_configPath.isEmpty()) {
         QFile file(m_configPath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            *error = QCoreApplication::translate("SourceSway",
-                                                 "%1 could not be read.")
-                         .arg(m_configPath);
+            report(QCoreApplication::translate("SourceSway",
+                                               "%1 could not be read.")
+                       .arg(m_configPath));
             return {};
         }
         text = QString::fromUtf8(file.readAll());
     } else {
         const QString path = socketPath();
         if (path.isEmpty()) {
-            *error = QCoreApplication::translate(
+            report(QCoreApplication::translate(
                 "SourceSway",
-                "No running sway found: neither SWAYSOCK nor I3SOCK is set.");
+                "No running sway found: neither SWAYSOCK nor I3SOCK is set."));
             return {};
         }
 
@@ -486,39 +556,39 @@ QList<Bind> SourceSway::read(QString *error) const {
         socket.connectToServer(path);
         if (!socket.waitForConnected(
                 static_cast<int>(deadline.remainingTime()))) {
-            *error = QCoreApplication::translate(
-                         "SourceSway", "The socket at %1 did not answer.")
-                         .arg(path);
+            report(QCoreApplication::translate(
+                       "SourceSway", "The socket at %1 did not answer.")
+                       .arg(path));
             return {};
         }
 
         socket.write(message(kTypeGetConfig, QByteArray()));
         if (!socket.waitForBytesWritten(
                 static_cast<int>(deadline.remainingTime()))) {
-            *error = QCoreApplication::translate(
-                "SourceSway", "The request could not be sent.");
+            report(QCoreApplication::translate(
+                "SourceSway", "The request could not be sent."));
             return {};
         }
 
         QString failure;
         const QByteArray payload = reply(socket, deadline, &failure);
         if (!failure.isEmpty()) {
-            *error = failure;
+            report(failure);
             return {};
         }
 
         QJsonParseError parse{};
         const QJsonDocument document = QJsonDocument::fromJson(payload, &parse);
         if (parse.error != QJsonParseError::NoError || !document.isObject()) {
-            *error = QCoreApplication::translate(
-                         "SourceSway", "The answer could not be read: %1")
-                         .arg(parse.errorString());
+            report(QCoreApplication::translate(
+                       "SourceSway", "The answer could not be read: %1")
+                       .arg(parse.errorString()));
             return {};
         }
         text = document.object().value(QLatin1String(kFieldConfig)).toString();
         if (text.isEmpty()) {
-            *error = QCoreApplication::translate(
-                "SourceSway", "The compositor reported no configuration.");
+            report(QCoreApplication::translate(
+                "SourceSway", "The compositor reported no configuration."));
             return {};
         }
     }
@@ -526,7 +596,7 @@ QList<Bind> SourceSway::read(QString *error) const {
     QString note;
     QList<Bind> binds = parseConfig(text, &note);
     if (!note.isEmpty()) {
-        *error = note;
+        report(note);
     }
     return binds;
 }

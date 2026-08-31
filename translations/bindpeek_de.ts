@@ -823,6 +823,10 @@
         <translation>Der Kompositor hat in einer Form geantwortet, die hier niemand versteht.</translation>
     </message>
     <message>
+        <source>The compositor announced an answer of %1 bytes, which is more than a configuration ever is.</source>
+        <translation>Der Kompositor hat eine Antwort von %1 Byte angekündigt, mehr als eine Konfiguration je ist.</translation>
+    </message>
+    <message>
         <source>The compositor stopped half way through its answer.</source>
         <translation>Der Kompositor hat mitten in der Antwort aufgehört.</translation>
     </message>

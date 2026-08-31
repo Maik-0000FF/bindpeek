@@ -104,10 +104,12 @@ class Environment {
 public:
     Environment()
         : m_runtimeDir(qgetenv(kRuntimeDirVar)),
-          m_signature(qgetenv(kHyprlandSignatureVar)) {}
+          m_signature(qgetenv(kHyprlandSignatureVar)),
+          m_swaySocket(qgetenv(kSwaySocketVar)) {}
     ~Environment() {
         restore(kRuntimeDirVar, m_runtimeDir);
         restore(kHyprlandSignatureVar, m_signature);
+        restore(kSwaySocketVar, m_swaySocket);
     }
     Environment(const Environment &) = delete;
     Environment &operator=(const Environment &) = delete;
@@ -123,6 +125,7 @@ private:
 
     QByteArray m_runtimeDir;
     QByteArray m_signature;
+    QByteArray m_swaySocket;
 };
 
 // Answers one request the way Hyprland does: read the command, write the
@@ -265,6 +268,12 @@ private slots:
     void hyprlandReportsASocketThatIsNotThere();
     void hyprlandAsksTheRunningCompositor();
 
+    void hyprlandKeepsThePromiseOfADescription();
+    void hyprlandNamesWhatALuaConfigurationLeavesOut();
+    void hyprlandRefusesAnUnreadableModmask_data();
+    void hyprlandRefusesAnUnreadableModmask();
+    void hyprlandNamesTheCountsWhenNothingRemains();
+
     // --- sway -------------------------------------------------------------
 
     void swayReadsTheSample();
@@ -272,12 +281,11 @@ private slots:
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAFileWasNotHandedOut();
     void swayHeadsBindsWithTheirMode();
+    void swayAlwaysNamesSomething();
+    void swayDropsAGroupWhereverItStands();
+    void swayKeepsAModeAcrossAnInnerBlock();
+    void swayRefusesAnAnswerTooLargeToBeOne();
     void swayAsksTheRunningCompositor();
-    void hyprlandKeepsThePromiseOfADescription();
-    void hyprlandNamesWhatALuaConfigurationLeavesOut();
-    void hyprlandRefusesAnUnreadableModmask_data();
-    void hyprlandRefusesAnUnreadableModmask();
-    void hyprlandNamesTheCountsWhenNothingRemains();
     void hyprlandFindsTheSocketWithoutARuntimeDir();
     void hyprlandBlamesTheClockNotTheAnswer();
     void hyprlandReportsAConnectionClosedWithoutAnAnswer();
@@ -1562,6 +1570,97 @@ void TestSources::swayHeadsBindsWithTheirMode() {
     }
     QCOMPARE(headingOfResize, QStringLiteral("resize"));
     QCOMPARE(headingAfterTheBlock, defaultGroupName());
+}
+
+void TestSources::swayAlwaysNamesSomething() {
+    // "exec" with nothing after it. Source.h promises a description on every
+    // bind, and a line filled from an empty argument is no description.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("set $mod Mod4\nbindsym $mod+x exec\n"), &note);
+
+    QCOMPARE(binds.size(), 1);
+    QVERIFY2(!binds.constFirst().description.isEmpty(),
+             "a bind without an argument still has to be named");
+}
+
+void TestSources::swayDropsAGroupWhereverItStands() {
+    // sway splits the combination at every "+" and tests each part for the
+    // group, so it is not always in front. Read from its own source, where
+    // Mode_switch is the same thing under an older name.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("set $mod Mod4\n"
+                       "bindsym $mod+Group2+y exec first\n"
+                       "bindsym Group2+$mod+z exec second\n"
+                       "bindsym $mod+Mode_switch+w exec third\n"),
+        &note);
+
+    QCOMPARE(binds.size(), 3);
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+Y")),
+             QStringLiteral("first"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+Z")),
+             QStringLiteral("second"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+W")),
+             QStringLiteral("third"));
+}
+
+void TestSources::swayKeepsAModeAcrossAnInnerBlock() {
+    // Not every block is a mode. Counting the brace of a "bar" as a mode's
+    // would end the heading early, and everything after it would be filed
+    // under the default one.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("mode \"resize\" {\n"
+                       "  bindsym Left resize shrink width 10px\n"
+                       "  bar {\n"
+                       "    position top\n"
+                       "  }\n"
+                       "  bindsym Right resize grow width 10px\n"
+                       "}\n"
+                       "bindsym Mod4+a exec after\n"),
+        &note);
+
+    QCOMPARE(binds.size(), 3);
+    for (const Bind &bind : binds) {
+        const bool inside =
+            bind.description.startsWith(QStringLiteral("Resize"));
+        QCOMPARE(bind.group,
+                 inside ? QStringLiteral("resize") : defaultGroupName());
+    }
+}
+
+void TestSources::swayRefusesAnAnswerTooLargeToBeOne() {
+    // The socket is named by an environment variable, so what answers is not
+    // guaranteed to be sway. A length word is four bytes and can say four
+    // gigabytes, which would be asked of the thread that draws before a byte
+    // of it is read.
+    QByteArray reply("i3-ipc", 6);
+    const quint32 length = 0xFFFFFFFFU;
+    const quint32 type = 9;
+    reply.append(reinterpret_cast<const char *>(&length), sizeof(length));
+    reply.append(reinterpret_cast<const char *>(&type), sizeof(type));
+
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    const QString path = runtime.path() + QStringLiteral("/sway-ipc.sock");
+
+    FakeCompositor compositor(path, reply);
+    QVERIFY(compositor.startAndWait());
+
+    const Environment saved;
+    qputenv(kSwaySocketVar, path.toLocal8Bit());
+
+    SourceSway source;
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+    QVERIFY(compositor.wait(kServerWaitMs));
+
+    QVERIFY(binds.isEmpty());
+    // The announced length has to appear in the message, or this passes just
+    // as well when the read simply ran out of time and nothing was checked.
+    // The number rather than a word, because the message is translated.
+    QVERIFY2(note.contains(QString::number(length)), qPrintable(note));
 }
 
 void TestSources::swayAsksTheRunningCompositor() {
