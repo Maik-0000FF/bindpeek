@@ -285,6 +285,7 @@ private slots:
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
     void swayKeepsABindThatEndsInABrace();
+    void swayReadsEveryBindingWordAsOne();
     void swayDropsAGroupWhereverItStands();
     void swayKeepsAModeAcrossAnInnerBlock();
     void swayRefusesAnAnswerTooLargeToBeOne();
@@ -1620,6 +1621,28 @@ void TestSources::swayKeepsABindThatEndsInABrace() {
         descriptionOf(binds, bindpeek::normalizeKey(QStringLiteral("Left"))),
         QStringLiteral("foo {"));
     // And the mode ends where its own brace is, not one line early.
+    QCOMPARE(binds.constLast().group, defaultGroupName());
+}
+
+void TestSources::swayReadsEveryBindingWordAsOne() {
+    // sway binds with four words, and only one of them puts a key on screen.
+    // The other three still take a command, and a command may end in a brace:
+    // read as the opening of a block, such a line swallows the brace that
+    // closes the mode around it, and everything after it is filed wrongly.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("set $mod Mod4\n"
+                       "mode \"resize\" {\n"
+                       "  bindswitch lid:on exec foo {\n"
+                       "  bindgesture swipe:3:right exec bar {\n"
+                       "  bindcode 24 exec baz {\n"
+                       "  bindsym Right resize grow\n"
+                       "}\n"
+                       "bindsym $mod+a exec after\n"),
+        &note);
+
+    // Only the two that name a key, and the one after the mode is outside it.
+    QCOMPARE(binds.size(), 2);
     QCOMPARE(binds.constLast().group, defaultGroupName());
 }
 

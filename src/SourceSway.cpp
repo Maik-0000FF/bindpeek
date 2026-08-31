@@ -46,6 +46,12 @@ constexpr int kExchangeBudgetMs = 500;
 // Keywords of the configuration.
 constexpr char kKeywordBindsym[] = "bindsym";
 constexpr char kKeywordBindcode[] = "bindcode";
+// The other two ways sway binds something. Neither is a key on a keyboard,
+// but both take a command, and a command may end in a brace: read as the
+// opening of a block, such a line would swallow the brace that closes the
+// mode around it. sway has exactly these four.
+constexpr char kKeywordBindswitch[] = "bindswitch";
+constexpr char kKeywordBindgesture[] = "bindgesture";
 constexpr char kKeywordSet[] = "set";
 constexpr char kKeywordInclude[] = "include";
 constexpr char kKeywordMode[] = "mode";
@@ -205,6 +211,24 @@ QString expand(QString text, const QHash<QString, QString> &variables) {
     return text;
 }
 
+// Whether a line binds something, whatever it binds it to.
+bool bindsSomething(const QString &keyword) {
+    return keyword == QLatin1String(kKeywordBindsym) ||
+           keyword == QLatin1String(kKeywordBindcode) ||
+           keyword == QLatin1String(kKeywordBindswitch) ||
+           keyword == QLatin1String(kKeywordBindgesture);
+}
+
+// The heading in force right now, empty while no mode is open.
+//
+// One spelling for both places that ask: what a bind is filed under, which
+// turns an empty answer into the default name, and what an inner block
+// inherits, which passes it on as it is. Two spellings disagreed about the
+// empty case, and a nameless "mode {" fell through the gap between them.
+QString openHeading(const QStringList &blocks) {
+    return blocks.isEmpty() ? QString() : blocks.constLast();
+}
+
 QString unquoted(QString text) {
     text.remove(QLatin1Char('"'));
     return text;
@@ -229,7 +253,13 @@ QString unquoted(QString text) {
 //   bindsym Mod5+x exec foo                 | skipped, same
 //   mode "resize" {                         | heading for what follows
 //   bindsym Left resize shrink width 10px   | under that heading
+//   bar {                                   | a block that is not a mode
+//   }                                       | ends that block, not the mode
 //   }                                       | back to the default heading
+//   bindsym Left exec foo {                 | a command, not a block: kept
+//   bindswitch lid:on exec foo {            | not a key, and not a block
+//   bindsym $mod+x ""                       | kept, and named "no command"
+//   bindsym $mod+x exec ""                  | the same
 //   # bindsym $mod+q kill                   | a comment, not a bind
 //   bindsym $mod+q                          | skipped, nothing to run
 //   bindsym                                 | skipped, nothing at all
@@ -241,10 +271,13 @@ QString unquoted(QString text) {
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
-    // One entry per open block, innermost last: the name for a mode block,
-    // nothing for any other. sway has blocks that are not modes, "bar" among
-    // them, and counting their braces as a mode's would end a heading early
-    // and put the binds after it under the wrong one.
+    // One entry per open block, innermost last, and each entry is the heading
+    // that holds inside it: the name of a mode block, and for any other block
+    // whatever it inherited. That way the top of the stack is always the
+    // answer, and a mode keeps its heading across a "bar" nested in it.
+    //
+    // sway has blocks that are not modes, and counting their braces as a
+    // mode's would end a heading early and file the binds after it wrongly.
     QStringList blocks;
     int skippedPointer = 0;
     int skippedCode = 0;
@@ -313,24 +346,29 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
 
-        if (keyword == QLatin1String(kKeywordBindcode)) {
-            // A keycode is a number on this keyboard's layout and has no name
-            // to put on screen.
-            ++skippedCode;
+        // What binds something is read as a bind, and only one of the four
+        // puts a key on screen. The other three still take a command, and a
+        // command may end in a brace: taken for the opening of a block, such
+        // a line swallows the brace that closes the mode around it.
+        //
+        // One question, asked once, so a fifth binding word added later is
+        // wrong in one place instead of quietly opening blocks.
+        if (bindsSomething(keyword) &&
+            keyword != QLatin1String(kKeywordBindsym)) {
+            if (keyword == QLatin1String(kKeywordBindcode)) {
+                // A keycode is a number on this keyboard's layout and has no
+                // name to put on screen.
+                ++skippedCode;
+            }
+            // A lid and a touchpad are not keys either, and neither was ever
+            // going to appear here, so neither is counted as left out.
             continue;
         }
 
-        // Everything that is not a bind and ends in a brace opens a block.
-        // Asked here, after the instructions, and not before them: a command
-        // may end in a brace too, and a bind swallowed as a block would go
-        // missing while its heading ran on past the end of the mode.
-        //
-        // What is pushed is the heading in force inside that block, so the
-        // one on top is always the answer and nothing has to be searched for.
-        if (keyword != QLatin1String(kKeywordBindsym)) {
+        // Anything that binds nothing and ends in a brace opens a block.
+        if (!bindsSomething(keyword)) {
             if (line.endsWith(QLatin1String(kBlockOpen))) {
-                QString heading =
-                    blocks.isEmpty() ? QString() : blocks.constLast();
+                QString heading = openHeading(blocks);
                 if (keyword == QLatin1String(kKeywordMode) &&
                     !parts.isEmpty()) {
                     parts.removeAll(QLatin1String(kBlockOpen));
@@ -399,9 +437,8 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         bind.modifiers = orderModifiers(modifiers);
         bind.key = normalizeKey(key);
         bind.description = actionText(command);
-        bind.group = blocks.isEmpty() || blocks.constLast().isEmpty()
-                         ? defaultGroupName()
-                         : blocks.constLast();
+        const QString heading = openHeading(blocks);
+        bind.group = heading.isEmpty() ? defaultGroupName() : heading;
         binds.append(bind);
     }
 
