@@ -111,7 +111,9 @@ something.
 
 Anything that falls outside all of that, a mango bind written before the first
 section comment, a Hyprland bind in no submap or a sway bind in no mode, is
-collected under one heading at the end.
+collected under one heading of its own. It stands where it first occurs, like
+every other heading, which in most configurations means first: what is bound
+outside any section is usually written before the first one.
 
 **The description**, the text on the right, is a different matter per session:
 
@@ -123,8 +125,11 @@ collected under one heading at the end.
   `bind=MODIFIERS,KEY,ACTION,PARAMS` and there is no field for a description, so
   the text is worked out from the action name alone.
 - **sway** has nowhere either. A line is `bindsym KEYS COMMAND`, so the command
-  is what there is: a word sway knows becomes a sentence for it, and anything
-  else is shown as written.
+  is what there is. `exec` and `exec_always` hand their argument through, which
+  is what most lines are: `bindsym $mod+Return exec foot` reads as `foot`.
+  Another word sway knows becomes a sentence for it, `kill` as "Close window",
+  and a word it does not know is shown with its argument as it stands. Quotes
+  are dropped either way: they are punctuation of the configuration file.
 
 Where the text is worked out rather than read, an action bindpeek does not know
 is shown by its raw name together with its parameters. That is worth knowing,

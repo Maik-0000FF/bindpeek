@@ -137,7 +137,7 @@ Other options:
 | --- | --- |
 | `--list` | Print the shortcuts instead of showing the panel |
 | `--keys` | Print the held modifiers as they change, to check that the event devices can be read |
-| `--environment mango\|hyprland\|kde` | Force the session instead of detecting it |
+| `--environment mango\|hyprland\|sway\|kde` | Force the session instead of detecting it |
 | `--source <path>` | Read the shortcuts from this file instead of the session's own |
 | `--help`, `--version` | The usual |
 
@@ -149,7 +149,7 @@ a comment above every line. Both are read live. See
 ## Requirements
 
 - A Wayland session whose compositor implements `wlr-layer-shell`. Every
-  wlroots-based one does, which is mango, Sway, river and their like, and so do
+  wlroots-based one does, which is mango, sway, river and their like, and so do
   Hyprland, KWin and niri, which are each built on something of their own and
   carry the protocol anyway. GNOME/Mutter and X11 cannot show the panel.
 - Membership in the `input` group. The panel appears while a modifier is held,
