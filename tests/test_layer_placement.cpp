@@ -29,11 +29,6 @@ using namespace bindpeek;
 using Anchor = LayerShellQt::Window::Anchor;
 using Anchors = LayerShellQt::Window::Anchors;
 
-// The anchor flags come from a library that declares no meta information for
-// them, so the test framework cannot put them in a column without this. The
-// margins beside them need none: Qt knows that type already.
-Q_DECLARE_METATYPE(Anchors)
-
 namespace {
 
 // Two distances that cannot be mistaken for one another, so a rule that swaps
