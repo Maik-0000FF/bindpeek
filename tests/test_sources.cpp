@@ -1635,7 +1635,9 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
                        "mode \"resize\" {\n"
                        "  bindswitch lid:on exec foo {\n"
                        "  bindgesture swipe:3:right exec bar {\n"
-                       "  bindcode 24 exec baz {\n"
+                       "  bindcode 24 exec one {\n"
+                       "  bindcode 25 exec two\n"
+                       "  bindcode 26 exec three\n"
                        "  bindsym Right resize grow\n"
                        "}\n"
                        "bindsym $mod+a exec after\n"),
@@ -1648,12 +1650,15 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
     QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     // And the one after the mode stands outside it.
     QCOMPARE(binds.constLast().group, defaultGroupName());
+    // One sentence, and it counts the three keycodes and nothing else. Three
+    // rather than one, because a count of one is written out as a word in
+    // some languages and would carry no digit to look for; and the switch and
+    // the gesture would make it five if they were counted with them.
+    //
     // A switch and a gesture were never keyboard shortcuts, so neither is
-    // reported as left out; the keycode is. Counted by the separator rather
-    // than by a word or a number, because the note is translated and a count
-    // of one carries no digit in every language.
-    QCOMPARE(note.count(QLatin1String("; ")), 0);
-    QVERIFY2(!note.isEmpty(), "the keycode has to be reported");
+    // reported as missing, which a second sentence would say.
+    QCOMPARE(note.count(QLatin1String(kNoteSeparator)), 0);
+    QVERIFY2(note.contains(QStringLiteral("3")), qPrintable(note));
 }
 
 void TestSources::swayDropsAGroupWhereverItStands() {

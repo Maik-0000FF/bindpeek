@@ -88,9 +88,6 @@ constexpr int kMaxReplyBytes = 8 * 1024 * 1024;
 constexpr char kButtonPrefix[] = "button";
 constexpr char kButtonPrefixLong[] = "BTN_";
 
-// Joins several notes into the one message read() hands back.
-constexpr char kNoteSeparator[] = "; ";
-
 // What a command is worth in plain words, keyed by its first word.
 //
 // %1 is filled with the rest of the command, so an entry either spells the
@@ -259,7 +256,11 @@ QString unquoted(QString text) {
 //   bindsym Left exec foo {                 | a command, not a block: kept
 //   bindswitch lid:on exec foo {            | never a key, and not a block
 //   bindgesture swipe:3:right exec foo {    | the same
-//   bindcode 24 exec foo {                  | the same, and counted
+//   bindcode 24 exec foo {                  | a key without a name, counted,
+//                                           | and not a block either
+//   include /etc/sway/config.d/*            | reported: its binds are not in
+//                                           | what the compositor hands out
+//   bindsym Group2 exec foo                 | skipped: a group and no key
 //   bindsym $mod+x ""                       | kept, named "no command"
 //   bindsym $mod+x exec ""                  | kept, named "exec": the word
 //                                           | that was written is what is
@@ -272,11 +273,15 @@ QString unquoted(QString text) {
 // variable. Everything the panel cannot name is skipped rather than shown
 // under a combination that would not trigger it.
 //
-// What is counted into *note is what would have been a keyboard shortcut and
-// could not be shown as one: a pointer button, a keycode, a modifier with no
-// name, a bind with no command. A switch and a gesture are not counted,
-// because neither was ever going to appear on a keyboard cheat sheet, and a
-// note about them would say something is missing where nothing is.
+// *note collects what is missing from the list and why, one sentence each:
+// a line that would have been a keyboard shortcut and could not be shown as
+// one (a pointer button, a keycode, a modifier with no name, a line with
+// nothing left to bind or nothing to run), and a file the compositor read but
+// does not hand out, whose binds are missing for a different reason.
+//
+// A switch and a gesture are in neither group. Neither was ever going to
+// appear on a keyboard cheat sheet, and a note about them would say something
+// is missing where nothing is.
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
