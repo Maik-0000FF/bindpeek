@@ -34,8 +34,9 @@ shortcut still fires when you complete it.
 
 **Features:**
 
-- Reads the shortcuts of the running session: **mango**, **Hyprland** and
-  **KDE Plasma**, each from the file or service that session really uses
+- Reads the shortcuts of the running session: **mango**, **Hyprland**,
+  **sway** and **KDE Plasma**, each from the file or service that session
+  really uses
 - Appears while a modifier is held and goes when it is released, after a delay
   you set
 - Never takes the focus and never eats a key: the panel is a bystander, so the
@@ -171,7 +172,7 @@ a comment above every line. Both are read live. See
   Plasma 6 whose shortcuts there would be to read.
 
 Reading the shortcuts themselves is a second question, and there the answer is
-narrower: mango, Hyprland or KDE Plasma. On any other compositor the panel can
+narrower: mango, Hyprland, sway or KDE Plasma. On any other compositor the panel can
 be drawn but there is nothing yet to fill it with, and bindpeek says which
 session it found rather than guessing.
 

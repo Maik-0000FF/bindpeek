@@ -1,0 +1,68 @@
+# Sample sway config for the tests. Covers every line shape that occurs in a
+# real configuration, plus the shapes that have to be skipped. The counts are
+# hard-coded in test_sources.cpp, so do not insert anything without adjusting
+# the test.
+
+set $mod Mod4
+set $alt Mod1
+set $term foot
+set $both $mod+Shift
+# A name that begins like another one. Replaced longest first, or "$mode_resize"
+# turns into "Mod4e_resize" and the mode is addressed by a name nothing has.
+set $mode_resize resize
+
+# --- Programs ---
+bindsym $mod+Return exec $term
+bindsym $mod+d exec wofi --show drun
+bindsym --to-code $mod+e exec $term -e yazi
+
+# --- Windows ---
+bindsym $mod+Shift+q kill
+bindsym $mod+f fullscreen
+bindsym $mod+space floating toggle
+bindsym $alt+Tab focus right
+
+# A variable that names another variable, resolved before anything else.
+bindsym $both+r reload
+
+# --- Flags, which say when a bind fires and never which keys it wants ---
+bindsym --release Print exec grim
+bindsym --locked --no-repeat XF86AudioPlay exec playerctl play-pause
+bindsym --inhibited --to-code $mod+l exec swaylock
+
+# The keyboard group restricts a bind but is not a key of its own.
+bindsym Group2+$mod+x exec xterm
+
+# --- A mode block, whose name heads what is bound inside it ---
+mode "resize" {
+    bindsym Left resize shrink width 10px
+    bindsym Right resize grow width 10px
+    bindsym Escape mode "default"
+}
+
+# Switching to a mode is a command, not a block.
+bindsym $mod+r mode $mode_resize
+
+# --- Everything below has to be skipped ---
+
+# Pointer buttons, written both ways sway accepts.
+bindsym $mod+button1 kill
+bindsym --whole-window $mod+BTN_RIGHT floating toggle
+
+# A keycode has no name to put on screen.
+bindcode $mod+24 exec $term
+
+# Modifiers the keyboard watch never reports.
+bindsym Mod3+x exec nothing
+bindsym Mod5+y exec nothing
+bindsym Lock+z exec nothing
+
+# A file the compositor read but does not hand out. Its binds are missing from
+# the answer, which has to be said rather than passed over.
+include /etc/sway/config.d/*
+
+# Nothing to run.
+bindsym $mod+q
+
+# An ordinary note. It contains bindsym $mod+n exec nothing and must still not
+# produce an entry, because the line starts with #.

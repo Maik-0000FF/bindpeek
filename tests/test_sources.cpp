@@ -13,9 +13,12 @@
 #include "SourceKde.h"
 #endif
 #include "SourceMango.h"
+#include "SourceSway.h"
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QSemaphore>
@@ -24,6 +27,8 @@
 #include <QTest>
 #include <QTextStream>
 #include <QThread>
+
+#include <cstring>
 
 using namespace bindpeek;
 
@@ -259,6 +264,15 @@ private slots:
     void hyprlandReportsNoInstance();
     void hyprlandReportsASocketThatIsNotThere();
     void hyprlandAsksTheRunningCompositor();
+
+    // --- sway -------------------------------------------------------------
+
+    void swayReadsTheSample();
+    void swayResolvesAVariableBuiltFromAnother();
+    void swaySkipsWhatItCannotName();
+    void swaySaysWhenAFileWasNotHandedOut();
+    void swayHeadsBindsWithTheirMode();
+    void swayAsksTheRunningCompositor();
     void hyprlandKeepsThePromiseOfADescription();
     void hyprlandNamesWhatALuaConfigurationLeavesOut();
     void hyprlandRefusesAnUnreadableModmask_data();
@@ -1278,7 +1292,11 @@ void TestSources::hyprlandNamesWhatALuaConfigurationLeavesOut() {
     QCOMPARE(binds.size(), 2);
     // The registry index would otherwise stand there as "__lua 12".
     const Bind *unnamed = find(binds, QStringLiteral("SUPER+T"));
-    QVERIFY(unnamed != nullptr);
+    // QFAIL rather than QVERIFY: its return is plain to read, for the analyser
+    // as much as for anyone, and what follows dereferences this pointer.
+    if (unnamed == nullptr) {
+        QFAIL("SUPER+T is missing from the list");
+    }
     QVERIFY(!unnamed->description.contains(QStringLiteral("12")));
     QVERIFY(!unnamed->description.contains(QStringLiteral("__lua")));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+B")),
@@ -1446,5 +1464,158 @@ void TestSources::hyprlandReportsAConnectionClosedWithoutAnAnswer() {
 // GUILESS rather than APPLESS: the fake compositor drives a QLocalServer on a
 // thread of its own, and the socket notifiers behind it need an application to
 // belong to.
+
+// --- sway --------------------------------------------------------------
+
+void TestSources::swayReadsTheSample() {
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    // Twenty-three bind lines in the sample, seven of which cannot be named.
+    QCOMPARE(binds.size(), 16);
+    // The command is what the shortcut is called, with the variable in it
+    // already replaced.
+    // Asked through the same normalization the panel shows: Return is drawn
+    // as its symbol, and writing that symbol out here would measure this
+    // test's spelling rather than the backend.
+    const QString enter = QStringLiteral("SUPER") +
+                          QLatin1String(kShortcutSeparator) +
+                          bindpeek::normalizeKey(QStringLiteral("Return"));
+    QCOMPARE(descriptionOf(binds, enter), QStringLiteral("foot"));
+    // A word sway knows becomes the sentence for it, not the word itself.
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+SHIFT+Q")),
+             QStringLiteral("Close window"));
+    // The flags say when a bind fires and are none of the combination.
+    QCOMPARE(descriptionOf(binds, QStringLiteral("Print")),
+             QStringLiteral("grim"));
+    // The keyboard group restricts a bind but is not a key of its own.
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+X")),
+             QStringLiteral("xterm"));
+}
+
+void TestSources::swayResolvesAVariableBuiltFromAnother() {
+    // "set $both $mod+Shift" over "set $mod Mod4". What is stored for $both
+    // already holds the keys, because its own set line went through the
+    // replacement first; a bind written with it must land on them.
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+SHIFT+R")),
+             QStringLiteral("Reload configuration"));
+}
+
+void TestSources::swaySkipsWhatItCannotName() {
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    // Nothing that cannot be held on a keyboard, and nothing under a
+    // combination that would not trigger it.
+    for (const Bind &bind : binds) {
+        QVERIFY2(
+            !bind.key.contains(QStringLiteral("button"), Qt::CaseInsensitive),
+            qPrintable(bind.key));
+        QVERIFY2(!bind.key.contains(QStringLiteral("BTN")),
+                 qPrintable(bind.key));
+        for (const QString &modifier : bind.modifiers) {
+            QVERIFY2(modifierOrder().contains(modifier), qPrintable(modifier));
+        }
+    }
+
+    // Every skip is reported rather than swallowed: two pointer buttons, one
+    // keycode bind, three that need Mod3, Mod5 or Lock, one without a command.
+    QVERIFY2(!note.isEmpty(), "skipped lines have to be reported");
+    QVERIFY2(note.contains(QStringLiteral("2")), qPrintable(note));
+    QVERIFY2(note.contains(QStringLiteral("3")), qPrintable(note));
+}
+
+void TestSources::swaySaysWhenAFileWasNotHandedOut() {
+    // sway answers with the text of its main file alone: what it read from an
+    // included file is not in the reply, and the binds in it are missing from
+    // the list. That has to be said, or a list missing half the shortcuts
+    // looks like a complete one.
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    source.read(&note);
+
+    QVERIFY2(note.contains(QStringLiteral("included")), qPrintable(note));
+}
+
+void TestSources::swayHeadsBindsWithTheirMode() {
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    // What stands inside a mode block is headed by that mode, and the brace
+    // that closes it puts the following binds back under the default heading.
+    QString headingOfResize;
+    QString headingAfterTheBlock;
+    for (const Bind &bind : binds) {
+        if (bind.description == QStringLiteral("Resize shrink width 10px")) {
+            headingOfResize = bind.group;
+        }
+        if (bind.description == QStringLiteral("Mode resize")) {
+            headingAfterTheBlock = bind.group;
+        }
+    }
+    QCOMPARE(headingOfResize, QStringLiteral("resize"));
+    QCOMPARE(headingAfterTheBlock, defaultGroupName());
+}
+
+void TestSources::swayAsksTheRunningCompositor() {
+    QFile config(sample(QStringLiteral("sway-config")));
+    QVERIFY(config.open(QIODevice::ReadOnly));
+    const QJsonDocument document(QJsonObject{
+        {QStringLiteral("config"), QString::fromUtf8(config.readAll())}});
+    const QByteArray payload = document.toJson(QJsonDocument::Compact);
+
+    // The reply in the protocol's own shape: magic, length, type, payload.
+    QByteArray reply("i3-ipc", 6);
+    const auto length = static_cast<quint32>(payload.size());
+    const quint32 type = 9;
+    reply.append(reinterpret_cast<const char *>(&length), sizeof(length));
+    reply.append(reinterpret_cast<const char *>(&type), sizeof(type));
+    reply.append(payload);
+
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    const QString path = runtime.path() + QStringLiteral("/sway-ipc.sock");
+
+    FakeCompositor compositor(path, reply);
+    QVERIFY(compositor.startAndWait());
+
+    const Environment saved;
+    qputenv(kSwaySocketVar, path.toLocal8Bit());
+
+    SourceSway source;
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+    QVERIFY(compositor.wait(kServerWaitMs));
+
+    // What went out is the request for the configuration, in the same shape:
+    // the magic, no payload, and the type that asks for it.
+    const QByteArray request = compositor.request();
+    QCOMPARE(request.size(), 14);
+    QCOMPARE(request.left(6), QByteArray("i3-ipc"));
+    quint32 sentLength = 0;
+    quint32 sentType = 0;
+    memcpy(&sentLength, request.constData() + 6, sizeof(sentLength));
+    memcpy(&sentType, request.constData() + 10, sizeof(sentType));
+    QCOMPARE(sentLength, 0U);
+    QCOMPARE(sentType, 9U);
+
+    // Same list as from the file: the transport changes nothing.
+    QCOMPARE(binds.size(), 16);
+    // Asked through the same normalization the panel shows: Return is drawn
+    // as its symbol, and writing that symbol out here would measure this
+    // test's spelling rather than the backend.
+    const QString enter = QStringLiteral("SUPER") +
+                          QLatin1String(kShortcutSeparator) +
+                          bindpeek::normalizeKey(QStringLiteral("Return"));
+    QCOMPARE(descriptionOf(binds, enter), QStringLiteral("foot"));
+}
+
 QTEST_GUILESS_MAIN(TestSources)
 #include "test_sources.moc"

@@ -44,6 +44,7 @@ the place that session really uses:
 | --- | --- |
 | mango | the configuration the running compositor was started with, found from its own command line |
 | Hyprland | the running instance, asked over its IPC socket |
+| sway | the running instance, asked over its IPC socket for the text of its main configuration file; the variables in it are resolved here, and a line that pulls in another file is reported rather than followed |
 | KDE Plasma | `kglobalshortcutsrc`, read with KDE's own configuration library so the escaping is read the way KDE writes it |
 
 The source is read again immediately before every appearance, so a

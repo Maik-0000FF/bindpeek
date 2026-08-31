@@ -14,6 +14,7 @@
 #include "SourceKde.h"
 #endif
 #include "SourceMango.h"
+#include "SourceSway.h"
 #include "SystemScheme.h"
 
 #include <LayerShellQt/Window>
@@ -45,6 +46,7 @@ namespace {
 constexpr char kEnvironmentMango[] = "mango";
 constexpr char kEnvironmentHyprland[] = "hyprland";
 constexpr char kEnvironmentKde[] = "kde";
+constexpr char kEnvironmentSway[] = "sway";
 
 // Environment variables the running session is recognized by. The signature
 // variables carry more weight than XDG_CURRENT_DESKTOP because they are only
@@ -95,6 +97,13 @@ QString detectEnvironment() {
     if (environment.contains(QLatin1String(kMangoSignatureVar))) {
         return QLatin1String(kEnvironmentMango);
     }
+    // Either variable names a running sway; the second one alone is what i3
+    // sets, and i3 is not a Wayland session, so the panel would not come up
+    // there anyway. It is accepted all the same because sway sets both.
+    if (environment.contains(QLatin1String(kSwaySocketVar)) ||
+        environment.contains(QLatin1String(kSwaySocketVarLegacy))) {
+        return QLatin1String(kEnvironmentSway);
+    }
     if (environment.contains(QLatin1String(kVarKdeSession)) ||
         environment.value(QLatin1String(kVarDesktop))
             .contains(QStringLiteral("KDE"), Qt::CaseInsensitive)) {
@@ -111,6 +120,9 @@ std::unique_ptr<Source> makeSource(const QString &environment,
     }
     if (environment == QLatin1String(kEnvironmentHyprland)) {
         return std::make_unique<SourceHyprland>(path);
+    }
+    if (environment == QLatin1String(kEnvironmentSway)) {
+        return std::make_unique<SourceSway>(path);
     }
 #ifdef BINDPEEK_WITH_KDE
     if (environment == QLatin1String(kEnvironmentKde)) {
@@ -430,7 +442,7 @@ int main(int argc, char **argv) {
     const QCommandLineOption optionEnvironment(
         QLatin1String(kOptionEnvironment),
         QCoreApplication::translate(
-            "main", "Force the environment: mango, hyprland or kde."),
+            "main", "Force the environment: mango, hyprland, sway or kde."),
         QCoreApplication::translate("main", "name"));
     const QCommandLineOption optionSource(
         QLatin1String(kOptionSource),
@@ -464,7 +476,7 @@ int main(int argc, char **argv) {
     if (environment.isEmpty()) {
         err << QCoreApplication::translate(
                    "main", "No supported environment detected. Force one with "
-                           "--environment mango|hyprland|kde.")
+                           "--environment mango|hyprland|sway|kde.")
             << '\n';
         return 1;
     }
@@ -472,6 +484,7 @@ int main(int argc, char **argv) {
     const QStringList knownEnvironments = {
         QLatin1String(kEnvironmentMango),
         QLatin1String(kEnvironmentHyprland),
+        QLatin1String(kEnvironmentSway),
         QLatin1String(kEnvironmentKde),
     };
     if (!knownEnvironments.contains(environment)) {
