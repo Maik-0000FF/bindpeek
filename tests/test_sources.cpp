@@ -1641,9 +1641,19 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
                        "bindsym $mod+a exec after\n"),
         &note);
 
-    // Only the two that name a key, and the one after the mode is outside it.
+    // Only the two that name a key.
     QCOMPARE(binds.size(), 2);
+    // The one inside the mode is headed by it, which is what the three other
+    // words would break: taken for blocks, they swallow the closing brace.
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
+    // And the one after the mode stands outside it.
     QCOMPARE(binds.constLast().group, defaultGroupName());
+    // A switch and a gesture were never keyboard shortcuts, so neither is
+    // reported as left out; the keycode is. Counted by the separator rather
+    // than by a word or a number, because the note is translated and a count
+    // of one carries no digit in every language.
+    QCOMPARE(note.count(QLatin1String("; ")), 0);
+    QVERIFY2(!note.isEmpty(), "the keycode has to be reported");
 }
 
 void TestSources::swayDropsAGroupWhereverItStands() {

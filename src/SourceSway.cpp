@@ -257,17 +257,26 @@ QString unquoted(QString text) {
 //   }                                       | ends that block, not the mode
 //   }                                       | back to the default heading
 //   bindsym Left exec foo {                 | a command, not a block: kept
-//   bindswitch lid:on exec foo {            | not a key, and not a block
-//   bindsym $mod+x ""                       | kept, and named "no command"
-//   bindsym $mod+x exec ""                  | the same
+//   bindswitch lid:on exec foo {            | never a key, and not a block
+//   bindgesture swipe:3:right exec foo {    | the same
+//   bindcode 24 exec foo {                  | the same, and counted
+//   bindsym $mod+x ""                       | kept, named "no command"
+//   bindsym $mod+x exec ""                  | kept, named "exec": the word
+//                                           | that was written is what is
+//                                           | left to say
 //   # bindsym $mod+q kill                   | a comment, not a bind
 //   bindsym $mod+q                          | skipped, nothing to run
 //   bindsym                                 | skipped, nothing at all
 //
 // Variables are replaced before any of this, and a value may name another
 // variable. Everything the panel cannot name is skipped rather than shown
-// under a combination that would not trigger it, and every skip is counted
-// into *note.
+// under a combination that would not trigger it.
+//
+// What is counted into *note is what would have been a keyboard shortcut and
+// could not be shown as one: a pointer button, a keycode, a modifier with no
+// name, a bind with no command. A switch and a gesture are not counted,
+// because neither was ever going to appear on a keyboard cheat sheet, and a
+// note about them would say something is missing where nothing is.
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
@@ -353,11 +362,12 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         //
         // One question, asked once, so a fifth binding word added later is
         // wrong in one place instead of quietly opening blocks.
-        if (bindsSomething(keyword) &&
-            keyword != QLatin1String(kKeywordBindsym)) {
+        const bool isBinding = bindsSomething(keyword);
+        if (isBinding && keyword != QLatin1String(kKeywordBindsym)) {
             if (keyword == QLatin1String(kKeywordBindcode)) {
                 // A keycode is a number on this keyboard's layout and has no
-                // name to put on screen.
+                // name to put on screen. Counted, because it would have been
+                // a keyboard shortcut.
                 ++skippedCode;
             }
             // A lid and a touchpad are not keys either, and neither was ever
@@ -366,7 +376,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
 
         // Anything that binds nothing and ends in a brace opens a block.
-        if (!bindsSomething(keyword)) {
+        if (!isBinding) {
             if (line.endsWith(QLatin1String(kBlockOpen))) {
                 QString heading = openHeading(blocks);
                 if (keyword == QLatin1String(kKeywordMode) &&
