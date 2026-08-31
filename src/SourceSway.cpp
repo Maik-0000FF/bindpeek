@@ -352,13 +352,13 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // neither are the binds in it. Counted and reported, because a list
         // quietly missing half the shortcuts is worse than one that says so.
         //
-        // Asked over the socket, the omission is the answer's own shape. Read
-        // from sway's source rather than assumed: the GET_CONFIG branch of its
-        // IPC server puts one property in the reply, "config", filled from the
-        // buffer that is written only while the main file is being read. i3
-        // grew a second property for the included files; sway, whose IPC
-        // follows i3's, has not. Given a file instead, through --source,
-        // nothing follows the line either.
+        // Over the socket nothing is left out at this end: that is the shape
+        // sway answers in. Read from its source rather than assumed: the
+        // GET_CONFIG branch of its IPC server puts one property in the reply,
+        // "config", filled from the buffer that is written only while the main
+        // file is being read. i3 grew a second property for the included
+        // files; sway, whose IPC follows i3's, has not. Given a file instead,
+        // through --source, nothing follows the line either.
         if (keyword == QLatin1String(kKeywordInclude)) {
             // The line, not the files: one of these may name a whole
             // directory, and how many files that is cannot be known from
