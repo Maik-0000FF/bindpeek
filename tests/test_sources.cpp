@@ -280,7 +280,7 @@ private slots:
     void swayReadsTheSample();
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
-    void swaySaysWhenAFileWasNotHandedOut();
+    void swaySaysWhenAnIncludeIsNotFollowed();
     void swayHeadsBindsWithTheirMode();
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
@@ -1543,7 +1543,7 @@ void TestSources::swaySkipsWhatItCannotName() {
     QVERIFY2(note.contains(QStringLiteral("3")), qPrintable(note));
 }
 
-void TestSources::swaySaysWhenAFileWasNotHandedOut() {
+void TestSources::swaySaysWhenAnIncludeIsNotFollowed() {
     // What an include line pulls in is not part of what was read, and neither
     // are the binds in it. That has to be said, or a list missing half the
     // shortcuts looks like a complete one. Over read() and the sample, which
@@ -1558,7 +1558,9 @@ void TestSources::swaySaysWhenAFileWasNotHandedOut() {
     // translated in a test, which loads no catalogue.
     QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
 
-    // And two lines say two, however many files each of them stands for.
+    // And two lines say two. What each of them names is never opened, here
+    // as little as anywhere: the count is of lines, and nothing else is
+    // knowable from this side.
     QString twoLines;
     SourceSway::parseConfig(
         QStringLiteral("include /etc/sway/config.d/*\ninclude ~/extra\n"),
@@ -1668,6 +1670,7 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
     //
     // A switch and a gesture were never keyboard shortcuts, so neither is
     // reported as missing, which a second sentence would say.
+    //
     // Counting sentences by the separator holds only where no sentence
     // carries it, which is true of every sentence this backend writes and
     // measured to be so; one of Hyprland's does carry one, which is why
