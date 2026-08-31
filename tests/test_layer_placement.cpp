@@ -13,6 +13,7 @@
 // anchors and margins as a value, and only applyPlacement writes them into a
 // window.
 
+#include "Appearance.h"
 #include "LayerPlacement.h"
 #include "Settings.h"
 
@@ -139,6 +140,7 @@ private slots:
     void everyPositionIsInTheTable();
     void spannedAxisIsAnchoredOnBothSides();
     void marginsOnlyWhereThereIsAnEdge();
+    void reserveIsWhatTheMarginsAddUpTo();
     void applyingToNoWindowIsHarmless();
 
 private:
@@ -255,6 +257,22 @@ void TestLayerPlacement::marginsOnlyWhereThereIsAnEdge() {
                                 .arg(settings.anchoredToEdge()
                                          ? QStringLiteral("being")
                                          : QStringLiteral("not being"))));
+    }
+}
+
+// The same distances, counted rather than placed. What the panel may grow to
+// is worked out from the reserve, and the reserve is the two margins on each
+// axis added together: nothing else keeps that pair honest, and a placement
+// that gained a margin on a second side would leave the panel measured against
+// a screen box wider than the room it actually has.
+void TestLayerPlacement::reserveIsWhatTheMarginsAddUpTo() {
+    for (const QString &name : Settings::knownPositions()) {
+        const Settings settings = settingsFor(name);
+        const QMargins margins = placementFor(settings).margins;
+        const QSize reserve = reservedPixels(settings.position(), kGap, kInset);
+
+        QCOMPARE(reserve, QSize(margins.left() + margins.right(),
+                                margins.top() + margins.bottom()));
     }
 }
 

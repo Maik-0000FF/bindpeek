@@ -161,12 +161,20 @@ set_tests_properties(panel_layout PROPERTIES
 # headers for the anchor flags it hands back, but neither a surface nor a
 # compositor: making one is what needs those, and deciding where it goes does
 # not.
+#
+# Appearance comes along, and the scheme reader it holds a pointer to with it,
+# for the one case that holds the reserve against the margins: the two state
+# the same rule and are kept in different files, so one test has to see both.
+# Nothing here creates either object; the rule under test takes plain values.
 add_executable(test_layer_placement
   test_layer_placement.cpp
   ${CMAKE_SOURCE_DIR}/src/LayerPlacement.cpp
+  ${CMAKE_SOURCE_DIR}/src/Appearance.cpp
+  ${CMAKE_SOURCE_DIR}/src/SystemScheme.cpp
 )
 target_link_libraries(test_layer_placement PRIVATE bindpeek_sources
                                                    LayerShellQt::Interface
+                                                   Qt6::Gui Qt6::DBus
                                                    Qt6::Test)
 
 add_test(NAME layer_placement COMMAND test_layer_placement)
