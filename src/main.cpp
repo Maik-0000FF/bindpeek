@@ -91,7 +91,8 @@ constexpr char kOptionKeys[] = "keys";
 // Every text in the program that names them is built from this rather than
 // spelling it again: the same list in several places is what let one of them
 // fall behind once already. The documentation cannot read this, so a gate in
-// scripts/check.sh measures what it says against what --help prints.
+// scripts/check.sh measures what it says against the list the program names
+// when it refuses an environment it does not have.
 //
 // Written out with commas and no conjunction, which is what a joined list can
 // give in every language: an "or" would have to come from the catalogue and

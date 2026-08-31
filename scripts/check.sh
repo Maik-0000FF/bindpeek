@@ -266,8 +266,8 @@ step "the docs name the environments the program names"
 # its own copies, and a copy is a thing that falls behind: it did once already.
 #
 # Read out of the program rather than out of its source, so what is compared is
-# what a reader is actually told. Out of the refusal and not out of --help:
-# Qt wraps an option's text at the width of the terminal, and the list is the
+# what a reader is actually told. Out of the refusal and not out of --help: Qt
+# wraps an option's text at the width of the terminal, and the list is the
 # first thing to be broken across lines once a fourth name is in it.
 #
 # The name asked for has to be one no environment will ever have, because the
@@ -288,19 +288,62 @@ if [ -z "$environments" ]; then
     exit 1
 fi
 
-# Checked where the documentation actually lists them, which is the lines that
-# mention the option, plus the line after: the troubleshooting page wraps its
-# sentence. Looking at the whole file instead would pass on any page that
-# mentions an environment anywhere, which is every one of them.
-for file in README.md docs/TROUBLESHOOTING.md; do
-    listings=$(grep -A1 -- '--environment' "$file")
-    if [ -z "$listings" ]; then
-        echo "$file never mentions --environment" >&2
-        exit 1
-    fi
+# Two questions, because the documentation names them in two ways.
+#
+# First, every place that lists them has to list all of them. A listing is a
+# mention of the option that names more than one session; a mention that names
+# exactly one is an example of the option, not a list of what it takes, and
+# there are several of those.
+#
+# Asked per listing and not per file: several listings in one file would
+# otherwise cover for each other, and one of them could lose a name unnoticed.
+# The line after is taken along, because a sentence wraps.
+#
+# Whole words only. Unanchored, "sway" is inside "swaymsg", and a page that
+# merely mentions the tool would pass for one that lists the session.
+#
+# Files discovered rather than named, like everything else here: a page added
+# later is asked the same question without anyone remembering to add it.
+listing_fails=0
+while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    while IFS= read -r listing; do
+        [ -n "$listing" ] || continue
+        named=0
+        for name in $environments; do
+            grep -qwF -- "$name" <<<"$listing" && named=$((named + 1))
+        done
+        [ "$named" -gt 1 ] || continue
+        for name in $environments; do
+            grep -qwF -- "$name" <<<"$listing" || {
+                echo "$file lists the environments without '$name': $listing" >&2
+                listing_fails=1
+            }
+        done
+    done < <(grep -A1 -- '--environment' "$file" | sed '/^--$/d' \
+                 | paste -d' ' - - 2>/dev/null || true)
+done < <(sources '*.md')
+[ "$listing_fails" = 0 ] || exit 1
+
+# Second, the two pages that introduce the program have to know every session
+# at all, wherever they say so: the readme lists them among the features and
+# the how-it-works page gives each one a row saying where its shortcuts come
+# from. Neither spells the option, so the question above passes them by, and
+# both are places a new backend is easy to forget.
+#
+# Case is ignored here, and only here: prose names a session the way its own
+# project writes it, "Hyprland" and "KDE Plasma", while the option takes the
+# lower-case word. Both are right where they stand.
+#
+# What this catches is a page that does not know a session at all, which is
+# what a forgotten backend looks like. It cannot catch a page that names it in
+# one paragraph and forgets it in the next: prose carries no mark saying which
+# sentence is meant to be a complete list, and guessing at that produced more
+# false alarms than finds.
+for file in README.md docs/HOW-IT-WORKS.md; do
     for name in $environments; do
-        grep -q -- "$name" <<<"$listings" || {
-            echo "$file lists the environments without '$name'" >&2
+        grep -qwiF -- "$name" "$file" || {
+            echo "$file never names the environment '$name'" >&2
             exit 1
         }
     done

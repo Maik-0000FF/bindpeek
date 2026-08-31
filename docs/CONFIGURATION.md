@@ -137,8 +137,8 @@ is shown by its raw name together with its parameters. On sway that is the
 ordinary case for anything outside the two dozen words above, and says nothing
 about the bind. Elsewhere it is also how a dead line looks: a shortcut carried
 over from another compositor whose action this one has never heard of appears
-with its bare
-action name, while everything the program understands reads as plain language.
+with its bare action name, while everything the program understands reads as
+plain language.
 
 bindpeek never asks the compositor whether an action exists. It shows what the
 configuration says, and a line that is in the file is on the panel whether or
