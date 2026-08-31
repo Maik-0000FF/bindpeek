@@ -297,33 +297,91 @@ fi
 #
 # Asked per listing and not per file: several listings in one file would
 # otherwise cover for each other, and one of them could lose a name unnoticed.
-# The line after is taken along, because a sentence wraps.
+# Up to two lines after are taken along, because a sentence wraps, and a fifth
+# name will wrap it once more. They stop at a blank line or at the next mention
+# of the option, which is where a sentence has ended in either case.
 #
-# Whole words only. Unanchored, "sway" is inside "swaymsg", and a page that
-# merely mentions the tool would pass for one that lists the session.
+# Read in one pass rather than with grep -A, which groups matches that sit next
+# to each other into one block: right for a wrapped sentence, wrong for two
+# example lines in a row, which would become one listing naming two sessions
+# and fail while being perfectly correct.
 #
 # Files discovered rather than named, like everything else here: a page added
 # later is asked the same question without anyone remembering to add it.
+#
+# Whole words, decided by cutting each listing into runs of the characters a
+# name may be spelled with and comparing what comes out. grep -w is not enough
+# here: it treats a dash and a dot as boundaries, so "kde-connect",
+# "hyprland.conf" and "sway-bar" would each stand in for the session they
+# merely begin with, and all three are plausible on these very pages. A
+# trailing dot is dropped before the comparison, because a sentence may end on
+# the name itself.
+listings_seen=0
 listing_fails=0
 while IFS= read -r file; do
     [ -n "$file" ] || continue
-    while IFS= read -r listing; do
-        [ -n "$listing" ] || continue
-        named=0
-        for name in $environments; do
-            grep -qwF -- "$name" <<<"$listing" && named=$((named + 1))
-        done
-        [ "$named" -gt 1 ] || continue
-        for name in $environments; do
-            grep -qwF -- "$name" <<<"$listing" || {
-                echo "$file lists the environments without '$name': $listing" >&2
-                listing_fails=1
+    while IFS= read -r result; do
+        [ -n "$result" ] || continue
+        case "$result" in
+        listing) listings_seen=$((listings_seen + 1)) ;;
+        *)
+            echo "$file $result" >&2
+            listing_fails=1
+            ;;
+        esac
+    done < <(awk -v wanted="$environments" '
+        # Every line that mentions the option opens a listing, which runs on
+        # for up to two more lines: a sentence wraps, and a fifth name will
+        # wrap it once more. It ends at a blank line or at the next mention,
+        # which is where a sentence has ended in either case.
+        #
+        # Read in one pass rather than with grep -A, which groups matches that
+        # sit next to each other into one block: right for a wrapped sentence,
+        # wrong for two example lines in a row, which would become one listing
+        # naming two sessions and fail while being perfectly correct.
+        { line[NR] = $0 }
+        END {
+            split(wanted, names, " ")
+            for (i = 1; i <= NR; i++) {
+                if (line[i] !~ /--environment/) continue
+                record = line[i]
+                for (j = i + 1; j <= NR && j <= i + 2; j++) {
+                    if (line[j] ~ /--environment/) break
+                    if (line[j] ~ /^[[:space:]]*$/) break
+                    record = record " " line[j]
+                }
+
+                # Cut into words the way a name is spelled, then compare whole.
+                delete present
+                text = record
+                while (match(text, /[a-zA-Z0-9._-]+/)) {
+                    word = substr(text, RSTART, RLENGTH)
+                    text = substr(text, RSTART + RLENGTH)
+                    sub(/\.$/, "", word)
+                    present[tolower(word)] = 1
+                }
+
+                named = 0
+                for (n in names) if (present[names[n]]) named++
+                # One name is an example of the option, not a list of what it
+                # takes, and there are several of those.
+                if (named < 2) continue
+                print "listing"
+                for (n in names)
+                    if (!present[names[n]])
+                        print "lists the environments without \x27" names[n] "\x27: " record
             }
-        done
-    done < <(grep -A1 -- '--environment' "$file" | sed '/^--$/d' \
-                 | paste -d' ' - - 2>/dev/null || true)
+        }' "$file")
 done < <(sources '*.md')
 [ "$listing_fails" = 0 ] || exit 1
+
+# A gate nobody can silence by accident. Renaming the option or dropping the
+# table would otherwise leave nothing to check and pass without a word, which
+# is the drift this exists to catch, only complete.
+if [ "$listings_seen" = 0 ]; then
+    echo "no page lists the environments any more; has the option been renamed?" >&2
+    exit 1
+fi
 
 # Second, the two pages that introduce the program have to know every session
 # at all, wherever they say so: the readme lists them among the features and
@@ -339,7 +397,9 @@ done < <(sources '*.md')
 # what a forgotten backend looks like. It cannot catch a page that names it in
 # one paragraph and forgets it in the next: prose carries no mark saying which
 # sentence is meant to be a complete list, and guessing at that produced more
-# false alarms than finds.
+# false alarms than finds. The architecture page is left out for the same
+# reason from the other side: it names the backends by their file names, where
+# the session name is part of a longer word.
 for file in README.md docs/HOW-IT-WORKS.md; do
     for name in $environments; do
         grep -qwiF -- "$name" "$file" || {
