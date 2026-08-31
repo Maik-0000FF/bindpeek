@@ -9,17 +9,27 @@
 
 namespace bindpeek {
 
-void applyPlacement(LayerShellQt::Window *window, const Settings &settings) {
-    if (window == nullptr) {
-        return;
-    }
-
+// The positions this is asked with, and what each one is worth. Every word
+// Settings::knownPositions() offers is a case here, and the test measures the
+// two lists against each other so a position added there cannot arrive here
+// unanswered.
+//
+//   position  anchors                       margins (l, t, r, b)
+//   left      left, and top+bottom to span  gap,   inset, 0,     inset
+//   right     right, and top+bottom         0,     inset, gap,   inset
+//   top       top, and left+right           inset, gap,   inset, 0
+//   bottom    bottom, and left+right        inset, 0,     inset, gap
+//   center    none                          0,     0,     0,     0
+//
+// Both distances are ignored in the centre, which touches no edge: a margin
+// against an edge the surface is not anchored to moves nothing, and writing
+// one there would say the panel keeps a distance it does not keep.
+Placement placementFor(const Settings &settings) {
     // An anchor on one edge lets the compositor centre the surface along the
     // other, so a single anchor is all a side needs. Without any anchor it
     // floats in the middle, which is the centre position.
     using Anchor = LayerShellQt::Window::Anchor;
-    LayerShellQt::Window::Anchors anchors;
-    QMargins margins;
+    Placement placement;
 
     // The two distances, and they are not the same one: the gap is how far the
     // panel sits from the edge it is anchored to, the inset how far it stops
@@ -32,20 +42,20 @@ void applyPlacement(LayerShellQt::Window *window, const Settings &settings) {
     // one rule for the whole program, and it is asked below.
     switch (settings.position()) {
     case Settings::Position::Left:
-        anchors = Anchor::AnchorLeft;
-        margins = QMargins(gap, inset, 0, inset);
+        placement.anchors = Anchor::AnchorLeft;
+        placement.margins = QMargins(gap, inset, 0, inset);
         break;
     case Settings::Position::Right:
-        anchors = Anchor::AnchorRight;
-        margins = QMargins(0, inset, gap, inset);
+        placement.anchors = Anchor::AnchorRight;
+        placement.margins = QMargins(0, inset, gap, inset);
         break;
     case Settings::Position::Top:
-        anchors = Anchor::AnchorTop;
-        margins = QMargins(inset, gap, inset, 0);
+        placement.anchors = Anchor::AnchorTop;
+        placement.margins = QMargins(inset, gap, inset, 0);
         break;
     case Settings::Position::Bottom:
-        anchors = Anchor::AnchorBottom;
-        margins = QMargins(inset, 0, inset, gap);
+        placement.anchors = Anchor::AnchorBottom;
+        placement.margins = QMargins(inset, 0, inset, gap);
         break;
     case Settings::Position::Center:
         // No edge, so neither distance applies: the surface floats and the
@@ -65,16 +75,25 @@ void applyPlacement(LayerShellQt::Window *window, const Settings &settings) {
     // One flag at a time: the enum carries no operator for combining its
     // values, so writing them with a bar produces an int the flags refuse.
     if (spansHorizontally(settings.position())) {
-        anchors.setFlag(Anchor::AnchorLeft);
-        anchors.setFlag(Anchor::AnchorRight);
+        placement.anchors.setFlag(Anchor::AnchorLeft);
+        placement.anchors.setFlag(Anchor::AnchorRight);
     }
     if (spansVertically(settings.position())) {
-        anchors.setFlag(Anchor::AnchorTop);
-        anchors.setFlag(Anchor::AnchorBottom);
+        placement.anchors.setFlag(Anchor::AnchorTop);
+        placement.anchors.setFlag(Anchor::AnchorBottom);
     }
 
-    window->setAnchors(anchors);
-    window->setMargins(margins);
+    return placement;
+}
+
+void applyPlacement(LayerShellQt::Window *window, const Settings &settings) {
+    if (window == nullptr) {
+        return;
+    }
+
+    const Placement placement = placementFor(settings);
+    window->setAnchors(placement.anchors);
+    window->setMargins(placement.margins);
     // Follow the focus rather than QWindow::screen(), which would put the panel
     // wherever Qt happened to create the window.
     window->setWantsToBeOnActiveScreen(true);

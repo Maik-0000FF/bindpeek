@@ -5,11 +5,29 @@
 
 #include "Settings.h"
 
-namespace LayerShellQt {
-class Window;
-}
+#include <LayerShellQt/Window>
+
+#include <QMargins>
 
 namespace bindpeek {
+
+// Where a surface hangs and how far it keeps away.
+//
+// The two answers a compositor needs, together: which edges the surface is
+// held against, and the distances it keeps on each of its four sides. Handed
+// back as a value so the rule that works them out can be asked without a
+// surface to write them into.
+struct Placement {
+    LayerShellQt::Window::Anchors anchors;
+    QMargins margins;
+};
+
+// Works the placement out from the settings alone.
+//
+// Split from the call below because the two need different things: deciding
+// where the panel goes needs nothing but the settings, and only the writing
+// needs a layer-shell surface, which means a running compositor.
+Placement placementFor(const Settings &settings);
 
 // Puts a layer-shell surface where the settings say.
 //
