@@ -348,16 +348,17 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
         const QString keyword = parts.takeFirst();
 
-        // sway hands out the text of its main file and nothing else: what it
-        // read from an included file is not in the answer, and neither are
-        // the binds in it. Counted and reported, because a list quietly
-        // missing half the shortcuts is worse than one that says so.
+        // What such a line pulls in is not part of what was read here, and
+        // neither are the binds in it. Counted and reported, because a list
+        // quietly missing half the shortcuts is worse than one that says so.
         //
-        // Read from its own source rather than assumed. The GET_CONFIG branch
+        // Over the socket that is not an omission but the answer's own shape,
+        // read from sway's source rather than assumed: the GET_CONFIG branch
         // of its IPC server puts one property in the reply, "config", filled
         // from the buffer that is written only while the main file is being
         // read. i3 grew a second property for the included files; sway, whose
-        // IPC follows i3's, has not.
+        // IPC follows i3's, has not. Given a file instead, through --source,
+        // nothing follows the line either.
         if (keyword == QLatin1String(kKeywordInclude)) {
             // The line, not the files: one of these may name a whole
             // directory, and how many files that is cannot be known from
@@ -485,7 +486,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         if (includeLines > 0) {
             notes << QCoreApplication::translate(
                 "SourceSway",
-                "%n include line(s) not followed: what they pull in is not "
+                "%n include line(s) not followed: what is pulled in is not "
                 "part of the answer",
                 nullptr, includeLines);
         }

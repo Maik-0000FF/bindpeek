@@ -805,7 +805,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <source>%n include line(s) not followed: what they pull in is not part of the answer</source>
+        <source>%n include line(s) not followed: what is pulled in is not part of the answer</source>
         <translation>
             <numerusform>einer include-Zeile nicht gefolgt: was sie hereinholt, ist nicht Teil der Antwort</numerusform>
             <numerusform>%n include-Zeilen nicht gefolgt: was sie hereinholen, ist nicht Teil der Antwort</numerusform>

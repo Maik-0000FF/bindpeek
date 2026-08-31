@@ -57,8 +57,9 @@ bindsym Mod3+x exec nothing
 bindsym Mod5+y exec nothing
 bindsym Lock+z exec nothing
 
-# A file the compositor read but does not hand out. Its binds are missing from
-# the answer, which has to be said rather than passed over.
+# A line that pulls further configuration in. What it names is not part of
+# what was read, and neither are the binds in it, which has to be said rather
+# than passed over.
 include /etc/sway/config.d/*
 
 # Nothing to run.

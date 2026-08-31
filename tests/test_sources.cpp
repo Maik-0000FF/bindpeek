@@ -1544,23 +1544,21 @@ void TestSources::swaySkipsWhatItCannotName() {
 }
 
 void TestSources::swaySaysWhenAFileWasNotHandedOut() {
-    // sway answers with the text of its main file alone: what it read from an
-    // included file is not in the reply, and the binds in it are missing from
-    // the list. That has to be said, or a list missing half the shortcuts
-    // looks like a complete one.
-    //
-    // A configuration of nothing else, so the whole note is this one sentence
-    // and the check hangs on neither a word of it nor the language it is in.
+    // What an include line pulls in is not part of what was read, and neither
+    // are the binds in it. That has to be said, or a list missing half the
+    // shortcuts looks like a complete one. Over read() and the sample, which
+    // is the whole way a caller takes.
+    SourceSway source(sample(QStringLiteral("sway-config")));
     QString note;
-    const QList<Bind> binds = SourceSway::parseConfig(
-        QStringLiteral("include /etc/sway/config.d/*\n"), &note);
+    source.read(&note);
 
-    QVERIFY(binds.isEmpty());
-    QVERIFY2(!note.isEmpty(), "an unfollowed include has to be reported");
+    // The line, not the file: one line may name a whole directory, and how
+    // many files that is cannot be known from here. Pinned as the words it
+    // says, because that is the whole of what this reports; the note is not
+    // translated in a test, which loads no catalogue.
+    QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
 
-    // Counted per line, not per file: one line may name a whole directory,
-    // and how many files that is cannot be known from here. Two lines
-    // therefore say two, however many files each of them stands for.
+    // And two lines say two, however many files each of them stands for.
     QString twoLines;
     SourceSway::parseConfig(
         QStringLiteral("include /etc/sway/config.d/*\ninclude ~/extra\n"),
@@ -1670,6 +1668,10 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
     //
     // A switch and a gesture were never keyboard shortcuts, so neither is
     // reported as missing, which a second sentence would say.
+    // Counting sentences by the separator holds only where no sentence
+    // carries it, which is true of every sentence this backend writes and
+    // measured to be so; one of Hyprland's does carry one, which is why
+    // Source.h warns against the practice in general.
     QCOMPARE(note.count(QLatin1String(kNoteSeparator)), 0);
     QVERIFY2(note.contains(QStringLiteral("3")), qPrintable(note));
 }

@@ -17,9 +17,12 @@ inline constexpr char kSwaySocketVar[] = "SWAYSOCK";
 inline constexpr char kSwaySocketVarLegacy[] = "I3SOCK";
 
 // sway hands its configuration out over the same socket its own client talks
-// to, and hands out what it actually loaded rather than what is on disk: the
-// file may pull in further files and build its binds from variables, so the
-// text on disk is not the list in force. That answer is the source.
+// to, which is how the file is found without guessing where it lives.
+//
+// What comes back is the text of the main file as it was read, not a list of
+// binds: the variables in it are still written as variables, and what an
+// include line pulls in is not there at all. Both are answered here, the
+// first by resolving them, the second by saying so.
 //
 // Asked directly over the socket rather than by running swaymsg: the reply is
 // the same, and it works on a session where the tool is not installed.
