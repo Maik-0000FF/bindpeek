@@ -138,35 +138,42 @@ const QHash<QString, const char *> &actionTexts() {
 //
 // Quotes go: a command is written with them where it holds blanks, and they
 // are punctuation of the configuration, not of the answer.
+//
+// Every way out of here goes through the one check at the end. Source.h
+// promises a description on every bind, and a configuration holds shapes that
+// leave nothing to say: "exec" with no argument, a command of two quotes, a
+// command of blanks. Checking each branch instead would be one check per
+// branch and one branch someone adds later without it.
 QString actionText(const QString &command) {
     QString rest = command.trimmed();
-    if (rest.isEmpty()) {
-        return {};
-    }
+    rest.remove(QLatin1Char('"'));
+    rest = rest.trimmed();
 
     const qsizetype cut = rest.indexOf(QLatin1Char(' '));
     const QString head = cut < 0 ? rest : rest.left(cut);
-    QString tail = cut < 0 ? QString() : rest.mid(cut + 1).trimmed();
-    tail.remove(QLatin1Char('"'));
+    const QString tail = cut < 0 ? QString() : rest.mid(cut + 1).trimmed();
 
+    QString text;
     const auto found = actionTexts().constFind(head);
     if (found == actionTexts().cend()) {
         // Not a word this knows. The command itself is still the best answer
         // there is, and a shortcut with an unhelpful description beats one
         // that is missing.
-        rest.remove(QLatin1Char('"'));
-        return rest;
+        text = rest;
+    } else {
+        text = QCoreApplication::translate("SourceSway", found.value());
+        text = text.contains(QStringLiteral("%1")) ? text.arg(tail) : text;
     }
 
-    QString text = QCoreApplication::translate("SourceSway", found.value());
-    if (!text.contains(QStringLiteral("%1"))) {
+    text = text.trimmed();
+    if (!text.isEmpty()) {
         return text;
     }
-    const QString filled = text.arg(tail).trimmed();
-    // "exec" with nothing after it fills in as nothing at all, and Source.h
-    // promises a description. The word that was written is the only thing
-    // left to say, and it is better than a blank line.
-    return filled.isEmpty() ? head : filled;
+    // The word that was written, if there was one, and otherwise the plain
+    // truth: something is bound here and it says nothing about itself.
+    return head.isEmpty()
+               ? QCoreApplication::translate("SourceSway", "no command")
+               : head;
 }
 
 // Splits a line into words, keeping what is inside double quotes together.
@@ -291,19 +298,6 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
         const QString keyword = parts.takeFirst();
 
-        // A mode block opens a heading; "mode <name>" without a brace is a
-        // command that switches to one and is not a block at all.
-        if (line.endsWith(QLatin1String(kBlockOpen))) {
-            if (keyword == QLatin1String(kKeywordMode) && !parts.isEmpty()) {
-                parts.removeAll(QLatin1String(kBlockOpen));
-                parts.removeAll(QLatin1String(kModeMarkupFlag));
-                blocks.append(unquoted(parts.join(QLatin1Char(' '))).trimmed());
-            } else {
-                blocks.append(QString());
-            }
-            continue;
-        }
-
         // sway hands out the text of its main file and nothing else: what it
         // read from an included file is not in the answer, and neither are
         // the binds in it. Counted and reported, because a list quietly
@@ -325,7 +319,26 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             ++skippedCode;
             continue;
         }
+
+        // Everything that is not a bind and ends in a brace opens a block.
+        // Asked here, after the instructions, and not before them: a command
+        // may end in a brace too, and a bind swallowed as a block would go
+        // missing while its heading ran on past the end of the mode.
+        //
+        // What is pushed is the heading in force inside that block, so the
+        // one on top is always the answer and nothing has to be searched for.
         if (keyword != QLatin1String(kKeywordBindsym)) {
+            if (line.endsWith(QLatin1String(kBlockOpen))) {
+                QString heading =
+                    blocks.isEmpty() ? QString() : blocks.constLast();
+                if (keyword == QLatin1String(kKeywordMode) &&
+                    !parts.isEmpty()) {
+                    parts.removeAll(QLatin1String(kBlockOpen));
+                    parts.removeAll(QLatin1String(kModeMarkupFlag));
+                    heading = unquoted(parts.join(QLatin1Char(' '))).trimmed();
+                }
+                blocks.append(heading);
+            }
             continue;
         }
 
@@ -386,15 +399,9 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         bind.modifiers = orderModifiers(modifiers);
         bind.key = normalizeKey(key);
         bind.description = actionText(command);
-        // The innermost mode that is still open, if any: a block inside one
-        // does not change what heads the binds.
-        QString heading;
-        for (const QString &block : blocks) {
-            if (!block.isEmpty()) {
-                heading = block;
-            }
-        }
-        bind.group = heading.isEmpty() ? defaultGroupName() : heading;
+        bind.group = blocks.isEmpty() || blocks.constLast().isEmpty()
+                         ? defaultGroupName()
+                         : blocks.constLast();
         binds.append(bind);
     }
 

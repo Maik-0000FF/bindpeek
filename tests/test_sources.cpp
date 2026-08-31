@@ -97,7 +97,8 @@ constexpr int kServerWaitMs = 5000;
 // 108 bytes, temporary directory included.
 constexpr char kSignature[] = "bindpeek_test";
 
-// Puts the two variables the Hyprland backend reads back the way they were.
+// Puts the variables the socket backends are found through back the way they
+// were: the two the Hyprland backend reads, and the one sway is asked at.
 // Without this a test pointing them at a temporary directory would leave the
 // next one looking at a directory that has since been removed.
 class Environment {
@@ -281,7 +282,9 @@ private slots:
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAFileWasNotHandedOut();
     void swayHeadsBindsWithTheirMode();
+    void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
+    void swayKeepsABindThatEndsInABrace();
     void swayDropsAGroupWhereverItStands();
     void swayKeepsAModeAcrossAnInnerBlock();
     void swayRefusesAnAnswerTooLargeToBeOne();
@@ -1572,16 +1575,52 @@ void TestSources::swayHeadsBindsWithTheirMode() {
     QCOMPARE(headingAfterTheBlock, defaultGroupName());
 }
 
+void TestSources::swayAlwaysNamesSomething_data() {
+    QTest::addColumn<QString>("command");
+
+    // Every shape a configuration holds that leaves nothing to say. Source.h
+    // promises a description on every bind, and each of these took a
+    // different way through the naming.
+    QTest::newRow("a word this knows, with nothing after it") << "exec";
+    QTest::newRow("the same, with an empty argument") << "exec \"\"";
+    QTest::newRow("a command of two quotes") << "\"\"";
+    QTest::newRow("a command of blanks") << "\"   \"";
+}
+
 void TestSources::swayAlwaysNamesSomething() {
-    // "exec" with nothing after it. Source.h promises a description on every
-    // bind, and a line filled from an empty argument is no description.
+    QFETCH(QString, command);
+
     QString note;
     const QList<Bind> binds = SourceSway::parseConfig(
-        QStringLiteral("set $mod Mod4\nbindsym $mod+x exec\n"), &note);
+        QStringLiteral("set $mod Mod4\nbindsym $mod+x ") + command +
+            QLatin1Char('\n'),
+        &note);
 
     QCOMPARE(binds.size(), 1);
-    QVERIFY2(!binds.constFirst().description.isEmpty(),
-             "a bind without an argument still has to be named");
+    QVERIFY2(
+        !binds.constFirst().description.trimmed().isEmpty(),
+        qPrintable(QStringLiteral("nothing to show for: %1").arg(command)));
+}
+
+void TestSources::swayKeepsABindThatEndsInABrace() {
+    // A command may end in a brace, and a bind read as the opening of a block
+    // would go missing while its heading ran on past the end of the mode. The
+    // instructions are therefore read before anything is taken for a block.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
+                                               "  bindsym Left exec foo {\n"
+                                               "  bindsym Right resize grow\n"
+                                               "}\n"
+                                               "bindsym Mod4+a exec after\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 3);
+    QCOMPARE(
+        descriptionOf(binds, bindpeek::normalizeKey(QStringLiteral("Left"))),
+        QStringLiteral("foo {"));
+    // And the mode ends where its own brace is, not one line early.
+    QCOMPARE(binds.constLast().group, defaultGroupName());
 }
 
 void TestSources::swayDropsAGroupWhereverItStands() {

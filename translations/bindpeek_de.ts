@@ -779,6 +779,10 @@
         <source>Nothing</source>
         <translation>Nichts</translation>
     </message>
+    <message>
+        <source>no command</source>
+        <translation>kein Befehl</translation>
+    </message>
     <message numerus="yes">
         <source>%n pointer button(s) skipped</source>
         <translation>
