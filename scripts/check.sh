@@ -323,13 +323,14 @@ marker_begin="$marker_word:begin"
 marker_end="$marker_word:end"
 
 # A listing that is complete without one of them says so on its opening line,
-# as "except kde". Three sentences are like that and all three would otherwise
-# have to stay unmarked: the one naming what falls outside every heading, where
-# KDE has no such case because a shortcut there always belongs to a component,
-# and the two about autostart, which name the bare compositors precisely
-# because KDE is on the other side of the sentence. Excepting a name that is no
-# environment is an error, and so is excepting all of them: a typo would
-# otherwise quietly widen the hole it was meant to be.
+# as "except kde". Some sentences are like that and would otherwise have to
+# stay unmarked: the one naming what falls outside every heading, where KDE has
+# no such case because a shortcut there always belongs to a component, and the
+# ones about autostart, which name the bare compositors precisely because KDE
+# is on the other side of the sentence. Excepting a name that is no environment
+# is an error, and so is excepting all of them: a typo would otherwise quietly
+# widen the hole it was meant to be. An exception where the name appears in the
+# region anyway is worse than useless, so it is left off there.
 #
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
@@ -346,12 +347,17 @@ marker_end="$marker_word:end"
 # but a byte to be passed over.
 regions_seen=0
 region_fails=0
+regions=""
 while IFS= read -r file; do
     [ -n "$file" ] || continue
     while IFS= read -r result; do
         [ -n "$result" ] || continue
         case "$result" in
-        region) regions_seen=$((regions_seen + 1)) ;;
+        region\ *)
+            regions_seen=$((regions_seen + 1))
+            regions="$regions
+  $file, line ${result#region }"
+            ;;
         *)
             echo "$file $result" >&2
             region_fails=1
@@ -390,7 +396,7 @@ while IFS= read -r file; do
                 next
             }
             inside = 0
-            print "region"
+            print "region " start
             lower = tolower(text)
             asked = 0
             for (i = 1; i in names; i++) {
@@ -430,9 +436,15 @@ done < <(sources)
 #
 # Writing a new listing means changing this number in the same breath. The gate
 # says which way it moved, so neither direction can happen by accident.
-expected_regions=17
+#
+# Every marked listing is named when the count is wrong, because the number
+# alone leaves nowhere to look. A file written but never added is read like any
+# other here, on purpose, so a copy of a page left lying in the working tree
+# brings its listings along and the count says so without saying where.
+expected_regions=18
 if [ "$regions_seen" != "$expected_regions" ]; then
     echo "$regions_seen listings are marked, $expected_regions were expected" >&2
+    printf '%s\n' "$regions" | sed '/^[[:space:]]*$/d' >&2
     exit 1
 fi
 

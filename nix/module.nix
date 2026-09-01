@@ -113,7 +113,7 @@ in
     autoStart = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      # environments:begin except kde
+      # environments:begin
       description = ''
         Start the editor, and with it the tray icon and the panel, in every
         graphical session on this machine. This installs the package's own

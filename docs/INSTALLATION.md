@@ -181,10 +181,14 @@ same file the script and the automated checks read.
 
 ## Autostart under a bare compositor
 
+<!-- environments:begin except kde -->
+
 `~/.config/autostart` and `/etc/xdg/autostart` are read by desktop
 environments. A compositor started from a script, such as sway, Hyprland or
 mango, implements nothing of the sort, and there the autostart option has no
 effect at all. Put a line in the compositor's own startup file instead:
+
+<!-- environments:end -->
 
 ```bash
 bindpeek-editor &
