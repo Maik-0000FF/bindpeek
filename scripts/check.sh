@@ -79,10 +79,16 @@ step "workflow"
 # The file that says what runs on every push is shell inside YAML inside a
 # schema, and none of the three is checked by anything else here. Discovered
 # rather than named, like the sources above.
-mapfile -d '' workflows < <(sources '.github/workflows/*.yml' \
-    '.github/workflows/*.yaml')
-if [ "${#workflows[@]}" -gt 0 ]; then
-    actionlint "${workflows[@]}"
+#
+# Counted through a pipe rather than gathered into an array: a list read out of
+# a process substitution arrives with the reader's own status, always zero, so
+# a git that failed left an empty list behind and this step said there were no
+# workflow files and went on. Counting the separators keeps the failure where
+# it can be seen. The patterns are named once and used twice.
+workflow_globs=('.github/workflows/*.yml' '.github/workflows/*.yaml')
+workflow_count=$(sources "${workflow_globs[@]}" | tr -cd '\0' | wc -c)
+if [ "$workflow_count" -gt 0 ]; then
+    sources "${workflow_globs[@]}" | xargs -0 -r actionlint
 else
     echo "no workflow files"
 fi
