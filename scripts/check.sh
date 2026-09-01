@@ -336,8 +336,11 @@ marker_end="$marker_word:end"
 # ones about autostart, which name the bare compositors precisely because KDE
 # is on the other side of the sentence. Excepting a name that is no environment
 # is an error, and so is excepting all of them: a typo would otherwise quietly
-# widen the hole it was meant to be. An exception where the name appears in the
-# region anyway is worse than useless, so it is left off there.
+# widen the hole it was meant to be. So is excepting a name the region goes on
+# to use: the exception then covers a sentence that was being checked and
+# passing, and the day someone rewrites that sentence the cover is all that is
+# left. Written as a rule and not as advice, because advice in a comment is
+# what the third case was until it stopped holding.
 #
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
@@ -420,6 +423,9 @@ while IFS= read -r -d '' file; do
                 if (!known)
                     print "listing at line " start " excepts \x27" name \
                         "\x27, which is no environment"
+                else if (index(lower, tolower(name)) != 0)
+                    print "listing at line " start " excepts \x27" name \
+                        "\x27 and names it anyway"
             }
             if (asked == 0)
                 print "listing at line " start " excepts every environment"
