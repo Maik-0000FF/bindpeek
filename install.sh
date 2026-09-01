@@ -308,10 +308,12 @@ elif [ -f "$INSTALL_DESKTOP" ]; then
     mkdir -p "$(dirname "$AUTOSTART_ENTRY")"
     cp "$INSTALL_DESKTOP" "$AUTOSTART_ENTRY"
     ok "entry written to $AUTOSTART_ENTRY"
+    # environments:begin except kde
     note "That file is read by desktop environments. A compositor started"
     note "from a script, such as sway, Hyprland or mango, reads nothing of"
     note "the sort; there the way to start it is a line of its own in the"
     note "compositor's startup file:"
+    # environments:end
     note "    $SETTINGS &"
 else
     warn "no installed entry at $INSTALL_DESKTOP to copy"

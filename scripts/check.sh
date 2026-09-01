@@ -313,6 +313,15 @@ marker_word=environments
 marker_begin="$marker_word:begin"
 marker_end="$marker_word:end"
 
+# A listing that is complete without one of them says so on its opening line,
+# as "except kde". Three sentences are like that and all three would otherwise
+# have to stay unmarked: the one naming what falls outside every heading, where
+# KDE has no such case because a shortcut there always belongs to a component,
+# and the two about autostart, which name the bare compositors precisely
+# because KDE is on the other side of the sentence. Excepting a name that is no
+# environment is an error, and so is excepting all of them: a typo would
+# otherwise quietly widen the hole it was meant to be.
+#
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
 # "KDE Plasma" and for "src/SourceKde.*", which are how two of these pages
@@ -355,6 +364,15 @@ while IFS= read -r file; do
             inside = 1
             start = NR
             text = ""
+            delete skipped
+            skipping = 0
+            rest = substr($0, index($0, opens) + length(opens))
+            count = split(rest, word, /[^a-zA-Z0-9]+/)
+            for (j = 1; j <= count; j++) {
+                if (word[j] == "") continue
+                if (word[j] == "except") { skipping = 1; continue }
+                if (skipping) skipped[word[j]] = 1
+            }
             next
         }
         index($0, closes) {
@@ -365,10 +383,24 @@ while IFS= read -r file; do
             inside = 0
             print "region"
             lower = tolower(text)
-            for (i = 1; i in names; i++)
+            asked = 0
+            for (i = 1; i in names; i++) {
+                if (names[i] in skipped) continue
+                asked++
                 if (index(lower, tolower(names[i])) == 0)
                     print "listing at line " start " does not name \x27" \
                         names[i] "\x27"
+            }
+            for (name in skipped) {
+                known = 0
+                for (i = 1; i in names; i++)
+                    if (names[i] == name) known = 1
+                if (!known)
+                    print "listing at line " start " excepts \x27" name \
+                        "\x27, which is no environment"
+            }
+            if (asked == 0)
+                print "listing at line " start " excepts every environment"
             next
         }
         inside { text = text " " $0 }
@@ -389,7 +421,7 @@ done < <(sources)
 #
 # Writing a new listing means changing this number in the same breath. The gate
 # says which way it moved, so neither direction can happen by accident.
-expected_regions=14
+expected_regions=17
 if [ "$regions_seen" != "$expected_regions" ]; then
     echo "$regions_seen listings are marked, $expected_regions were expected" >&2
     exit 1

@@ -113,6 +113,7 @@ in
     autoStart = lib.mkOption {
       type = lib.types.bool;
       default = false;
+      # environments:begin except kde
       description = ''
         Start the editor, and with it the tray icon and the panel, in every
         graphical session on this machine. This installs the package's own
@@ -136,6 +137,7 @@ in
         desktop environment, copy the same file into `~/.config/autostart`
         instead, or let the desktop's own autostart settings do it.
       '';
+      # environments:end
     };
   };
 

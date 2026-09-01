@@ -117,11 +117,15 @@ something.
 
 <!-- environments:end -->
 
+<!-- environments:begin except kde -->
+
 Anything that falls outside all of that, a mango bind written before the first
 section comment, a Hyprland bind in no submap or a sway bind in no mode, is
 collected under one heading of its own. It stands where it first occurs, like
 every other heading, which in most configurations means first: what is bound
 outside any section is usually written before the first one.
+
+<!-- environments:end -->
 
 <!-- environments:begin -->
 
