@@ -48,9 +48,8 @@ constexpr int kExchangeBudgetMs = 500;
 constexpr char kKeywordBindsym[] = "bindsym";
 constexpr char kKeywordBindcode[] = "bindcode";
 // The other two ways sway binds something. Neither is a key on a keyboard,
-// but both take a command, and a command may end in a brace: read as the
-// opening of a block, such a line would swallow the brace that closes the
-// mode around it. sway has exactly these four.
+// and neither is counted as left out: a lid and a touchpad were never going
+// to appear on a keyboard cheat sheet. sway has exactly these four.
 constexpr char kKeywordBindswitch[] = "bindswitch";
 constexpr char kKeywordBindgesture[] = "bindgesture";
 constexpr char kKeywordSet[] = "set";
@@ -388,6 +387,33 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
         const QString keyword = parts.takeFirst();
 
+        // A line whose last word is a brace of its own opens a block, and the
+        // block is named by everything before that brace.
+        //
+        // Asked first and of every line, a bind among them, because that is
+        // the order sway asks in: config_command() looks for the brace before
+        // it looks for a handler for the first word. A "bindsym ... {" opens a
+        // block there and binds nothing, so reading it as a bind here would
+        // put a shortcut on the panel that sway never registered, and hand the
+        // brace closing that block to the mode around it.
+        //
+        // The word, not the last character of the line: sway splits the line
+        // into words and compares the last of them against "{", so
+        // "exec_always ~/bin/x{" runs a command and opens nothing. A word
+        // before the brace is wanted for the same reason, a line of nothing
+        // but a brace naming no block sway could enter.
+        if (!parts.isEmpty() &&
+            parts.constLast() == QLatin1String(kBlockOpen)) {
+            parts.removeLast();
+            QString heading = openHeading(blocks);
+            if (keyword == QLatin1String(kKeywordMode) && !parts.isEmpty()) {
+                parts.removeAll(QLatin1String(kModeMarkupFlag));
+                heading = unquoted(parts.join(QLatin1Char(' '))).trimmed();
+            }
+            blocks.append(heading);
+            continue;
+        }
+
         // What such a line pulls in is not part of what was read here, and
         // neither are the binds in it. Counted and reported, because a list
         // quietly missing half the shortcuts is worse than one that says so.
@@ -407,15 +433,16 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
 
-        // What binds something is read as a bind, and only one of the four
-        // puts a key on screen. The other three still take a command, and a
-        // command may end in a brace: taken for the opening of a block, such
-        // a line swallows the brace that closes the mode around it.
+        // What binds nothing has nothing more to give here.
         //
         // One question, asked once, so a fifth binding word added later is
-        // wrong in one place instead of quietly opening blocks.
-        const bool isBinding = bindsSomething(keyword);
-        if (isBinding && keyword != QLatin1String(kKeywordBindsym)) {
+        // wrong in one place instead of quietly passing for a command.
+        if (!bindsSomething(keyword)) {
+            continue;
+        }
+
+        // Of the four, only one puts a key on screen.
+        if (keyword != QLatin1String(kKeywordBindsym)) {
             if (keyword == QLatin1String(kKeywordBindcode)) {
                 // A keycode is a number on this keyboard's layout and has no
                 // name to put on screen. Counted, because it would have been
@@ -424,30 +451,6 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             }
             // A lid and a touchpad are not keys either, and neither was ever
             // going to appear here, so neither is counted as left out.
-            continue;
-        }
-
-        // Anything that binds nothing and whose last word is a brace of its
-        // own opens a block, and the name of the block is everything before
-        // that brace.
-        //
-        // The word, not the last character of the line: sway splits the line
-        // into words and compares the last of them against "{", so
-        // "exec_always ~/bin/x{" runs a command and opens nothing. A word
-        // before the brace is wanted for the same reason, a line of nothing
-        // but a brace naming no block sway could enter.
-        if (!isBinding) {
-            if (!parts.isEmpty() &&
-                parts.constLast() == QLatin1String(kBlockOpen)) {
-                parts.removeLast();
-                QString heading = openHeading(blocks);
-                if (keyword == QLatin1String(kKeywordMode) &&
-                    !parts.isEmpty()) {
-                    parts.removeAll(QLatin1String(kModeMarkupFlag));
-                    heading = unquoted(parts.join(QLatin1Char(' '))).trimmed();
-                }
-                blocks.append(heading);
-            }
             continue;
         }
 

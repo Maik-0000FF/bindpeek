@@ -285,7 +285,7 @@ private slots:
     void swayHeadsBindsWithTheirMode();
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
-    void swayKeepsABindThatEndsInABrace();
+    void swayReadsABindEndingInABraceAsABlock();
     void swayTakesABraceFromTheNextLine();
     void swayOpensNoBlockOnAWordEndingInABrace();
     void swayReadsEveryBindingWordAsOne();
@@ -1650,10 +1650,11 @@ void TestSources::swayAlwaysNamesSomething() {
         qPrintable(QStringLiteral("nothing to show for: %1").arg(command)));
 }
 
-void TestSources::swayKeepsABindThatEndsInABrace() {
-    // A command may end in a brace, and a bind read as the opening of a block
-    // would go missing while its heading ran on past the end of the mode. The
-    // instructions are therefore read before anything is taken for a block.
+void TestSources::swayReadsABindEndingInABraceAsABlock() {
+    // sway looks for the brace before it looks for a handler for the first
+    // word, so a bind ending in a bare brace opens a block there and binds
+    // nothing. Read as a bind, the panel would show a shortcut sway never
+    // registered.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
@@ -1663,12 +1664,12 @@ void TestSources::swayKeepsABindThatEndsInABrace() {
                                                "bindsym Mod4+a exec after\n"),
                                 &note);
 
-    QCOMPARE(binds.size(), 3);
-    QCOMPARE(
-        descriptionOf(binds, bindpeek::normalizeKey(QStringLiteral("Left"))),
-        QStringLiteral("foo {"));
-    // And the mode ends where its own brace is, not one line early.
-    QCOMPARE(binds.constLast().group, defaultGroupName());
+    QCOMPARE(binds.size(), 2);
+    // The brace below closes the block that bind opened, so the mode is still
+    // the heading on the last line, exactly as sway has it.
+    for (const Bind &bind : binds) {
+        QCOMPARE(bind.group, QStringLiteral("resize"));
+    }
 }
 
 void TestSources::swayTakesABraceFromTheNextLine() {
@@ -1726,16 +1727,14 @@ void TestSources::swayOpensNoBlockOnAWordEndingInABrace() {
 
 void TestSources::swayReadsEveryBindingWordAsOne() {
     // sway binds with four words, and only one of them puts a key on screen.
-    // The other three still take a command, and a command may end in a brace:
-    // read as the opening of a block, such a line swallows the brace that
-    // closes the mode around it, and everything after it is filed wrongly.
+    // A keycode is counted as left out, a switch and a gesture are not.
     QString note;
     const QList<Bind> binds = SourceSway::parseConfig(
         QStringLiteral("set $mod Mod4\n"
                        "mode \"resize\" {\n"
-                       "  bindswitch lid:on exec foo {\n"
-                       "  bindgesture swipe:3:right exec bar {\n"
-                       "  bindcode 24 exec one {\n"
+                       "  bindswitch lid:on exec foo\n"
+                       "  bindgesture swipe:3:right exec bar\n"
+                       "  bindcode 24 exec one\n"
                        "  bindcode 25 exec two\n"
                        "  bindcode 26 exec three\n"
                        "  bindsym Right resize grow\n"
@@ -1745,8 +1744,7 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
 
     // Only the two that name a key.
     QCOMPARE(binds.size(), 2);
-    // The one inside the mode is headed by it, which is what the three other
-    // words would break: taken for blocks, they swallow the closing brace.
+    // The one inside the mode is headed by it.
     QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     // And the one after the mode stands outside it.
     QCOMPARE(binds.constLast().group, defaultGroupName());
