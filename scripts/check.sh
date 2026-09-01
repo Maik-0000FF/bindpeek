@@ -49,22 +49,21 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # rather than on anything in the repository.
 #
 # Handed on the same way, one NUL apart, and every reader below takes it that
-# way, whether it hands the names to a tool, walks them one at a time or only
-# counts them. A name rescued here and then written
-# into a line is only rescued as far as the next reader. Plain xargs reads a
-# backslash and a quote as syntax of its own, so it quietly handed clang-format
-# the wrong name twice over and left the file it could not spell unchecked; an
-# unquoted expansion splits the same names at their blanks into arguments
-# naming nothing. A NUL is the one byte a path cannot hold, and a newline in a
-# name is carried through as the character it is.
+# way, whether it gives the names to a tool, walks them one at a time or only
+# counts them. A name rescued here and then written into a line is only
+# rescued as far as the next reader. Plain xargs reads a backslash and a quote
+# as syntax of its own, so it quietly handed clang-format the wrong name twice
+# over and left the file it could not spell unchecked; an unquoted expansion
+# splits the same names at their blanks into arguments naming nothing. A NUL is
+# the one byte a path cannot hold, and a newline in a name is carried through
+# as the character it is.
 #
 # Every name leaves here with "./" in front of it, which is what makes it a
-# path to whatever reads it next and nothing else. Without it a file called
+# path to whatever opens it and nothing else. Without it a file called
 # "-lead.qml" is a bundle of options to qmllint and to diff, and a file called
 # "a=b.md" is a setting to awk, which then reads standard input instead and
-# swallows the rest of the list. Done here rather than at each reader, because
-# every reader would otherwise need it and the next one written would not have
-# it.
+# swallows the rest of the list. Put here rather than at each reader that opens
+# a file, because the next such reader would be written without it.
 sources() {
     git -c core.quotePath=false ls-files --cached --others --exclude-standard \
         --deduplicate -z -- "$@" \
@@ -357,21 +356,21 @@ marker_end="$marker_word:end"
 # left. Written as a rule and not as advice, because advice in a comment is
 # what the third case was until it stopped holding.
 #
-# That last rule reads the region the same way the check above it does, by
-# containment, and deliberately so: the two answer one question, whether the
-# check would have passed without the exception, and two measures would have
-# them disagree. It follows that a region saying "swayed" satisfies both, and
-# an exception for sway beside it is reported as useless. That is the plain
-# truth about such a region, not a fault of the rule: the completeness check is
-# already satisfied there by a word that names nothing. Reading whole words
-# instead would lose "KDE Plasma" and "src/SourceKde.*", which are how two of
-# these listings write the name.
-#
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
-# "KDE Plasma" and for "src/SourceKde.*", which are how two of these pages
-# write it. Case is ignored for the same reason: the option's vocabulary is
-# lower case and prose writes each session the way its own project does.
+# "src/SourceKde.*". Measured over the marked listings, that is what one of
+# them rests on, the row of backend files, and there for all four names at
+# once; every other listing writes them as words. Case is ignored for the same
+# reason: the option's vocabulary is lower case and prose writes each session
+# the way its own project does.
+#
+# The rule about a useless exception reads the region the same way, and
+# deliberately so: both answer one question, whether the check would have
+# passed without the exception, and two measures would have them disagree. It
+# follows that a region saying "swayed" satisfies both, and an exception for
+# sway beside it is called useless. That is the plain truth about such a
+# region, not a fault of the rule: the completeness check is already satisfied
+# there by a word that names nothing.
 #
 # Markers go around a paragraph, a table or a list, never inside one: a comment
 # between two rows ends the table, and one between two items splits the list.
