@@ -356,21 +356,25 @@ marker_end="$marker_word:end"
 # left. Written as a rule and not as advice, because advice in a comment is
 # what the third case was until it stopped holding.
 #
-# Contained, not whole words: inside a region declared as a listing there is
-# nothing else for a name to be part of, so "kde" is allowed to answer for
-# "src/SourceKde.*". Measured over the marked listings, that is what one of
-# them rests on, the row of backend files, and there for all four names at
-# once; every other listing writes them as words. Case is ignored for the same
+# Contained, not whole words, so that "kde" answers for "src/SourceKde.*".
+# Measured over the marked listings, one of them rests on that, the row of
+# backend files, and there for all four names at once; every other listing
+# writes the names it has to name as words. Case is ignored for a related
 # reason: the option's vocabulary is lower case and prose writes each session
 # the way its own project does.
 #
+# The price is known and taken deliberately. A name sitting inside a longer
+# word answers just as well, "swayed" for sway, so a listing written that way
+# would pass while naming nothing. None does today, measured: every match
+# inside a longer word is one of the four backend file names. Reading whole
+# words instead would cost that row, which is the one listing with no other
+# spelling to fall back on.
+#
 # The rule about a useless exception reads the region the same way, and
 # deliberately so: both answer one question, whether the check would have
-# passed without the exception, and two measures would have them disagree. It
-# follows that a region saying "swayed" satisfies both, and an exception for
-# sway beside it is called useless. That is the plain truth about such a
-# region, not a fault of the rule: the completeness check is already satisfied
-# there by a word that names nothing.
+# passed without the exception, and two measures would have them disagree. So
+# an exception for sway beside that "swayed" is called useless, which is the
+# truth about such a region rather than a fault of the rule.
 #
 # Markers go around a paragraph, a table or a list, never inside one: a comment
 # between two rows ends the table, and one between two items splits the list.
@@ -390,10 +394,10 @@ while IFS= read -r -d '' file; do
         region\ *)
             regions_seen=$((regions_seen + 1))
             regions="$regions
-  $file, line ${result#region }"
+  ${file#./}, line ${result#region }"
             ;;
         *)
-            echo "$file $result" >&2
+            echo "${file#./} $result" >&2
             region_fails=1
             ;;
         esac
@@ -495,7 +499,7 @@ step "qmlformat (dry run)"
 # downstream that would notice the files that never arrived.
 sources '*.qml' | while IFS= read -r -d '' f; do
     if ! qmlformat "$f" | diff -q - "$f" >/dev/null; then
-        echo "not formatted: $f"
+        echo "not formatted: ${f#./}"
         exit 1
     fi
 done
