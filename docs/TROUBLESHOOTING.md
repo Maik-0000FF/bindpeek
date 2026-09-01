@@ -65,8 +65,12 @@ bindpeek --environment mango      # or hyprland, sway, or kde
 
 <!-- environments:end -->
 
+<!-- environments:begin -->
+
 If that works, the detection is what is missing, and an issue with the output of
-`env | grep -i -E 'xdg|wayland|hyprland|mango|sway'` is worth opening.
+`env | grep -i -E 'xdg|wayland|hyprland|mango|sway|kde'` is worth opening.
+
+<!-- environments:end -->
 
 ### "bindpeek is already running as process N"
 

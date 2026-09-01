@@ -277,19 +277,22 @@ step "every marked listing names every environment"
 # QLocale::uiLanguages(), which weighs LANGUAGE above LC_ALL: with only the
 # first set, a German session reads a German sentence and finds no list in it.
 #
-# The refusal is a failure, so the program leaves with a non-zero status and
-# the pipeline has to be allowed to: without this the run stops here rather
-# than reading what it came for.
+# The line is found by the word that introduces the list rather than taken as
+# the first one printed. Standard error is folded in here, so a word from Qt
+# about a runtime directory it did not like would otherwise be read as the
+# list. The refusal is a failure, so the program leaves with a non-zero status
+# and the pipeline has to be allowed to.
 refusal=$(LC_ALL=C LANGUAGE=C "$BUILD_DIR/src/bindpeek" \
-    --environment 'not-an-environment' --list 2>&1 | head -n 1 || true)
-environments=$(sed -n 's/.*: \(.*\)\./\1/p' <<<"$refusal" | tr -d ' ' | tr ',' ' ')
+    --environment 'not-an-environment' --list 2>&1 | grep -m1 'Allowed:' || true)
+environments=$(sed -n 's/.*Allowed: \(.*\)\./\1/p' <<<"$refusal" \
+    | tr -d ' ' | tr ',' ' ')
 if [ -z "$environments" ]; then
     echo "could not read the environments out of: $refusal" >&2
     exit 1
 fi
 
-# A listing says so itself, between an "environments:begin" and an
-# "environments:end" line, and every one of them has to name every environment.
+# A listing says so itself, between two marker lines, and every one of them has
+# to name every environment.
 #
 # Declared rather than found. An earlier gate searched the prose for what
 # looked like a listing, and over four rounds every rule it used had a
@@ -298,6 +301,18 @@ fi
 # dash or a dot ends a word. Searching prose means guessing what a listing is,
 # and the guess is what kept being wrong. A marker cannot be guessed at.
 #
+# The two words of a marker are joined here rather than written whole anywhere
+# in this file, because every tracked file is scanned and this one is no
+# exception: spelled out, the sentence you are reading would open a listing of
+# its own and never end it. Every file, so that a marker in a flake, a module
+# or a script is read like one in a page. An earlier draft named three
+# suffixes, which left a marker anywhere else not merely unchecked but silently
+# so: no listing counted, no complaint, and whoever wrote it believing it
+# watched.
+marker_word=environments
+marker_begin="$marker_word:begin"
+marker_end="$marker_word:end"
+
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
 # "KDE Plasma" and for "src/SourceKde.*", which are how two of these pages
@@ -308,9 +323,9 @@ fi
 # between two rows ends the table, and one between two items splits the list.
 # That is why a region may hold more than the listing itself.
 #
-# Files discovered rather than named, so a page written later is asked the same
-# question without anyone remembering to add it. Shell is not among them: this
-# very step names the marker and would open a region of its own.
+# LC_ALL for awk, because every tracked file is offered to it and one of them
+# is a picture: a byte that spells no character is not an error to be reported
+# but a byte to be passed over.
 regions_seen=0
 region_fails=0
 while IFS= read -r file; do
@@ -324,11 +339,17 @@ while IFS= read -r file; do
             region_fails=1
             ;;
         esac
-    done < <(awk -v wanted="$environments" '
+    done < <(LC_ALL=C awk -v wanted="$environments" \
+        -v opens="$marker_begin" -v closes="$marker_end" '
         BEGIN { split(wanted, names, " ") }
-        /environments:begin/ {
+        index($0, opens) && index($0, closes) {
+            print "opens and ends a listing on one line, line " NR
+            next
+        }
+        index($0, opens) {
             if (inside) {
-                print "opens a listing inside one already open, line " NR
+                print "opens a listing at line " NR \
+                    " inside the one opened at line " start
                 next
             }
             inside = 1
@@ -336,7 +357,7 @@ while IFS= read -r file; do
             text = ""
             next
         }
-        /environments:end/ {
+        index($0, closes) {
             if (!inside) {
                 print "ends a listing that was never opened, line " NR
                 next
@@ -355,14 +376,22 @@ while IFS= read -r file; do
             if (inside)
                 print "opens a listing at line " start " and never ends it"
         }' "$file")
-done < <(sources '*.md' '*.cpp' '*.h')
+done < <(sources)
 [ "$region_fails" = 0 ] || exit 1
 
-# A gate nobody can silence by accident. Dropping the last marker would
-# otherwise leave nothing to check and pass without a word, which is the drift
-# this exists to catch, only complete.
-if [ "$regions_seen" = 0 ]; then
-    echo "no listing is marked any more; have the markers been dropped?" >&2
+# How many listings there are, written down so that losing one is a failure
+# rather than a silent pass.
+#
+# A guard that only fires once every marker in the repository is gone guards
+# nothing: markers are dropped a pair at a time, and a listing whose pair is
+# gone is back to being unwatched with the gate still green. Counted, so the
+# one that went missing has to be accounted for.
+#
+# Writing a new listing means changing this number in the same breath. The gate
+# says which way it moved, so neither direction can happen by accident.
+expected_regions=14
+if [ "$regions_seen" != "$expected_regions" ]; then
+    echo "$regions_seen listings are marked, $expected_regions were expected" >&2
     exit 1
 fi
 
