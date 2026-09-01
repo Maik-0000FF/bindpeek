@@ -15,6 +15,7 @@
 #include <QRegularExpression>
 #include <QTextStream>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
