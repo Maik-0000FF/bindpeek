@@ -348,22 +348,29 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
 
-        // A closing brace ends the innermost block, whatever it was.
-        if (line.startsWith(QLatin1String(kBlockClose))) {
-            if (!blocks.isEmpty()) {
-                blocks.removeLast();
-            }
+        // Split before anything is replaced in the line, because a set line
+        // introduces a name that may begin like one that already exists: with
+        // "$mod" known, replacing inside "set $mode_resize resize" would turn
+        // the name into "Mod4e_resize" and store the value under something
+        // nothing ever asks for. Only the value is expanded, further down,
+        // which is also the order sway reads in.
+        QStringList parts = words(line);
+        if (parts.isEmpty()) {
             continue;
         }
 
-        // A set line is read before anything is replaced in it, because the
-        // name it introduces may begin like one that already exists: with
-        // "$mod" known, replacing inside "set $mode_resize resize" would turn
-        // the name into "Mod4e_resize" and store the value under something
-        // nothing ever asks for. Only the value is expanded, which is also
-        // the order sway reads in.
-        QStringList parts = words(line);
-        if (parts.isEmpty()) {
+        // A closing brace ends the innermost block, whatever it was.
+        //
+        // The last word of the line, which is the rule the opening brace goes
+        // by as well: sway asks both of every line before it asks what the
+        // line commands. So "bar }" ends the block around it, and
+        // "} # back to normal" ends nothing, those three words being arguments
+        // rather than a comment. Only a line beginning with "#" is a comment
+        // to sway.
+        if (parts.constLast() == QLatin1String(kBlockClose)) {
+            if (!blocks.isEmpty()) {
+                blocks.removeLast();
+            }
             continue;
         }
         if (parts.constFirst() == QLatin1String(kKeywordSet) &&

@@ -286,6 +286,8 @@ private slots:
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
     void swayReadsABindEndingInABraceAsABlock();
+    void swayReadsEveryBindingWordEndingInABraceAsABlock();
+    void swayEndsABlockOnTheLastWord();
     void swayTakesABraceFromTheNextLine();
     void swayOpensNoBlockOnAWordEndingInABrace();
     void swayReadsEveryBindingWordAsOne();
@@ -1723,6 +1725,66 @@ void TestSources::swayOpensNoBlockOnAWordEndingInABrace() {
     QCOMPARE(binds.size(), 2);
     QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     QCOMPARE(binds.constLast().group, defaultGroupName());
+}
+
+void TestSources::swayReadsEveryBindingWordEndingInABraceAsABlock() {
+    // The brace is asked for before the line is asked what it binds, so this
+    // holds for all four binding words and not only for the one that puts a
+    // key on screen. A keycode that opens a block binds nothing and is not
+    // counted as left out either: nothing was left out, the line was a block.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("mode \"resize\" {\n"
+                       "  bindswitch lid:on exec foo {\n"
+                       "  bindgesture swipe:3:right exec bar {\n"
+                       "  bindcode 24 exec one {\n"
+                       "  bindsym Left resize shrink\n"
+                       "}\n"
+                       "}\n"
+                       "}\n"
+                       "bindsym Mod4+a exec after\n"),
+        &note);
+
+    QCOMPARE(binds.size(), 2);
+    // Three blocks opened and three closed, so the mode is still the heading
+    // on the last line.
+    for (const Bind &bind : binds) {
+        QCOMPARE(bind.group, QStringLiteral("resize"));
+    }
+    QVERIFY2(note.isEmpty(), qPrintable(note));
+}
+
+void TestSources::swayEndsABlockOnTheLastWord() {
+    // sway reads the end of a block from the last word of the line, the same
+    // way it reads the start, so a line ending in a brace ends the block
+    // around it whatever stands in front of that brace.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "  bar }\n"
+                                               "bindsym Mod4+d exec menu\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 2);
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
+    QCOMPARE(binds.constLast().group, defaultGroupName());
+
+    // And a brace with words after it ends nothing: only a line beginning
+    // with "#" is a comment to sway, so those words are arguments and the
+    // last of them is not a brace.
+    QString trailing;
+    const QList<Bind> stillInside =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "} # back to normal\n"
+                                               "bindsym Mod4+d exec menu\n"),
+                                &trailing);
+
+    QCOMPARE(stillInside.size(), 2);
+    for (const Bind &bind : stillInside) {
+        QCOMPARE(bind.group, QStringLiteral("resize"));
+    }
 }
 
 void TestSources::swayReadsEveryBindingWordAsOne() {
