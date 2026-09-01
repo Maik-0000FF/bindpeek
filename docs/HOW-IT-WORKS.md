@@ -40,12 +40,16 @@ which is the quickest way to see whether the devices can be read at all.
 Each supported session keeps its shortcuts somewhere else, and bindpeek reads
 the place that session really uses:
 
+<!-- environments:begin -->
+
 | Session | Where the shortcuts come from |
 | --- | --- |
 | mango | the configuration the running compositor was started with, found from its own command line |
 | Hyprland | the running instance, asked over its IPC socket |
 | sway | the running instance, asked over its IPC socket. It answers with the text of its main configuration file alone, so the variables in it are resolved here, and a line that pulls in another file is reported rather than followed: those binds are not in the answer |
 | KDE Plasma | `kglobalshortcutsrc`, read with KDE's own configuration library so the escaping is read the way KDE writes it |
+
+<!-- environments:end -->
 
 The source is read again immediately before every appearance, so a
 configuration you have just edited is on screen the next time you hold a

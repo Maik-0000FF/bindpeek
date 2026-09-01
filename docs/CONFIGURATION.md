@@ -74,9 +74,13 @@ what happens to the second kind.
 
 ## Arrangement: which headings the list is cut into
 
+<!-- environments:begin -->
+
 A session hands its shortcuts out under headings of its own: the section
 comment under mango, the submap under Hyprland, the mode under sway, the
 application under KDE. `arrangement` decides whether the panel keeps them.
+
+<!-- environments:end -->
 
 | Value | What you see |
 | --- | --- |
@@ -94,6 +98,8 @@ appears, because both would say the same thing.
 Two different places, and knowing which is which tells you where to change
 something.
 
+<!-- environments:begin -->
+
 **The headings** are the groups the session itself gives its shortcuts:
 
 - **mango** has no grouping of its own, so a comment line of the form
@@ -109,11 +115,15 @@ something.
 - **KDE Plasma** groups by the component the shortcut belongs to, under the
   name that component gives itself.
 
+<!-- environments:end -->
+
 Anything that falls outside all of that, a mango bind written before the first
 section comment, a Hyprland bind in no submap or a sway bind in no mode, is
 collected under one heading of its own. It stands where it first occurs, like
 every other heading, which in most configurations means first: what is bound
 outside any section is usually written before the first one.
+
+<!-- environments:begin -->
 
 **The description**, the text on the right, is a different matter per session:
 
@@ -131,6 +141,8 @@ outside any section is usually written before the first one.
   `kill` as "Close window". Everything else, and sway knows far more words than
   that, is shown with its argument as it stands. Quotes are dropped either way:
   they are punctuation of the configuration file.
+
+<!-- environments:end -->
 
 Where the text is worked out rather than read, an action bindpeek does not know
 is shown by its raw name together with its parameters. On sway that is the

@@ -45,17 +45,25 @@ There is nothing to configure here. The panel needs a protocol that
 GNOME/Mutter does not carry, and coming up as an ordinary window would take the
 focus and break the very shortcut you were looking at.
 
+<!-- environments:begin -->
+
 `bindpeek --list` needs no screen at all and prints the same list as text. On a
 session it cannot recognise, name the one to read:
 `--environment mango`, `hyprland`, `sway` or `kde`.
+
+<!-- environments:end -->
 
 ### "No supported environment detected"
 
 The session was not recognised. Force one:
 
+<!-- environments:begin -->
+
 ```bash
 bindpeek --environment mango      # or hyprland, sway, or kde
 ```
+
+<!-- environments:end -->
 
 If that works, the detection is what is missing, and an issue with the output of
 `env | grep -i -E 'xdg|wayland|hyprland|mango|sway'` is worth opening.
