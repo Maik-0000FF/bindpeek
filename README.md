@@ -34,6 +34,8 @@ shortcut still fires when you complete it.
 
 **Features:**
 
+<!-- environments:begin -->
+
 - Reads the shortcuts of the running session: **mango**, **Hyprland**,
   **sway** and **KDE Plasma**, each from the file or service that session
   really uses
@@ -51,6 +53,8 @@ shortcut still fires when you complete it.
   switches the panel on and off
 - Prints the same list as plain text in the terminal: `bindpeek --list`
 - German and English
+
+<!-- environments:end -->
 
 > [!NOTE]
 > The panel is a `wlr-layer-shell` surface, which is what lets it float above
@@ -133,6 +137,8 @@ panel.
 
 Other options:
 
+<!-- environments:begin -->
+
 | Option | What it does |
 | --- | --- |
 | `--list` | Print the shortcuts instead of showing the panel |
@@ -140,6 +146,8 @@ Other options:
 | `--environment mango\|hyprland\|sway\|kde` | Force the session instead of detecting it |
 | `--source <path>` | Read the shortcuts from this file instead of the session's own |
 | `--help`, `--version` | The usual |
+
+<!-- environments:end -->
 
 Everything else is set in the settings window, or by editing
 `~/.config/bindpeek/bindpeek.conf`, which the program writes on first start with
@@ -171,10 +179,14 @@ a comment above every line. Both are read live. See
   nothing else is affected, and a machine without the framework has no KDE
   Plasma 6 whose shortcuts there would be to read.
 
+<!-- environments:begin -->
+
 Reading the shortcuts themselves is a second question, and there the answer is
-narrower: mango, Hyprland, sway or KDE Plasma. On any other compositor the panel can
-be drawn but there is nothing yet to fill it with, and bindpeek says which
-session it found rather than guessing.
+narrower: mango, Hyprland, sway or KDE Plasma. On any other compositor the
+panel can be drawn but there is nothing yet to fill it with, and bindpeek says
+which session it found rather than guessing.
+
+<!-- environments:end -->
 
 ## Uninstallation
 

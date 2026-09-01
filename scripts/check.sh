@@ -39,15 +39,41 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # Names that no longer exist on disk are dropped. A tracked file is still
 # listed once it has been deleted, and a rename in progress would otherwise
 # fail the gates on the old name rather than on anything wrong with the code.
+#
+# Read as git writes them with -z, one NUL apart, and with its quoting turned
+# off. By default git wraps any path holding a byte outside ASCII, a quote or a
+# backslash in double quotes and escapes what is inside, so a page called
+# "Übersicht.md" arrives as a name no file on disk answers to and is dropped
+# here without a word. Every gate below reads through this, so such a file
+# passed all of them unchecked, and whether it did depended on a git setting
+# rather than on anything in the repository.
+#
+# Handed on the same way, one NUL apart, and every reader below takes it that
+# way, whether it gives the names to a tool, walks them one at a time or only
+# counts them. A name rescued here and then written into a line is only
+# rescued as far as the next reader. Plain xargs reads a backslash and a quote
+# as syntax of its own, so it quietly handed clang-format the wrong name twice
+# over and left the file it could not spell unchecked; an unquoted expansion
+# splits the same names at their blanks into arguments naming nothing. A NUL is
+# the one byte a path cannot hold, and a newline in a name is carried through
+# as the character it is.
+#
+# Every name leaves here with "./" in front of it, which is what makes it a
+# path to whatever opens it and nothing else. Without it a file called
+# "-lead.qml" is a bundle of options to qmllint and to diff, and a file called
+# "a=b.md" is a setting to awk, which then reads standard input instead and
+# swallows the rest of the list. Put here rather than at each reader that opens
+# a file, because the next such reader would be written without it.
 sources() {
-    git ls-files --cached --others --exclude-standard --deduplicate -- "$@" \
-        | while IFS= read -r file; do
-            if [ -e "$file" ]; then printf '%s\n' "$file"; fi
+    git -c core.quotePath=false ls-files --cached --others --exclude-standard \
+        --deduplicate -z -- "$@" \
+        | while IFS= read -r -d '' file; do
+            if [ -e "$file" ]; then printf './%s\0' "$file"; fi
         done
 }
 
 step "clang-format (dry run, warnings are errors)"
-sources '*.cpp' '*.h' | xargs -r clang-format --dry-run --Werror
+sources '*.cpp' '*.h' | xargs -0 -r clang-format --dry-run --Werror
 
 step "REUSE compliance"
 reuse lint
@@ -55,17 +81,22 @@ reuse lint
 step "desktop-file-validate"
 # The desktop database is unforgiving and silent: a malformed entry is dropped
 # without a word, and the program simply never shows up in any menu.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-desktop-file-validate $(sources '*.desktop')
+sources '*.desktop' | xargs -0 -r desktop-file-validate
 
 step "workflow"
 # The file that says what runs on every push is shell inside YAML inside a
 # schema, and none of the three is checked by anything else here. Discovered
 # rather than named, like the sources above.
-workflows=$(sources '.github/workflows/*.yml' '.github/workflows/*.yaml')
-if [ -n "$workflows" ]; then
-    # shellcheck disable=SC2086  # deliberate splitting into one argument per file
-    actionlint $workflows
+#
+# Counted through a pipe rather than gathered into an array: a list read out of
+# a process substitution arrives with the reader's own status, always zero, so
+# a git that failed left an empty list behind and this step said there were no
+# workflow files and went on. Counting the separators keeps the failure where
+# it can be seen. The patterns are named once and used twice.
+workflow_globs=('.github/workflows/*.yml' '.github/workflows/*.yaml')
+workflow_count=$(sources "${workflow_globs[@]}" | tr -cd '\0' | wc -c)
+if [ "$workflow_count" -gt 0 ]; then
+    sources "${workflow_globs[@]}" | xargs -0 -r actionlint
 else
     echo "no workflow files"
 fi
@@ -73,8 +104,7 @@ fi
 step "shellcheck (warnings and above)"
 # Discovered rather than listed, so a newly added script cannot slip past the
 # gate by not being named here.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-shellcheck -S warning $(sources '*.sh')
+sources '*.sh' | xargs -0 -r shellcheck -S warning
 
 step "the install pair can read the build files"
 # Everything install.sh and uninstall.sh work out before they touch anything:
@@ -260,29 +290,232 @@ if [ "$(printf '%s' "$german_plain" | escape)" != "$translated" ]; then
     exit 1
 fi
 
+step "every marked listing names every environment"
+# The environments live in main.cpp and every text the program prints is built
+# from that one list. A page cannot read a C++ function, so it carries its own
+# copy, and a copy is a thing that falls behind: it did once already.
+#
+# Read out of the program rather than out of its source, so what is compared is
+# what a reader is actually told. Out of the refusal and not out of --help: Qt
+# wraps an option's text at the width of the terminal, and the list is the
+# first thing to be broken across lines once a fourth name is in it.
+#
+# The name asked for has to be one no environment will ever have, because the
+# refusal is what is being read.
+#
+# LC_ALL and LANGUAGE both, because Qt picks its catalogue through
+# QLocale::uiLanguages(), which weighs LANGUAGE above LC_ALL: with only the
+# first set, a German session reads a German sentence and finds no list in it.
+#
+# The line is found by the word that introduces the list rather than taken as
+# the first one printed. Standard error is folded in here, so a word from Qt
+# about a runtime directory it did not like would otherwise be read as the
+# list. The refusal is a failure, so the program leaves with a non-zero status
+# and the pipeline has to be allowed to.
+refusal=$(LC_ALL=C LANGUAGE=C "$BUILD_DIR/src/bindpeek" \
+    --environment 'not-an-environment' --list 2>&1 | grep -m1 'Allowed:' || true)
+environments=$(sed -n 's/.*Allowed: \(.*\)\./\1/p' <<<"$refusal" \
+    | tr -d ' ' | tr ',' ' ')
+if [ -z "$environments" ]; then
+    echo "could not read the environments out of: $refusal" >&2
+    exit 1
+fi
+
+# A listing says so itself, between two marker lines, and every one of them has
+# to name every environment.
+#
+# Declared rather than found. An earlier gate searched the prose for what
+# looked like a listing, and over four rounds every rule it used had a
+# plausible sentence that slipped past it or that it flagged wrongly: how far a
+# wrapped sentence reaches, whether the next table row belongs to it, whether a
+# dash or a dot ends a word. Searching prose means guessing what a listing is,
+# and the guess is what kept being wrong. A marker cannot be guessed at.
+#
+# The two words of a marker are joined here rather than written whole anywhere
+# in this file, because every tracked file is scanned and this one is no
+# exception: spelled out, the sentence you are reading would open a listing of
+# its own and never end it. Every file, so that a marker in a flake, a module
+# or a script is read like one in a page. An earlier draft named three
+# suffixes, which left a marker anywhere else not merely unchecked but silently
+# so: no listing counted, no complaint, and whoever wrote it believing it
+# watched.
+marker_word=environments
+marker_begin="$marker_word:begin"
+marker_end="$marker_word:end"
+
+# A listing that is complete without one of them says so on its opening line,
+# as "except kde". Some sentences are like that and would otherwise have to
+# stay unmarked: the one naming what falls outside every heading, where KDE has
+# no such case because a shortcut there always belongs to a component, and the
+# ones about autostart, which name the bare compositors precisely because KDE
+# is on the other side of the sentence. Excepting a name that is no environment
+# is an error, and so is excepting all of them: a typo would otherwise quietly
+# widen the hole it was meant to be. So is excepting a name the region goes on
+# to use: the exception then covers a sentence that was being checked and
+# passing, and the day someone rewrites that sentence the cover is all that is
+# left. Written as a rule and not as advice, because advice in a comment is
+# what the third case was until it stopped holding.
+#
+# Contained, not whole words, so that "kde" answers for "src/SourceKde.*".
+# Measured over the marked listings, one of them rests on that, the row of
+# backend files, and there for all four names at once; every other listing
+# writes the names it has to name as words. Case is ignored for a related
+# reason: the option's vocabulary is lower case and prose writes each session
+# the way its own project does.
+#
+# The price is known and taken deliberately. A name sitting inside a longer
+# word answers just as well, "swayed" for sway, so a listing written that way
+# would pass while naming nothing. None does today, measured: every match
+# inside a longer word is one of the four backend file names. Reading whole
+# words instead would cost that row, which is the one listing with no other
+# spelling to fall back on.
+#
+# The rule about a useless exception reads the region the same way, and
+# deliberately so: both answer one question, whether the check would have
+# passed without the exception, and two measures would have them disagree. So
+# an exception for sway beside that "swayed" is called useless, which is the
+# truth about such a region rather than a fault of the rule.
+#
+# Markers go around a paragraph, a table or a list, never inside one: a comment
+# between two rows ends the table, and one between two items splits the list.
+# That is why a region may hold more than the listing itself.
+#
+# LC_ALL for awk, because every tracked file is offered to it and one of them
+# is a picture: a byte that spells no character is not an error to be reported
+# but a byte to be passed over.
+regions_seen=0
+region_fails=0
+regions=""
+while IFS= read -r -d '' file; do
+    [ -n "$file" ] || continue
+    while IFS= read -r result; do
+        [ -n "$result" ] || continue
+        case "$result" in
+        region\ *)
+            regions_seen=$((regions_seen + 1))
+            regions="$regions
+  ${file#./}, line ${result#region }"
+            ;;
+        *)
+            echo "${file#./} $result" >&2
+            region_fails=1
+            ;;
+        esac
+    done < <(LC_ALL=C awk -v wanted="$environments" \
+        -v opens="$marker_begin" -v closes="$marker_end" '
+        BEGIN { split(wanted, names, " ") }
+        index($0, opens) && index($0, closes) {
+            print "opens and ends a listing on one line, line " NR
+            next
+        }
+        index($0, opens) {
+            if (inside) {
+                print "opens a listing at line " NR \
+                    " inside the one opened at line " start
+                next
+            }
+            inside = 1
+            start = NR
+            text = ""
+            delete skipped
+            skipping = 0
+            rest = substr($0, index($0, opens) + length(opens))
+            count = split(rest, word, /[^a-zA-Z0-9]+/)
+            for (j = 1; j <= count; j++) {
+                if (word[j] == "") continue
+                if (word[j] == "except") { skipping = 1; continue }
+                if (skipping) skipped[word[j]] = 1
+            }
+            next
+        }
+        index($0, closes) {
+            if (!inside) {
+                print "ends a listing that was never opened, line " NR
+                next
+            }
+            inside = 0
+            print "region " start
+            lower = tolower(text)
+            asked = 0
+            for (i = 1; i in names; i++) {
+                if (names[i] in skipped) continue
+                asked++
+                if (index(lower, tolower(names[i])) == 0)
+                    print "listing at line " start " does not name \x27" \
+                        names[i] "\x27"
+            }
+            for (name in skipped) {
+                known = 0
+                for (i = 1; i in names; i++)
+                    if (names[i] == name) known = 1
+                if (!known)
+                    print "listing at line " start " excepts \x27" name \
+                        "\x27, which is no environment"
+                else if (index(lower, tolower(name)) != 0)
+                    print "listing at line " start " excepts \x27" name \
+                        "\x27 and names it anyway"
+            }
+            if (asked == 0)
+                print "listing at line " start " excepts every environment"
+            next
+        }
+        inside { text = text " " $0 }
+        END {
+            if (inside)
+                print "opens a listing at line " start " and never ends it"
+        }' "$file")
+done < <(sources)
+[ "$region_fails" = 0 ] || exit 1
+
+# How many listings there are, written down so that losing one is a failure
+# rather than a silent pass.
+#
+# A guard that only fires once every marker in the repository is gone guards
+# nothing: markers are dropped a pair at a time, and a listing whose pair is
+# gone is back to being unwatched with the gate still green. Counted, so the
+# one that went missing has to be accounted for.
+#
+# Writing a new listing means changing this number in the same breath. The gate
+# says which way it moved, so neither direction can happen by accident.
+#
+# Every marked listing is named when the count is wrong, because the number
+# alone leaves nowhere to look. A file written but never added is read like any
+# other here, on purpose, so a copy of a page left lying in the working tree
+# brings its listings along and the count says so without saying where.
+expected_regions=18
+if [ "$regions_seen" != "$expected_regions" ]; then
+    echo "$regions_seen listings are marked, $expected_regions were expected" >&2
+    printf '%s\n' "$regions" | sed '/^[[:space:]]*$/d' >&2
+    exit 1
+fi
+
 step "qmlformat (dry run)"
 # qmlformat has no check mode, so its output is compared with the file. Without
 # this gate a QML reindent goes unnoticed: clang-format does not touch .qml.
-while read -r f; do
+#
+# Read through a pipe rather than out of a process substitution, so that a
+# git that failed halfway takes the step down with it: a substitution hands
+# the loop the reader's own status, always zero, and this gate has no count
+# downstream that would notice the files that never arrived.
+sources '*.qml' | while IFS= read -r -d '' f; do
     if ! qmlformat "$f" | diff -q - "$f" >/dev/null; then
-        echo "not formatted: $f"
+        echo "not formatted: ${f#./}"
         exit 1
     fi
-done < <(sources "*.qml")
+done
 
 step "qmllint"
 # The QML imports live in the Qt package; the first entry of the import path is
 # the one the dev shell exports for exactly this.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor \
-    $(sources '*.qml')
+sources '*.qml' \
+    | xargs -0 -r qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor
 
 step "clang-tidy"
 # The compile database drives it, so every file is checked with the flags it is
 # really built with. Header warnings are limited to this project's own headers
 # (HeaderFilterRegex in .clang-tidy), or Qt's would drown everything.
 sources 'src/*.cpp' 'tests/*.cpp' \
-    | xargs -r clang-tidy -p "$BUILD_DIR" --quiet
+    | xargs -0 -r clang-tidy -p "$BUILD_DIR" --quiet
 
 if [ "$RUN_NIX" = 1 ]; then
     step "nix flake check"

@@ -687,11 +687,14 @@ bool Settings::writeTemplateIfMissing(const QString &path) {
         << kKeyDisclosure << "=" << kDisclosureDefault << "\n"
         << "\n"
         << "# How the groups are arranged: "
-        << knownArrangements().join(QStringLiteral(", ")) << ".\n"
+        << knownArrangements().join(QStringLiteral(", "))
+        << ".\n"
+        // environments:begin
         << "# source keeps the headings the session itself uses, a section\n"
         << "# comment under mango, a submap under Hyprland, a mode under\n"
         << "# sway, an application under KDE; modifiers heads a group with\n"
         << "# the combination its shortcuts want, nearest first.\n"
+        // environments:end
         << kKeyArrangement << "=" << kArrangementDefault << "\n"
         << "\n"
         << "# Where the content sits along the edge the panel spans:\n"
