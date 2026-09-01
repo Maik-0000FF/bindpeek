@@ -49,7 +49,8 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # rather than on anything in the repository.
 #
 # Handed on the same way, one NUL apart, and every reader below takes it that
-# way: with xargs -0 or with read -d ''. A name rescued here and then written
+# way, whether it hands the names to a tool, walks them one at a time or only
+# counts them. A name rescued here and then written
 # into a line is only rescued as far as the next reader. Plain xargs reads a
 # backslash and a quote as syntax of its own, so it quietly handed clang-format
 # the wrong name twice over and left the file it could not spell unchecked; an
@@ -62,7 +63,8 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # "-lead.qml" is a bundle of options to qmllint and to diff, and a file called
 # "a=b.md" is a setting to awk, which then reads standard input instead and
 # swallows the rest of the list. Done here rather than at each reader, because
-# there are seven of them and the eighth would be written without it.
+# every reader would otherwise need it and the next one written would not have
+# it.
 sources() {
     git -c core.quotePath=false ls-files --cached --others --exclude-standard \
         --deduplicate -z -- "$@" \
@@ -354,6 +356,16 @@ marker_end="$marker_word:end"
 # passing, and the day someone rewrites that sentence the cover is all that is
 # left. Written as a rule and not as advice, because advice in a comment is
 # what the third case was until it stopped holding.
+#
+# That last rule reads the region the same way the check above it does, by
+# containment, and deliberately so: the two answer one question, whether the
+# check would have passed without the exception, and two measures would have
+# them disagree. It follows that a region saying "swayed" satisfies both, and
+# an exception for sway beside it is reported as useless. That is the plain
+# truth about such a region, not a fault of the rule: the completeness check is
+# already satisfied there by a word that names nothing. Reading whole words
+# instead would lose "KDE Plasma" and "src/SourceKde.*", which are how two of
+# these listings write the name.
 #
 # Contained, not whole words: inside a region declared as a listing there is
 # nothing else for a name to be part of, so "kde" is allowed to answer for
