@@ -49,18 +49,25 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # rather than on anything in the repository.
 #
 # Handed on the same way, one NUL apart, and every reader below takes it that
-# way: with xargs -0, with mapfile -d '', or with read -d ''. A name rescued
-# here and then written into a line is only rescued as far as the next reader.
-# Plain xargs reads a backslash and a quote as syntax of its own, so it quietly
-# handed clang-format the wrong name twice over and left the file it could not
-# spell unchecked; an unquoted expansion splits the same names at their blanks
-# into arguments naming nothing. A NUL is the one byte a path cannot hold, and
-# a newline in a name is carried through as the character it is.
+# way: with xargs -0 or with read -d ''. A name rescued here and then written
+# into a line is only rescued as far as the next reader. Plain xargs reads a
+# backslash and a quote as syntax of its own, so it quietly handed clang-format
+# the wrong name twice over and left the file it could not spell unchecked; an
+# unquoted expansion splits the same names at their blanks into arguments
+# naming nothing. A NUL is the one byte a path cannot hold, and a newline in a
+# name is carried through as the character it is.
+#
+# Every name leaves here with "./" in front of it, which is what makes it a
+# path to whatever reads it next and nothing else. Without it a file called
+# "-lead.qml" is a bundle of options to qmllint and to diff, and a file called
+# "a=b.md" is a setting to awk, which then reads standard input instead and
+# swallows the rest of the list. Done here rather than at each reader, because
+# there are seven of them and the eighth would be written without it.
 sources() {
     git -c core.quotePath=false ls-files --cached --others --exclude-standard \
         --deduplicate -z -- "$@" \
         | while IFS= read -r -d '' file; do
-            if [ -e "$file" ]; then printf '%s\0' "$file"; fi
+            if [ -e "$file" ]; then printf './%s\0' "$file"; fi
         done
 }
 
@@ -361,13 +368,6 @@ marker_end="$marker_word:end"
 # LC_ALL for awk, because every tracked file is offered to it and one of them
 # is a picture: a byte that spells no character is not an error to be reported
 # but a byte to be passed over.
-#
-# The name is handed over with a "./" in front, so that awk reads it as a path
-# and never as a setting. An operand spelling "name=value" is an assignment to
-# awk, so a page called "a=b.md" would be one, awk would fall back to standard
-# input, and standard input here is the very stream this loop reads from: it
-# swallowed every name still to come in one gulp and left the loop with
-# nothing to do.
 regions_seen=0
 region_fails=0
 regions=""
@@ -448,7 +448,7 @@ while IFS= read -r -d '' file; do
         END {
             if (inside)
                 print "opens a listing at line " start " and never ends it"
-        }' "./$file")
+        }' "$file")
 done < <(sources)
 [ "$region_fails" = 0 ] || exit 1
 
@@ -477,12 +477,17 @@ fi
 step "qmlformat (dry run)"
 # qmlformat has no check mode, so its output is compared with the file. Without
 # this gate a QML reindent goes unnoticed: clang-format does not touch .qml.
-while IFS= read -r -d '' f; do
+#
+# Read through a pipe rather than out of a process substitution, so that a
+# git that failed halfway takes the step down with it: a substitution hands
+# the loop the reader's own status, always zero, and this gate has no count
+# downstream that would notice the files that never arrived.
+sources '*.qml' | while IFS= read -r -d '' f; do
     if ! qmlformat "$f" | diff -q - "$f" >/dev/null; then
         echo "not formatted: $f"
         exit 1
     fi
-done < <(sources "*.qml")
+done
 
 step "qmllint"
 # The QML imports live in the Qt package; the first entry of the import path is
