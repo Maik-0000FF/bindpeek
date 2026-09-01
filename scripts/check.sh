@@ -47,16 +47,25 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # here without a word. Every gate below reads through this, so such a file
 # passed all of them unchecked, and whether it did depended on a git setting
 # rather than on anything in the repository.
+#
+# Handed on the same way, one NUL apart, and every reader below takes it that
+# way: with xargs -0, with mapfile -d '', or with read -d ''. A name rescued
+# here and then written into a line is only rescued as far as the next reader.
+# Plain xargs reads a backslash and a quote as syntax of its own, so it quietly
+# handed clang-format the wrong name twice over and left the file it could not
+# spell unchecked; an unquoted expansion splits the same names at their blanks
+# into arguments naming nothing. A NUL is the one byte a path cannot hold, and
+# a newline in a name is carried through as the character it is.
 sources() {
     git -c core.quotePath=false ls-files --cached --others --exclude-standard \
         --deduplicate -z -- "$@" \
         | while IFS= read -r -d '' file; do
-            if [ -e "$file" ]; then printf '%s\n' "$file"; fi
+            if [ -e "$file" ]; then printf '%s\0' "$file"; fi
         done
 }
 
 step "clang-format (dry run, warnings are errors)"
-sources '*.cpp' '*.h' | xargs -r clang-format --dry-run --Werror
+sources '*.cpp' '*.h' | xargs -0 -r clang-format --dry-run --Werror
 
 step "REUSE compliance"
 reuse lint
@@ -64,17 +73,16 @@ reuse lint
 step "desktop-file-validate"
 # The desktop database is unforgiving and silent: a malformed entry is dropped
 # without a word, and the program simply never shows up in any menu.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-desktop-file-validate $(sources '*.desktop')
+sources '*.desktop' | xargs -0 -r desktop-file-validate
 
 step "workflow"
 # The file that says what runs on every push is shell inside YAML inside a
 # schema, and none of the three is checked by anything else here. Discovered
 # rather than named, like the sources above.
-workflows=$(sources '.github/workflows/*.yml' '.github/workflows/*.yaml')
-if [ -n "$workflows" ]; then
-    # shellcheck disable=SC2086  # deliberate splitting into one argument per file
-    actionlint $workflows
+mapfile -d '' workflows < <(sources '.github/workflows/*.yml' \
+    '.github/workflows/*.yaml')
+if [ "${#workflows[@]}" -gt 0 ]; then
+    actionlint "${workflows[@]}"
 else
     echo "no workflow files"
 fi
@@ -82,8 +90,7 @@ fi
 step "shellcheck (warnings and above)"
 # Discovered rather than listed, so a newly added script cannot slip past the
 # gate by not being named here.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-shellcheck -S warning $(sources '*.sh')
+sources '*.sh' | xargs -0 -r shellcheck -S warning
 
 step "the install pair can read the build files"
 # Everything install.sh and uninstall.sh work out before they touch anything:
@@ -348,7 +355,7 @@ marker_end="$marker_word:end"
 regions_seen=0
 region_fails=0
 regions=""
-while IFS= read -r file; do
+while IFS= read -r -d '' file; do
     [ -n "$file" ] || continue
     while IFS= read -r result; do
         [ -n "$result" ] || continue
@@ -451,7 +458,7 @@ fi
 step "qmlformat (dry run)"
 # qmlformat has no check mode, so its output is compared with the file. Without
 # this gate a QML reindent goes unnoticed: clang-format does not touch .qml.
-while read -r f; do
+while IFS= read -r -d '' f; do
     if ! qmlformat "$f" | diff -q - "$f" >/dev/null; then
         echo "not formatted: $f"
         exit 1
@@ -461,16 +468,15 @@ done < <(sources "*.qml")
 step "qmllint"
 # The QML imports live in the Qt package; the first entry of the import path is
 # the one the dev shell exports for exactly this.
-# shellcheck disable=SC2046  # deliberate splitting into one argument per file
-qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor \
-    $(sources '*.qml')
+sources '*.qml' \
+    | xargs -0 -r qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor
 
 step "clang-tidy"
 # The compile database drives it, so every file is checked with the flags it is
 # really built with. Header warnings are limited to this project's own headers
 # (HeaderFilterRegex in .clang-tidy), or Qt's would drown everything.
 sources 'src/*.cpp' 'tests/*.cpp' \
-    | xargs -r clang-tidy -p "$BUILD_DIR" --quiet
+    | xargs -0 -r clang-tidy -p "$BUILD_DIR" --quiet
 
 if [ "$RUN_NIX" = 1 ]; then
     step "nix flake check"
