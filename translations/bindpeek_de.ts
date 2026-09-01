@@ -682,6 +682,188 @@
     </message>
 </context>
 <context>
+    <name>SourceSway</name>
+    <message>
+        <source>%1</source>
+        <translation>%1</translation>
+    </message>
+    <message>
+        <source>Close window</source>
+        <translation>Fenster schließen</translation>
+    </message>
+    <message>
+        <source>Toggle fullscreen</source>
+        <translation>Vollbild an/aus</translation>
+    </message>
+    <message>
+        <source>Floating %1</source>
+        <translation>Schwebend %1</translation>
+    </message>
+    <message>
+        <source>Focus %1</source>
+        <translation>Fokus %1</translation>
+    </message>
+    <message>
+        <source>Move %1</source>
+        <translation>Verschieben %1</translation>
+    </message>
+    <message>
+        <source>Workspace %1</source>
+        <translation>Arbeitsfläche %1</translation>
+    </message>
+    <message>
+        <source>Split horizontally</source>
+        <translation>Waagerecht teilen</translation>
+    </message>
+    <message>
+        <source>Split vertically</source>
+        <translation>Senkrecht teilen</translation>
+    </message>
+    <message>
+        <source>Split %1</source>
+        <translation>Teilen %1</translation>
+    </message>
+    <message>
+        <source>Layout %1</source>
+        <translation>Layout %1</translation>
+    </message>
+    <message>
+        <source>Resize %1</source>
+        <translation>Größe ändern %1</translation>
+    </message>
+    <message>
+        <source>Gaps %1</source>
+        <translation>Abstände %1</translation>
+    </message>
+    <message>
+        <source>Border %1</source>
+        <translation>Rahmen %1</translation>
+    </message>
+    <message>
+        <source>Sticky %1</source>
+        <translation>Angeheftet %1</translation>
+    </message>
+    <message>
+        <source>Scratchpad %1</source>
+        <translation>Scratchpad %1</translation>
+    </message>
+    <message>
+        <source>Mode %1</source>
+        <translation>Modus %1</translation>
+    </message>
+    <message>
+        <source>Reload configuration</source>
+        <translation>Konfiguration neu laden</translation>
+    </message>
+    <message>
+        <source>Restart</source>
+        <translation>Neu starten</translation>
+    </message>
+    <message>
+        <source>Exit</source>
+        <translation>Beenden</translation>
+    </message>
+    <message>
+        <source>Bar %1</source>
+        <translation>Leiste %1</translation>
+    </message>
+    <message>
+        <source>Input %1</source>
+        <translation>Eingabegerät %1</translation>
+    </message>
+    <message>
+        <source>Output %1</source>
+        <translation>Ausgabe %1</translation>
+    </message>
+    <message>
+        <source>Nothing</source>
+        <translation>Nichts</translation>
+    </message>
+    <message>
+        <source>no command</source>
+        <translation>kein Befehl</translation>
+    </message>
+    <message>
+        <source>the configuration holds no keyboard shortcut</source>
+        <translation>die Konfiguration enthält kein Tastenkürzel</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n pointer button(s) skipped</source>
+        <translation>
+            <numerusform>eine Maustaste übersprungen</numerusform>
+            <numerusform>%n Maustasten übersprungen</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n keycode bind(s) skipped</source>
+        <translation>
+            <numerusform>einen Keycode-Bind übersprungen</numerusform>
+            <numerusform>%n Keycode-Binds übersprungen</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n bind(s) skipped that need a modifier this panel cannot name</source>
+        <translation>
+            <numerusform>einen Bind übersprungen, dessen Modifier das Panel nicht benennen kann</numerusform>
+            <numerusform>%n Binds übersprungen, deren Modifier das Panel nicht benennen kann</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n include line(s) not followed: what is pulled in is not part of the answer</source>
+        <translation>
+            <numerusform>einer include-Zeile nicht gefolgt: was sie hereinholt, ist nicht Teil der Antwort</numerusform>
+            <numerusform>%n include-Zeilen nicht gefolgt: was sie hereinholen, ist nicht Teil der Antwort</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n incomplete bind(s) skipped</source>
+        <translation>
+            <numerusform>einen unvollständigen Bind übersprungen</numerusform>
+            <numerusform>%n unvollständige Binds übersprungen</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The compositor did not answer.</source>
+        <translation>Der Kompositor hat nicht geantwortet.</translation>
+    </message>
+    <message>
+        <source>The compositor answered in a shape this does not understand.</source>
+        <translation>Der Kompositor hat in einer Form geantwortet, die hier niemand versteht.</translation>
+    </message>
+    <message>
+        <source>The compositor announced an answer of %1 bytes, which is more than a configuration ever is.</source>
+        <translation>Der Kompositor hat eine Antwort von %1 Byte angekündigt, mehr als eine Konfiguration je ist.</translation>
+    </message>
+    <message>
+        <source>The compositor stopped half way through its answer.</source>
+        <translation>Der Kompositor hat mitten in der Antwort aufgehört.</translation>
+    </message>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1 ist nicht lesbar.</translation>
+    </message>
+    <message>
+        <source>No running sway found: neither SWAYSOCK nor I3SOCK is set.</source>
+        <translation>Kein laufendes sway gefunden: weder SWAYSOCK noch I3SOCK ist gesetzt.</translation>
+    </message>
+    <message>
+        <source>The socket at %1 did not answer.</source>
+        <translation>Der Socket unter %1 hat nicht geantwortet.</translation>
+    </message>
+    <message>
+        <source>The request could not be sent.</source>
+        <translation>Die Anfrage konnte nicht gesendet werden.</translation>
+    </message>
+    <message>
+        <source>The answer could not be read: %1</source>
+        <translation>Die Antwort ist nicht lesbar: %1</translation>
+    </message>
+    <message>
+        <source>The compositor reported no configuration.</source>
+        <translation>Der Kompositor hat keine Konfiguration gemeldet.</translation>
+    </message>
+</context>
+<context>
     <name>bindpeek::OverlayProcess</name>
     <message>
         <source>A panel from an earlier version is still running and did not make way. Settings may not reach it.</source>
@@ -725,8 +907,8 @@
         <translation>Kürzel als Text ausgeben statt das Overlay zu zeigen.</translation>
     </message>
     <message>
-        <source>Force the environment: mango, hyprland or kde.</source>
-        <translation>Umgebung erzwingen: mango, hyprland oder kde.</translation>
+        <source>Force the environment: %1.</source>
+        <translation>Umgebung erzwingen: %1.</translation>
     </message>
     <message>
         <source>name</source>
@@ -745,8 +927,8 @@
         <translation>Gehaltene Modifier bei jeder Änderung ausgeben, zur Prüfung ob die Eingabegeräte lesbar sind.</translation>
     </message>
     <message>
-        <source>No supported environment detected. Force one with --environment mango|hyprland|kde.</source>
-        <translation>Keine unterstützte Umgebung erkannt. Mit --environment mango|hyprland|kde erzwingen.</translation>
+        <source>No supported environment detected. Force one with --environment %1.</source>
+        <translation>Keine unterstützte Umgebung erkannt. Mit --environment %1 erzwingen.</translation>
     </message>
     <message>
         <source>Unknown environment &quot;%1&quot;. Allowed: %2.</source>

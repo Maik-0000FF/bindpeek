@@ -46,19 +46,19 @@ GNOME/Mutter does not carry, and coming up as an ordinary window would take the
 focus and break the very shortcut you were looking at.
 
 `bindpeek --list` needs no screen at all and prints the same list as text. On a
-session it cannot recognise, name the one to read: `--environment mango`,
-`hyprland` or `kde`.
+session it cannot recognise, name the one to read:
+`--environment mango`, `hyprland`, `sway` or `kde`.
 
 ### "No supported environment detected"
 
 The session was not recognised. Force one:
 
 ```bash
-bindpeek --environment mango      # or hyprland, or kde
+bindpeek --environment mango      # or hyprland, sway, or kde
 ```
 
 If that works, the detection is what is missing, and an issue with the output of
-`env | grep -i -E 'xdg|wayland|hyprland|mango'` is worth opening.
+`env | grep -i -E 'xdg|wayland|hyprland|mango|sway'` is worth opening.
 
 ### "bindpeek is already running as process N"
 
@@ -76,12 +76,28 @@ bindpeek --list
 
 - **Nothing at all**: the session's configuration was found but held no
   shortcut this program recognises. On mango, only lines beginning with `bind=`
-  count; `mousebind=` and `axisbind=` are not keyboard shortcuts.
+  count; `mousebind=` and `axisbind=` are not keyboard shortcuts. On sway, of
+  the four words that bind something, only `bindsym` counts; the point below
+  says why.
+- **Fewer than you have bound, on sway**: five of the reasons are counted in a
+  line above the list rather than passed over. What an `include` line pulls in
+  is not part of what bindpeek reads. A pointer button is not a key. A
+  `bindcode` names a key by its number and has no name to show. A bind wanting
+  `Mod2`, `Mod3`, `Mod5` or `Lock` cannot be followed, because the panel reads
+  Super, Ctrl, Alt and Shift and nothing else, and showing it under the
+  modifiers it does read would put it under a combination that does not fire
+  it. And a line with nothing to run, or with no key left once the group is
+  taken off it, binds nothing that could be shown.
+
+  `bindswitch` and `bindgesture` are left out as well and are not counted: a
+  lid and a touchpad are not keys, so a note about them would say something is
+  missing where nothing is.
 - **Raw action names in the right column**: those are actions with no
   description of their own, and no text to derive one from either. See
   [Configuration](CONFIGURATION.md#where-the-text-in-the-panel-comes-from).
 - **Headings with more in them than you expected**: a mango heading is the text
-  of your own `# --- ... ---` comment, taken exactly as it stands.
+  of your own `# --- ... ---` comment, taken exactly as it stands. A sway
+  heading is the name of the mode the bind stands in.
 
 ## The panel shows an old configuration
 

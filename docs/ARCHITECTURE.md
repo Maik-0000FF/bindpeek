@@ -27,7 +27,7 @@ way back.
 | Path | What is in it |
 | --- | --- |
 | `src/Source.*` | What a shortcut is, how modifiers are named and ordered, how binds are grouped. The vocabulary every backend speaks |
-| `src/SourceMango.*`, `src/SourceHyprland.*`, `src/SourceKde.*` | One backend per session, each reading the place that session really uses |
+| `src/SourceMango.*`, `src/SourceHyprland.*`, `src/SourceSway.*`, `src/SourceKde.*` | One backend per session, each reading the place that session really uses |
 | `src/Settings.*` | The settings file: reading it, the table of what every value may be, and writing the commented template |
 | `src/Compositor.*` | Whether this session can show a layer surface at all, and what to say when it cannot |
 | `src/AppInfo.*` | The one sentence that describes the program, and the two paths in the runtime directory both programs agree on |

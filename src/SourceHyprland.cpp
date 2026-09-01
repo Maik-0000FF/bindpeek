@@ -80,9 +80,6 @@ constexpr char kDispatcherLua[] = "__lua";
 // keyboard shortcut, and none belongs on a keyboard cheat sheet.
 constexpr char kMousePrefix[] = "mouse";
 
-// Joins several notes into the one message read() hands back.
-constexpr char kNoteSeparator[] = "; ";
-
 // Hyprland reads only the first character of a direction argument, so "l" and
 // "left" are the same instruction. Its own spelling, from eDirection.
 QString directionText(const QString &arg) {

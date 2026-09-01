@@ -498,7 +498,7 @@ QList<Bind> SourceMango::read(QString *error) const {
                 "SourceMango", "skipped %n unreadable bind= line(s)", nullptr,
                 invalid));
         }
-        *error = notes.join(QLatin1String("; "));
+        *error = notes.join(QLatin1String(kNoteSeparator));
     }
     return binds;
 }

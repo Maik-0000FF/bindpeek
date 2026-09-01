@@ -124,7 +124,7 @@ in
         Only a desktop environment reads that directory: KDE Plasma, GNOME,
         Xfce, LXQt and their like, which implement the XDG autostart
         specification. A bare compositor started from a script, such as
-        Sway, Hyprland or mango, implements nothing of the sort. There this
+        sway, Hyprland or mango, implements nothing of the sort. There this
         option has no effect whatsoever, silently, and the way to start the
         tray is a line in the compositor's own startup file:
 

@@ -74,9 +74,9 @@ what happens to the second kind.
 
 ## Arrangement: which headings the list is cut into
 
-A session hands its shortcuts out under headings of its own: the application
-under KDE, the submap under Hyprland. `arrangement` decides whether the panel
-keeps them.
+A session hands its shortcuts out under headings of its own: the section
+comment under mango, the submap under Hyprland, the mode under sway, the
+application under KDE. `arrangement` decides whether the panel keeps them.
 
 | Value | What you see |
 | --- | --- |
@@ -103,12 +103,17 @@ something.
   other comment line is a note and leaves the grouping alone.
 - **Hyprland** groups by submap, a submap being a mode of its own and its binds
   working only while it is on.
+- **sway** groups by mode, which is the same idea under another name: what is
+  written inside `mode "resize" { … }` is headed by that mode. A block that is
+  not a mode, a `bar` among them, changes nothing about the heading.
 - **KDE Plasma** groups by the component the shortcut belongs to, under the
   name that component gives itself.
 
 Anything that falls outside all of that, a mango bind written before the first
-section comment or a Hyprland bind in no submap, is collected under one heading
-at the end.
+section comment, a Hyprland bind in no submap or a sway bind in no mode, is
+collected under one heading of its own. It stands where it first occurs, like
+every other heading, which in most configurations means first: what is bound
+outside any section is usually written before the first one.
 
 **The description**, the text on the right, is a different matter per session:
 
@@ -119,12 +124,21 @@ at the end.
 - **mango** has nowhere to put one. A line is
   `bind=MODIFIERS,KEY,ACTION,PARAMS` and there is no field for a description, so
   the text is worked out from the action name alone.
+- **sway** has nowhere either. A line is `bindsym KEYS COMMAND`, so the command
+  is what there is. `exec` and `exec_always` hand their argument through, which
+  is what most lines are: `bindsym $mod+Return exec foot` reads as `foot`. For
+  about two dozen further commands bindpeek carries a sentence of its own,
+  `kill` as "Close window". Everything else, and sway knows far more words than
+  that, is shown with its argument as it stands. Quotes are dropped either way:
+  they are punctuation of the configuration file.
 
 Where the text is worked out rather than read, an action bindpeek does not know
-is shown by its raw name together with its parameters. That is worth knowing,
-because it is also how a dead line looks: a shortcut carried over from another
-compositor whose action this one has never heard of appears with its bare
-action name, while everything the program understands reads as plain language.
+is shown by its raw name together with its parameters. On sway that is the
+ordinary case for anything outside the two dozen words above, and says nothing
+about the bind. Elsewhere it is also how a dead line looks: a shortcut carried
+over from another compositor whose action this one has never heard of appears
+with its bare action name, while everything the program understands reads as
+plain language.
 
 bindpeek never asks the compositor whether an action exists. It shows what the
 configuration says, and a line that is in the file is on the panel whether or

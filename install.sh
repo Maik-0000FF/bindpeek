@@ -309,7 +309,7 @@ elif [ -f "$INSTALL_DESKTOP" ]; then
     cp "$INSTALL_DESKTOP" "$AUTOSTART_ENTRY"
     ok "entry written to $AUTOSTART_ENTRY"
     note "That file is read by desktop environments. A compositor started"
-    note "from a script, such as Sway, Hyprland or mango, reads nothing of"
+    note "from a script, such as sway, Hyprland or mango, reads nothing of"
     note "the sort; there the way to start it is a line of its own in the"
     note "compositor's startup file:"
     note "    $SETTINGS &"
