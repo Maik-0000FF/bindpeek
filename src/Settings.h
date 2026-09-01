@@ -24,10 +24,10 @@ inline constexpr char kSections[] = "sections";
 // The two ways of arranging the groups on the panel.
 //
 // Source takes the headings the compositor itself uses: the application under
-// KDE, the submap under Hyprland. Modifiers ignores those and heads a group
-// with the combination its shortcuts belong to, so the panel reads left to
-// right by how many keys are still wanted: what fires now, then one modifier
-// away, then two.
+// KDE, the submap under Hyprland, the mode under sway. Modifiers ignores those
+// and heads a group with the combination its shortcuts belong to, so the panel
+// reads left to right by how many keys are still wanted: what fires now, then
+// one modifier away, then two.
 //
 // Named here for the same reason as the words above: the file writes one of
 // them and everything acting on it has to mean the same word.
