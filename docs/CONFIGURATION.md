@@ -74,9 +74,9 @@ what happens to the second kind.
 
 ## Arrangement: which headings the list is cut into
 
-A session hands its shortcuts out under headings of its own: the application
-under KDE, the submap under Hyprland, the mode under sway. `arrangement`
-decides whether the panel keeps them.
+A session hands its shortcuts out under headings of its own: the section
+comment under mango, the submap under Hyprland, the mode under sway, the
+application under KDE. `arrangement` decides whether the panel keeps them.
 
 | Value | What you see |
 | --- | --- |
