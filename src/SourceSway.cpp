@@ -227,6 +227,45 @@ QString openHeading(const QStringList &blocks) {
     return blocks.isEmpty() ? QString() : blocks.constLast();
 }
 
+// The lines of a configuration, trimmed, without the empty ones, and with a
+// brace that stands on its own put back on the line it belongs to.
+//
+// sway takes both spellings of a block:
+//
+//     mode "resize" {          mode "resize"
+//                              {
+//
+// Having read a line that does not already end in a brace, it looks ahead for
+// one standing alone and, finding it, hangs it on the end of the line just
+// read. The lookahead steps over empty lines and stops at the first line
+// holding anything else, a comment among them: a comment between the two
+// leaves the brace belonging to nothing, and sway then has no command by that
+// name. Read from sway's own source rather than assumed.
+//
+// Done here rather than in the loop below, which reads one line at a time and
+// would have to carry the one before it just for this.
+QStringList configLines(const QString &text) {
+    QStringList out;
+    const QStringList raw = text.split(QLatin1Char('\n'));
+    for (const QString &line : raw) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.isEmpty()) {
+            continue;
+        }
+        if (trimmed == QLatin1String(kBlockOpen) && !out.isEmpty()) {
+            const QString &previous = out.constLast();
+            if (!previous.startsWith(QLatin1String(kCommentPrefix)) &&
+                !previous.endsWith(QLatin1String(kBlockOpen)) &&
+                !previous.endsWith(QLatin1String(kBlockClose))) {
+                out.last().append(QLatin1Char(' ')).append(trimmed);
+                continue;
+            }
+        }
+        out << trimmed;
+    }
+    return out;
+}
+
 QString unquoted(QString text) {
     text.remove(QLatin1Char('"'));
     return text;
@@ -303,10 +342,10 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     int skippedEmpty = 0;
     int includeLines = 0;
 
-    const QStringList lines = text.split(QLatin1Char('\n'));
+    const QStringList lines = configLines(text);
     for (const QString &raw : lines) {
-        QString line = raw.trimmed();
-        if (line.isEmpty() || line.startsWith(QLatin1String(kCommentPrefix))) {
+        QString line = raw;
+        if (line.startsWith(QLatin1String(kCommentPrefix))) {
             continue;
         }
 
@@ -388,13 +427,22 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
 
-        // Anything that binds nothing and ends in a brace opens a block.
+        // Anything that binds nothing and whose last word is a brace of its
+        // own opens a block, and the name of the block is everything before
+        // that brace.
+        //
+        // The word, not the last character of the line: sway splits the line
+        // into words and compares the last of them against "{", so
+        // "exec_always ~/bin/x{" runs a command and opens nothing. A word
+        // before the brace is wanted for the same reason, a line of nothing
+        // but a brace naming no block sway could enter.
         if (!isBinding) {
-            if (line.endsWith(QLatin1String(kBlockOpen))) {
+            if (!parts.isEmpty() &&
+                parts.constLast() == QLatin1String(kBlockOpen)) {
+                parts.removeLast();
                 QString heading = openHeading(blocks);
                 if (keyword == QLatin1String(kKeywordMode) &&
                     !parts.isEmpty()) {
-                    parts.removeAll(QLatin1String(kBlockOpen));
                     parts.removeAll(QLatin1String(kModeMarkupFlag));
                     heading = unquoted(parts.join(QLatin1Char(' '))).trimmed();
                 }

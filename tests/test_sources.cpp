@@ -286,6 +286,8 @@ private slots:
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
     void swayKeepsABindThatEndsInABrace();
+    void swayTakesABraceFromTheNextLine();
+    void swayOpensNoBlockOnAWordEndingInABrace();
     void swayReadsEveryBindingWordAsOne();
     void swayDropsAGroupWhereverItStands();
     void swayKeepsAModeAcrossAnInnerBlock();
@@ -1666,6 +1668,59 @@ void TestSources::swayKeepsABindThatEndsInABrace() {
         descriptionOf(binds, bindpeek::normalizeKey(QStringLiteral("Left"))),
         QStringLiteral("foo {"));
     // And the mode ends where its own brace is, not one line early.
+    QCOMPARE(binds.constLast().group, defaultGroupName());
+}
+
+void TestSources::swayTakesABraceFromTheNextLine() {
+    // sway takes the brace of a block from the line after it and hangs it on
+    // the line it just read, so both spellings open the same block. Read as a
+    // line of its own the brace names nothing, and every bind in the mode is
+    // filed under the heading around it instead.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\"\n"
+                                               "{\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "}\n"
+                                               "bindsym Mod4+a exec after\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 2);
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
+    QCOMPARE(binds.constLast().group, defaultGroupName());
+
+    // The lookahead steps over empty lines and stops at the first line holding
+    // anything else. A comment between the two therefore leaves the brace
+    // where it stands, naming nothing.
+    QString commentedNote;
+    const QList<Bind> commented =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\"\n"
+                                               "# a note\n"
+                                               "{\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "}\n"),
+                                &commentedNote);
+
+    QCOMPARE(commented.size(), 1);
+    QCOMPARE(commented.constFirst().group, defaultGroupName());
+}
+
+void TestSources::swayOpensNoBlockOnAWordEndingInABrace() {
+    // sway compares the last word of a line against a brace, not the last
+    // character of the line, so a command ending in one opens nothing. Taken
+    // for a block, the mode's own brace would close that phantom instead and
+    // everything after the mode would keep its heading.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
+                                               "  exec_always ~/bin/x{\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "}\n"
+                                               "bindsym Mod4+a exec after\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 2);
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     QCOMPARE(binds.constLast().group, defaultGroupName());
 }
 
