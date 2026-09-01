@@ -39,9 +39,18 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 # Names that no longer exist on disk are dropped. A tracked file is still
 # listed once it has been deleted, and a rename in progress would otherwise
 # fail the gates on the old name rather than on anything wrong with the code.
+#
+# Read as git writes them with -z, one NUL apart, and with its quoting turned
+# off. By default git wraps any path holding a byte outside ASCII, a quote or a
+# backslash in double quotes and escapes what is inside, so a page called
+# "Übersicht.md" arrives as a name no file on disk answers to and is dropped
+# here without a word. Every gate below reads through this, so such a file
+# passed all of them unchecked, and whether it did depended on a git setting
+# rather than on anything in the repository.
 sources() {
-    git ls-files --cached --others --exclude-standard --deduplicate -- "$@" \
-        | while IFS= read -r file; do
+    git -c core.quotePath=false ls-files --cached --others --exclude-standard \
+        --deduplicate -z -- "$@" \
+        | while IFS= read -r -d '' file; do
             if [ -e "$file" ]; then printf '%s\n' "$file"; fi
         done
 }
