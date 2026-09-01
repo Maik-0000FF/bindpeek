@@ -260,6 +260,112 @@ if [ "$(printf '%s' "$german_plain" | escape)" != "$translated" ]; then
     exit 1
 fi
 
+step "every marked listing names every environment"
+# The environments live in main.cpp and every text the program prints is built
+# from that one list. A page cannot read a C++ function, so it carries its own
+# copy, and a copy is a thing that falls behind: it did once already.
+#
+# Read out of the program rather than out of its source, so what is compared is
+# what a reader is actually told. Out of the refusal and not out of --help: Qt
+# wraps an option's text at the width of the terminal, and the list is the
+# first thing to be broken across lines once a fourth name is in it.
+#
+# The name asked for has to be one no environment will ever have, because the
+# refusal is what is being read.
+#
+# LC_ALL and LANGUAGE both, because Qt picks its catalogue through
+# QLocale::uiLanguages(), which weighs LANGUAGE above LC_ALL: with only the
+# first set, a German session reads a German sentence and finds no list in it.
+#
+# The refusal is a failure, so the program leaves with a non-zero status and
+# the pipeline has to be allowed to: without this the run stops here rather
+# than reading what it came for.
+refusal=$(LC_ALL=C LANGUAGE=C "$BUILD_DIR/src/bindpeek" \
+    --environment 'not-an-environment' --list 2>&1 | head -n 1 || true)
+environments=$(sed -n 's/.*: \(.*\)\./\1/p' <<<"$refusal" | tr -d ' ' | tr ',' ' ')
+if [ -z "$environments" ]; then
+    echo "could not read the environments out of: $refusal" >&2
+    exit 1
+fi
+
+# A listing says so itself, between an "environments:begin" and an
+# "environments:end" line, and every one of them has to name every environment.
+#
+# Declared rather than found. An earlier gate searched the prose for what
+# looked like a listing, and over four rounds every rule it used had a
+# plausible sentence that slipped past it or that it flagged wrongly: how far a
+# wrapped sentence reaches, whether the next table row belongs to it, whether a
+# dash or a dot ends a word. Searching prose means guessing what a listing is,
+# and the guess is what kept being wrong. A marker cannot be guessed at.
+#
+# Contained, not whole words: inside a region declared as a listing there is
+# nothing else for a name to be part of, so "kde" is allowed to answer for
+# "KDE Plasma" and for "src/SourceKde.*", which are how two of these pages
+# write it. Case is ignored for the same reason: the option's vocabulary is
+# lower case and prose writes each session the way its own project does.
+#
+# Markers go around a paragraph, a table or a list, never inside one: a comment
+# between two rows ends the table, and one between two items splits the list.
+# That is why a region may hold more than the listing itself.
+#
+# Files discovered rather than named, so a page written later is asked the same
+# question without anyone remembering to add it. Shell is not among them: this
+# very step names the marker and would open a region of its own.
+regions_seen=0
+region_fails=0
+while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    while IFS= read -r result; do
+        [ -n "$result" ] || continue
+        case "$result" in
+        region) regions_seen=$((regions_seen + 1)) ;;
+        *)
+            echo "$file $result" >&2
+            region_fails=1
+            ;;
+        esac
+    done < <(awk -v wanted="$environments" '
+        BEGIN { split(wanted, names, " ") }
+        /environments:begin/ {
+            if (inside) {
+                print "opens a listing inside one already open, line " NR
+                next
+            }
+            inside = 1
+            start = NR
+            text = ""
+            next
+        }
+        /environments:end/ {
+            if (!inside) {
+                print "ends a listing that was never opened, line " NR
+                next
+            }
+            inside = 0
+            print "region"
+            lower = tolower(text)
+            for (i = 1; i in names; i++)
+                if (index(lower, tolower(names[i])) == 0)
+                    print "listing at line " start " does not name \x27" \
+                        names[i] "\x27"
+            next
+        }
+        inside { text = text " " $0 }
+        END {
+            if (inside)
+                print "opens a listing at line " start " and never ends it"
+        }' "$file")
+done < <(sources '*.md' '*.cpp' '*.h')
+[ "$region_fails" = 0 ] || exit 1
+
+# A gate nobody can silence by accident. Dropping the last marker would
+# otherwise leave nothing to check and pass without a word, which is the drift
+# this exists to catch, only complete.
+if [ "$regions_seen" = 0 ]; then
+    echo "no listing is marked any more; have the markers been dropped?" >&2
+    exit 1
+fi
+
 step "qmlformat (dry run)"
 # qmlformat has no check mode, so its output is compared with the file. Without
 # this gate a QML reindent goes unnoticed: clang-format does not touch .qml.
