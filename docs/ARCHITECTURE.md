@@ -24,6 +24,8 @@ way back.
 
 ## The tree
 
+<!-- environments:begin -->
+
 | Path | What is in it |
 | --- | --- |
 | `src/Source.*` | What a shortcut is, how modifiers are named and ordered, how binds are grouped. The vocabulary every backend speaks |
@@ -43,6 +45,8 @@ way back.
 | `nix/module.nix` | The NixOS module |
 | `scripts/` | The shared halves of the install pair, and `check.sh` |
 | `tests/` | The suite |
+
+<!-- environments:end -->
 
 ## Why a library
 
