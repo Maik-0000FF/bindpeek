@@ -466,6 +466,21 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
 
     if (note != nullptr) {
         QStringList notes;
+        // Said first, and never instead of the counts: a configuration that
+        // yielded nothing but skipped lines has to name them, or the reader is
+        // told there are no shortcuts when the truth is that none could be
+        // shown.
+        //
+        // Said at all because every counter can stand at zero and still leave
+        // nothing to show: a configuration whose only binding lines are
+        // bindswitch or bindgesture is read to the end and counts neither, on
+        // purpose. The caller takes an empty list for a failure and prints the
+        // note on a line of its own, so an empty note reaches the screen as a
+        // blank line.
+        if (binds.isEmpty()) {
+            notes << QCoreApplication::translate(
+                "SourceSway", "the configuration holds no keyboard shortcut");
+        }
         if (skippedPointer > 0) {
             notes << QCoreApplication::translate("SourceSway",
                                                  "%n pointer button(s) skipped",

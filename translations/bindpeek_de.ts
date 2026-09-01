@@ -783,6 +783,10 @@
         <source>no command</source>
         <translation>kein Befehl</translation>
     </message>
+    <message>
+        <source>the configuration holds no keyboard shortcut</source>
+        <translation>die Konfiguration enthält kein Tastenkürzel</translation>
+    </message>
     <message numerus="yes">
         <source>%n pointer button(s) skipped</source>
         <translation>

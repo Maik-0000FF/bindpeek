@@ -281,6 +281,7 @@ private slots:
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAnIncludeIsNotFollowed();
+    void swaySaysWhenThereIsNothingToShow();
     void swayHeadsBindsWithTheirMode();
     void swayAlwaysNamesSomething_data();
     void swayAlwaysNamesSomething();
@@ -1566,6 +1567,37 @@ void TestSources::swaySaysWhenAnIncludeIsNotFollowed() {
         QStringLiteral("include /etc/sway/config.d/*\ninclude ~/extra\n"),
         &twoLines);
     QVERIFY2(twoLines.contains(QStringLiteral("2")), qPrintable(twoLines));
+}
+
+void TestSources::swaySaysWhenThereIsNothingToShow() {
+    // A configuration can be read from end to end, leave nothing to show and
+    // still count nothing as left out: bindswitch and bindgesture are passed
+    // over uncounted on purpose, because a lid and a touchpad are not keys.
+    // The caller takes an empty list for a failure and prints the note on a
+    // line of its own, so without one that line is blank.
+    QString note;
+    const QList<Bind> binds = SourceSway::parseConfig(
+        QStringLiteral("bindswitch lid:on exec lock\n"
+                       "bindgesture swipe:3:right workspace next\n"),
+        &note);
+
+    QVERIFY(binds.isEmpty());
+    QVERIFY2(note.contains(QStringLiteral("no keyboard shortcut")),
+             qPrintable(note));
+
+    // The same over the whole way a caller takes, with the file that started
+    // this: one holding nothing at all.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path =
+        writeFile(QDir(dir.path()), QStringLiteral("config"), QString());
+    QVERIFY(!path.isEmpty());
+
+    QString fromFile;
+    SourceSway source(path);
+    QVERIFY(source.read(&fromFile).isEmpty());
+    QVERIFY2(fromFile.contains(QStringLiteral("no keyboard shortcut")),
+             qPrintable(fromFile));
 }
 
 void TestSources::swayHeadsBindsWithTheirMode() {
