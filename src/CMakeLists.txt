@@ -44,6 +44,7 @@ add_library(bindpeek_sources STATIC
   Source.cpp
   SourceMango.cpp
   SourceHyprland.cpp
+  SourceSway.cpp
 )
 
 # The KDE backend and the library it needs, together or not at all. Anything

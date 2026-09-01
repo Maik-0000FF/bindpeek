@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 {
-  description = "bindpeek: a quick peek at the shortcuts assigned in the running session (mango, Hyprland, KDE)";
+  description = "bindpeek: a quick peek at the shortcuts assigned in the running session (mango, Hyprland, sway, KDE)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
