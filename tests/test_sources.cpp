@@ -288,6 +288,8 @@ private slots:
     void swayReadsABindEndingInABraceAsABlock();
     void swayReadsEveryBindingWordEndingInABraceAsABlock();
     void swayEndsABlockOnTheLastWord();
+    void swayOpensNoBlockOnAVariableHoldingABrace();
+    void swayNamesAModeThroughAVariable();
     void swayTakesABraceFromTheNextLine();
     void swayOpensNoBlockOnAWordEndingInABrace();
     void swayReadsEveryBindingWordAsOne();
@@ -1785,6 +1787,43 @@ void TestSources::swayEndsABlockOnTheLastWord() {
     for (const Bind &bind : stillInside) {
         QCOMPARE(bind.group, QStringLiteral("resize"));
     }
+}
+
+void TestSources::swayOpensNoBlockOnAVariableHoldingABrace() {
+    // sway looks for the brace before it replaces a variable, so a line whose
+    // last word is the name of a variable opens no block, whatever that
+    // variable holds. Opened here, the brace below would close the phantom
+    // instead of the mode and everything after it would keep the heading.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("set $brace \"{\"\n"
+                                               "mode \"resize\" {\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "  bar $brace\n"
+                                               "}\n"
+                                               "bindsym Mod4+d exec menu\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 2);
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
+    QCOMPARE(binds.constLast().group, defaultGroupName());
+}
+
+void TestSources::swayNamesAModeThroughAVariable() {
+    // The name of a block is expanded even though the brace beside it is not:
+    // sway hangs the name in front of every line inside the block and replaces
+    // the variables in the two together, so the mode is headed by what the
+    // variable holds rather than by the name of the variable.
+    QString note;
+    const QList<Bind> binds =
+        SourceSway::parseConfig(QStringLiteral("set $name resize\n"
+                                               "mode $name {\n"
+                                               "  bindsym Left resize shrink\n"
+                                               "}\n"),
+                                &note);
+
+    QCOMPARE(binds.size(), 1);
+    QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
 }
 
 void TestSources::swayReadsEveryBindingWordAsOne() {

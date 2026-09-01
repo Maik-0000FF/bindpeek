@@ -288,15 +288,26 @@ QString unquoted(QString text) {
 //   bindsym Mod3+x exec foo                 | skipped, no name for that key
 //   bindsym Mod5+x exec foo                 | skipped, same
 //   mode "resize" {                         | heading for what follows
+//   mode "resize"                           | the same, the brace being taken
+//   {                                       | from the line below it
 //   bindsym Left resize shrink width 10px   | under that heading
 //   bar {                                   | a block that is not a mode
 //   }                                       | ends that block, not the mode
+//   bar }                                   | ends it just as well: the last
+//                                           | word is what says so
+//   } # back to normal                      | ends nothing, those being three
+//                                           | more words
 //   }                                       | back to the default heading
-//   bindsym Left exec foo {                 | a command, not a block: kept
-//   bindswitch lid:on exec foo {            | never a key, and not a block
+//   bindsym Left exec foo {                 | a block, and no bind: the brace
+//                                           | is read before the binding word
+//   bindswitch lid:on exec foo {            | a block as well
 //   bindgesture swipe:3:right exec foo {    | the same
-//   bindcode 24 exec foo {                  | a key without a name, counted,
-//                                           | and not a block either
+//   bindcode 24 exec foo {                  | a block, and not counted: the
+//                                           | line bound no key to leave out
+//   exec_always ~/bin/x{                    | a command, no block: the brace
+//                                           | is not a word of its own
+//   set $brace "{"                          | remembered; a line ending in
+//   bar $brace                              | the variable opens no block
 //   include /etc/sway/config.d/*            | reported: what it pulls in is
 //                                           | not part of what was read, and
 //                                           | one line is counted once
@@ -310,9 +321,11 @@ QString unquoted(QString text) {
 //   bindsym $mod+q                          | skipped, nothing to run
 //   bindsym                                 | skipped, nothing at all
 //
-// Variables are replaced before any of this, and a value may name another
-// variable. Everything the panel cannot name is skipped rather than shown
-// under a combination that would not trigger it.
+// Variables are replaced before a line is read as a bind, and a value may name
+// another variable; the two braces are the exception, asked for before any
+// replacement, which is the order sway reads in. Everything the panel cannot
+// name is skipped rather than shown under a combination that would not trigger
+// it.
 //
 // *note collects what is missing from the list and why, one sentence each:
 // a line that would have been a keyboard shortcut and could not be shown as
@@ -359,14 +372,52 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
 
+        // A line whose last word is a brace of its own opens a block, and the
+        // block is named by everything before that brace.
+        //
+        // Asked of every line, a bind among them, and asked here rather than
+        // further down, because this is the order sway asks in:
+        // config_command() looks for the two braces before it replaces a
+        // variable and before it looks for a handler for the first word. So a
+        // "bindsym ... {" opens a block there and binds nothing, and a
+        // variable holding a brace opens none, its name being one word that is
+        // not "{".
+        //
+        // The word, not the last character of the line: sway splits the line
+        // into words and compares the last of them against "{", so
+        // "exec_always ~/bin/x{" runs a command and opens nothing. A word
+        // before the brace is wanted for the same reason, a line of nothing
+        // but a brace naming no block sway could enter.
+        //
+        // The name is expanded, late as it is: sway hangs the name of the
+        // block in front of every line inside it and replaces the variables in
+        // the two together, so a mode opened as "$name" is headed by what the
+        // variable holds.
+        if (parts.size() > 1 &&
+            parts.constLast() == QLatin1String(kBlockOpen)) {
+            QStringList name =
+                words(expand(QStringList(parts.mid(0, parts.size() - 1))
+                                 .join(QLatin1Char(' ')),
+                             variables));
+            QString heading = openHeading(blocks);
+            if (name.size() > 1 &&
+                name.constFirst() == QLatin1String(kKeywordMode)) {
+                name.removeFirst();
+                name.removeAll(QLatin1String(kModeMarkupFlag));
+                heading = unquoted(name.join(QLatin1Char(' '))).trimmed();
+            }
+            blocks.append(heading);
+            continue;
+        }
+
         // A closing brace ends the innermost block, whatever it was.
         //
-        // The last word of the line, which is the rule the opening brace goes
-        // by as well: sway asks both of every line before it asks what the
-        // line commands. So "bar }" ends the block around it, and
-        // "} # back to normal" ends nothing, those three words being arguments
-        // rather than a comment. Only a line beginning with "#" is a comment
-        // to sway.
+        // The last word again, which is how sway reads this end too: "bar }"
+        // ends the block around it, and "} # back to normal" ends nothing,
+        // those three words being arguments rather than a comment. Only a line
+        // beginning with "#" is a comment to sway. No word before the brace is
+        // wanted here, unlike above, because sway asks for none: a line of
+        // nothing but "}" is the ordinary way to end a block.
         if (parts.constLast() == QLatin1String(kBlockClose)) {
             if (!blocks.isEmpty()) {
                 blocks.removeLast();
@@ -393,33 +444,6 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             continue;
         }
         const QString keyword = parts.takeFirst();
-
-        // A line whose last word is a brace of its own opens a block, and the
-        // block is named by everything before that brace.
-        //
-        // Asked first and of every line, a bind among them, because that is
-        // the order sway asks in: config_command() looks for the brace before
-        // it looks for a handler for the first word. A "bindsym ... {" opens a
-        // block there and binds nothing, so reading it as a bind here would
-        // put a shortcut on the panel that sway never registered, and hand the
-        // brace closing that block to the mode around it.
-        //
-        // The word, not the last character of the line: sway splits the line
-        // into words and compares the last of them against "{", so
-        // "exec_always ~/bin/x{" runs a command and opens nothing. A word
-        // before the brace is wanted for the same reason, a line of nothing
-        // but a brace naming no block sway could enter.
-        if (!parts.isEmpty() &&
-            parts.constLast() == QLatin1String(kBlockOpen)) {
-            parts.removeLast();
-            QString heading = openHeading(blocks);
-            if (keyword == QLatin1String(kKeywordMode) && !parts.isEmpty()) {
-                parts.removeAll(QLatin1String(kModeMarkupFlag));
-                heading = unquoted(parts.join(QLatin1Char(' '))).trimmed();
-            }
-            blocks.append(heading);
-            continue;
-        }
 
         // What such a line pulls in is not part of what was read here, and
         // neither are the binds in it. Counted and reported, because a list
