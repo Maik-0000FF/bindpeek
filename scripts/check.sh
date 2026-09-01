@@ -355,6 +355,13 @@ marker_end="$marker_word:end"
 # LC_ALL for awk, because every tracked file is offered to it and one of them
 # is a picture: a byte that spells no character is not an error to be reported
 # but a byte to be passed over.
+#
+# The name is handed over with a "./" in front, so that awk reads it as a path
+# and never as a setting. An operand spelling "name=value" is an assignment to
+# awk, so a page called "a=b.md" would be one, awk would fall back to standard
+# input, and standard input here is the very stream this loop reads from: it
+# swallowed every name still to come in one gulp and left the loop with
+# nothing to do.
 regions_seen=0
 region_fails=0
 regions=""
@@ -435,7 +442,7 @@ while IFS= read -r -d '' file; do
         END {
             if (inside)
                 print "opens a listing at line " start " and never ends it"
-        }' "$file")
+        }' "./$file")
 done < <(sources)
 [ "$region_fails" = 0 ] || exit 1
 
