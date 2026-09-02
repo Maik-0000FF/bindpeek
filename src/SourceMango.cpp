@@ -181,6 +181,10 @@ QString directionText(const QString &raw) {
 // Description per ACTION. "%1" is replaced by the prepared PARAMS. An ACTION
 // that is missing from the table is shown raw together with its PARAMS, so a
 // newly added shortcut never goes missing silently.
+//
+// Looked up as written, which is right here: mango compares an action name
+// exactly and never folds its case, so a name spelled differently runs there
+// no more than it is described here.
 const QHash<QString, const char *> &actionTexts() {
     static const QHash<QString, const char *> table = {
         {QStringLiteral("spawn"), QT_TRANSLATE_NOOP("SourceMango", "%1")},

@@ -106,6 +106,13 @@ QString directionText(const QString &arg) {
 // dispatchers whose meaning is plain are listed; a name that is missing is
 // shown raw together with its argument, so a bind never goes missing silently
 // and a plugin dispatcher still reads sensibly.
+//
+// Looked up as written, which is right here: Hyprland lowers a handler while
+// it reads a bind, keeps the lowered form as the handler of that bind, and
+// answers with it, so what a reply carries is already in lower case. The only
+// other way a bind comes about there carries a fixed name instead, the one for
+// a callback, which is lower case as well. The keys are lower case for that
+// reason and have to stay so.
 const QHash<QString, const char *> &dispatcherTexts() {
     static const QHash<QString, const char *> table = {
         // The argument is the command line itself, so it stands alone.

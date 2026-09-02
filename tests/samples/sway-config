@@ -65,6 +65,20 @@ bindsym $mod+i exec [title=a {
 # around it, so the description keeps it.
 bindsym $mod+n exec don't panic
 
+# --- Keywords, which sway reads without regard to case ---
+
+# The keyword and the command word both written differently. sway runs this
+# line, so it has to be read here as well, keyword and description alike.
+BindSym $mod+u Kill
+
+# The same for a variable and for a mode heading.
+Set $loud Mod1+Shift
+bindsym $loud+u exec siren
+
+Mode "quiet" {
+    bindsym F9 mode "default"
+}
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.
@@ -72,7 +86,7 @@ bindsym $mod+button1 kill
 bindsym --whole-window $mod+BTN_RIGHT floating toggle
 
 # A keycode has no name to put on screen.
-bindcode $mod+24 exec $term
+BindCode $mod+24 exec $term
 
 # Modifiers the keyboard watch never reports.
 bindsym Mod3+x exec nothing
@@ -82,7 +96,7 @@ bindsym Lock+z exec nothing
 # A line that pulls further configuration in. What it names is not part of
 # what was read, and neither are the binds in it, which has to be said rather
 # than passed over.
-include /etc/sway/config.d/*
+Include /etc/sway/config.d/*
 
 # Nothing to run.
 bindsym $mod+q

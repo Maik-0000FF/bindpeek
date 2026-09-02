@@ -94,7 +94,7 @@ constexpr int kServerWaitMs = 5000;
 
 // How many binds the sway sample yields. Named once: the file is read twice,
 // from disk and over the socket, and both readings have to agree with it.
-constexpr int kSwaySampleBinds = 20;
+constexpr int kSwaySampleBinds = 23;
 
 // Stands in for HYPRLAND_INSTANCE_SIGNATURE. Short on purpose: the socket path
 // is built below the runtime directory and a UNIX socket name is limited to
@@ -283,6 +283,7 @@ private slots:
 
     void swayReadsTheSample();
     void swaySplitsALineTheWaySwayDoes();
+    void swayReadsAKeywordWithoutRegardToCase();
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAnIncludeIsNotFollowed();
@@ -1496,7 +1497,7 @@ void TestSources::swayReadsTheSample() {
     QString note;
     const QList<Bind> binds = source.read(&note);
 
-    // Twenty-seven bind lines in the sample, seven of which cannot be named.
+    // Thirty bind lines in the sample, seven of which cannot be named.
     QCOMPARE(binds.size(), kSwaySampleBinds);
     // The command is what the shortcut is called, with the variable in it
     // already replaced.
@@ -1547,6 +1548,34 @@ void TestSources::swaySplitsALineTheWaySwayDoes() {
              QStringLiteral("[title=a {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+N")),
              QStringLiteral("don't panic"));
+}
+
+void TestSources::swayReadsAKeywordWithoutRegardToCase() {
+    // sway looks a command up without regard to case, so a line written
+    // "BindSym" binds there and "Kill" runs. Read as written, the bind would be
+    // dropped rather than described oddly, so the shortcut would be missing.
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+U")),
+             QStringLiteral("Close window"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("ALT+SHIFT+U")),
+             QStringLiteral("siren"));
+
+    // The heading of a block is read the same way.
+    const Bind *quiet = find(binds, QStringLiteral("F9"));
+    QVERIFY(quiet != nullptr);
+    QCOMPARE(quiet->group, QStringLiteral("quiet"));
+
+    // And so are the two keywords that leave no shortcut behind: an include
+    // line pulls in what is not read, a keycode names no key, and both are
+    // reported instead. The sample writes them as "Include" and "BindCode", so
+    // each of these two messages is only there if the word was recognised.
+    // Pinned as the words they say, because the note is not translated in a
+    // test, which loads no catalogue.
+    QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
+    QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
