@@ -1572,6 +1572,8 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     // line pulls in what is not read, a keycode names no key, and both are
     // reported instead. The sample writes them as "Include" and "BindCode", so
     // each of these two messages is only there if the word was recognised.
+    // Pinned as the words they say, because the note is not translated in a
+    // test, which loads no catalogue.
     QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
     QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }
