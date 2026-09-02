@@ -43,6 +43,28 @@ mode "resize" {
 # Switching to a mode is a command, not a block.
 bindsym $mod+r mode $mode_resize
 
+# --- Shapes that only a split like sway's reads correctly ---
+#
+# Each of these ends in a "{" that is inside something still open, so the last
+# word is not a "{" and the line binds instead of opening a block. Read with a
+# simpler split each of them opens one and binds nothing, which is three binds
+# lost. This is the shape to test on: the words are joined back together for
+# the description, so a regrouping that leaves the blanks where they were
+# cannot be seen there.
+
+# A double quote that is never closed.
+bindsym $mod+t exec "foo {
+
+# A single quote, which a split on quotes alone does not know at all.
+bindsym $mod+p exec 'foo {
+
+# The criteria brackets, which hold until the first "]".
+bindsym $mod+i exec [title=a {
+
+# A mark that never finds its partner is part of the word, not punctuation
+# around it, so the description keeps it.
+bindsym $mod+n exec don't panic
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.
