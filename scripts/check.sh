@@ -367,11 +367,12 @@ marker_end="$marker_word:end"
 # about one quotes the name as it was written, which is what the reader has to
 # find on the line.
 #
-# The words of the exception are cut at every byte that is neither a letter nor
-# a digit, so that a comment closing the line, "-->", is not read as a name. A
-# name holding anything else could then not be excepted at all, a hyphenated
-# one being the case to expect; all four today are letters only, and such a
-# name would be read as two unknown ones, which complains rather than passes.
+# The words of the exception are cut at whitespace, and each word then loses
+# what is neither a letter nor a digit at either end: a comment closing the
+# line, "-->", falls away entirely, while a name keeps whatever it holds
+# inside. Cutting at every such byte instead would take a name apart, and
+# "sway-kde" would read as two names the program does know: a listing excepting
+# it would then quietly except both while naming neither.
 #
 # The price is known and taken deliberately. A name sitting inside a longer
 # word answers just as well, "swayed" for sway, so a listing written that way
@@ -430,8 +431,9 @@ while IFS= read -r -d '' file; do
             delete skipped
             skipping = 0
             rest = substr($0, index($0, opens) + length(opens))
-            count = split(rest, word, /[^a-zA-Z0-9]+/)
+            count = split(rest, word, /[ \t]+/)
             for (j = 1; j <= count; j++) {
+                gsub(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/, "", word[j])
                 if (word[j] == "") continue
                 if (tolower(word[j]) == "except") { skipping = 1; continue }
                 if (skipping) skipped[tolower(word[j])] = word[j]
