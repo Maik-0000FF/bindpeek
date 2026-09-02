@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace bindpeek {
 namespace {
@@ -139,34 +140,61 @@ const QHash<QString, const char *> &actionTexts() {
     return table;
 }
 
-// Takes the quotes off a command the way sway does.
+// Takes the quotes off a command that read as a pair.
 //
-// Not a plain removal of every mark: a quote only counts where it opens or
-// closes, so the apostrophe in "it's fine" stays and the marks around
-// 'say "hi"' come off while the ones inside it do not. A backslash covers the
-// next character and stays where it is, because sway leaves it there too.
+// The marks that hold a command together are punctuation of the configuration
+// and not of the answer, so they go. A mark that never finds its partner is
+// not punctuation, it is part of the text: the apostrophe in "don't panic"
+// opens a run that nothing closes, and taking it off would spell the word
+// wrong on screen.
+//
+// This is deliberately not what sway does with such a line. sway reads the
+// command to run it, and its own stripping is applied to neither a bind nor an
+// exec anyway; what is built here is a line for a person to read. Where both
+// have something to say the answers agree, and they part only where a mark
+// stands alone.
+//
+// Three readers ask for this: the command a bind runs, the name of a mode,
+// and the value of a variable. Taking the marks off the mode name is what sway
+// does with it too. Taking them off a variable is not, sway keeps them there
+// and lets them turn up wherever the variable is used; kept here they would
+// only travel to the command and come off there, so they come off at once.
 QString unquoted(const QString &text) {
-    QString out;
-    out.reserve(text.size());
+    std::vector<bool> paired(static_cast<std::size_t>(text.size()), false);
+    qsizetype opened = -1;
     bool inString = false;
     bool inChar = false;
     bool escaped = false;
-    for (const QChar c : text) {
+
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
         if (c == QLatin1Char('\'') && !inString && !escaped) {
+            if (inChar) {
+                paired[static_cast<std::size_t>(opened)] = true;
+                paired[static_cast<std::size_t>(i)] = true;
+            }
+            opened = inChar ? -1 : i;
             inChar = !inChar;
             continue;
         }
         if (c == QLatin1Char('"') && !inChar && !escaped) {
+            if (inString) {
+                paired[static_cast<std::size_t>(opened)] = true;
+                paired[static_cast<std::size_t>(i)] = true;
+            }
+            opened = inString ? -1 : i;
             inString = !inString;
             continue;
         }
-        if (c == QLatin1Char('\\')) {
-            escaped = !escaped;
-            out += c;
-            continue;
+        escaped = c == QLatin1Char('\\') && !escaped;
+    }
+
+    QString out;
+    out.reserve(text.size());
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        if (!paired[static_cast<std::size_t>(i)]) {
+            out += text.at(i);
         }
-        escaped = false;
-        out += c;
     }
     return out;
 }
@@ -221,9 +249,8 @@ QString actionText(const QString &command) {
 // and so is a double quote inside single ones. The brackets are the weaker
 // hold: a quote of either kind opens inside them as well, and while one stands
 // open the "]" no longer closes them, so [a "b] c and [a 'b] c are each one
-// word rather than two. The
-// marks stay in the word rather than being taken off, which is what the
-// readers below expect.
+// word rather than two. The marks stay in the word rather than being taken
+// off, which is what the readers below expect.
 //
 // A quote that is never closed swallows the rest of the line, and that is the
 // whole reason this is not a simpler split: "exec \"foo {" ends in a word of

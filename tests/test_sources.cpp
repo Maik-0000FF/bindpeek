@@ -1528,14 +1528,17 @@ void TestSources::swaySplitsALineTheWaySwayDoes() {
     // are joined back together for the description, so a regrouping that
     // leaves the blanks where they were says nothing there; whether the line
     // binds at all does.
+    //
+    // The opening mark stays in the description of the first two: it never
+    // finds its partner, so it is text rather than punctuation.
     SourceSway source(sample(QStringLiteral("sway-config")));
     QString note;
     const QList<Bind> binds = source.read(&note);
 
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+T")),
-             QStringLiteral("foo {"));
+             QStringLiteral("\"foo {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+P")),
-             QStringLiteral("foo {"));
+             QStringLiteral("'foo {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+I")),
              QStringLiteral("[title=a {"));
 }
@@ -1570,18 +1573,19 @@ void TestSources::swaySkipsWhatItCannotName() {
         }
     }
 
-    // Every skip is reported rather than swallowed: two pointer buttons, one
-    // keycode bind, three that need Mod3, Mod5 or Lock, one without a command.
+    // Every skip is reported rather than swallowed: two pointer buttons,
+    // one keycode bind, three that need Mod3, Mod5 or Lock, one without a
+    // command.
     QVERIFY2(!note.isEmpty(), "skipped lines have to be reported");
     QVERIFY2(note.contains(QStringLiteral("2")), qPrintable(note));
     QVERIFY2(note.contains(QStringLiteral("3")), qPrintable(note));
 }
 
 void TestSources::swaySaysWhenAnIncludeIsNotFollowed() {
-    // What an include line pulls in is not part of what was read, and neither
-    // are the binds in it. That has to be said, or a list missing half the
-    // shortcuts looks like a complete one. Over read() and the sample, which
-    // is the whole way a caller takes.
+    // What an include line pulls in is not part of what was read, and
+    // neither are the binds in it. That has to be said, or a list missing
+    // half the shortcuts looks like a complete one. Over read() and the
+    // sample, which is the whole way a caller takes.
     SourceSway source(sample(QStringLiteral("sway-config")));
     QString note;
     source.read(&note);
@@ -1603,11 +1607,11 @@ void TestSources::swaySaysWhenAnIncludeIsNotFollowed() {
 }
 
 void TestSources::swaySaysWhenThereIsNothingToShow() {
-    // A configuration can be read from end to end, leave nothing to show and
-    // still count nothing as left out: bindswitch and bindgesture are passed
-    // over uncounted on purpose, because a lid and a touchpad are not keys.
-    // The caller takes an empty list for a failure and prints the note on a
-    // line of its own, so without one that line is blank.
+    // A configuration can be read from end to end, leave nothing to show
+    // and still count nothing as left out: bindswitch and bindgesture are
+    // passed over uncounted on purpose, because a lid and a touchpad are
+    // not keys. The caller takes an empty list for a failure and prints the
+    // note on a line of its own, so without one that line is blank.
     QString note;
     const QList<Bind> binds = SourceSway::parseConfig(
         QStringLiteral("bindswitch lid:on exec lock\n"
@@ -1618,8 +1622,8 @@ void TestSources::swaySaysWhenThereIsNothingToShow() {
     QVERIFY2(note.contains(QStringLiteral("no keyboard shortcut")),
              qPrintable(note));
 
-    // The same over the whole way a caller takes, with the file that started
-    // this: one holding nothing at all.
+    // The same over the whole way a caller takes, with the file that
+    // started this: one holding nothing at all.
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString path =
@@ -1639,7 +1643,8 @@ void TestSources::swayHeadsBindsWithTheirMode() {
     const QList<Bind> binds = source.read(&note);
 
     // What stands inside a mode block is headed by that mode, and the brace
-    // that closes it puts the following binds back under the default heading.
+    // that closes it puts the following binds back under the default
+    // heading.
     QString headingOfResize;
     QString headingAfterTheBlock;
     for (const Bind &bind : binds) {
@@ -1657,9 +1662,9 @@ void TestSources::swayHeadsBindsWithTheirMode() {
 void TestSources::swayAlwaysNamesSomething_data() {
     QTest::addColumn<QString>("command");
 
-    // Every shape a configuration holds that leaves nothing to say. Source.h
-    // promises a description on every bind, and each of these took a
-    // different way through the naming.
+    // Every shape a configuration holds that leaves nothing to say.
+    // Source.h promises a description on every bind, and each of these took
+    // a different way through the naming.
     QTest::newRow("a word this knows, with nothing after it") << "exec";
     QTest::newRow("the same, with an empty argument") << "exec \"\"";
     QTest::newRow("a command of two quotes") << "\"\"";
@@ -1696,18 +1701,18 @@ void TestSources::swayReadsABindEndingInABraceAsABlock() {
                                 &note);
 
     QCOMPARE(binds.size(), 2);
-    // The brace below closes the block that bind opened, so the mode is still
-    // the heading on the last line, exactly as sway has it.
+    // The brace below closes the block that bind opened, so the mode is
+    // still the heading on the last line, exactly as sway has it.
     for (const Bind &bind : binds) {
         QCOMPARE(bind.group, QStringLiteral("resize"));
     }
 }
 
 void TestSources::swayTakesABraceFromTheNextLine() {
-    // sway takes the brace of a block from the line after it and hangs it on
-    // the line it just read, so both spellings open the same block. Read as a
-    // line of its own the brace names nothing, and every bind in the mode is
-    // filed under the heading around it instead.
+    // sway takes the brace of a block from the line after it and hangs it
+    // on the line it just read, so both spellings open the same block. Read
+    // as a line of its own the brace names nothing, and every bind in the
+    // mode is filed under the heading around it instead.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("mode \"resize\"\n"
@@ -1721,9 +1726,9 @@ void TestSources::swayTakesABraceFromTheNextLine() {
     QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     QCOMPARE(binds.constLast().group, defaultGroupName());
 
-    // The lookahead steps over empty lines and stops at the first line holding
-    // anything else. A comment between the two therefore leaves the brace
-    // where it stands, naming nothing.
+    // The lookahead steps over empty lines and stops at the first line
+    // holding anything else. A comment between the two therefore leaves the
+    // brace where it stands, naming nothing.
     QString commentedNote;
     const QList<Bind> commented =
         SourceSway::parseConfig(QStringLiteral("mode \"resize\"\n"
@@ -1739,9 +1744,9 @@ void TestSources::swayTakesABraceFromTheNextLine() {
 
 void TestSources::swayOpensNoBlockOnAWordEndingInABrace() {
     // sway compares the last word of a line against a brace, not the last
-    // character of the line, so a command ending in one opens nothing. Taken
-    // for a block, the mode's own brace would close that phantom instead and
-    // everything after the mode would keep its heading.
+    // character of the line, so a command ending in one opens nothing.
+    // Taken for a block, the mode's own brace would close that phantom
+    // instead and everything after the mode would keep its heading.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
@@ -1757,10 +1762,11 @@ void TestSources::swayOpensNoBlockOnAWordEndingInABrace() {
 }
 
 void TestSources::swayReadsEveryBindingWordEndingInABraceAsABlock() {
-    // The brace is asked for before the line is asked what it binds, so this
-    // holds for all four binding words and not only for the one that puts a
-    // key on screen. A keycode that opens a block binds nothing and is not
-    // counted as left out either: nothing was left out, the line was a block.
+    // The brace is asked for before the line is asked what it binds, so
+    // this holds for all four binding words and not only for the one that
+    // puts a key on screen. A keycode that opens a block binds nothing and
+    // is not counted as left out either: nothing was left out, the line was
+    // a block.
     QString note;
     const QList<Bind> binds = SourceSway::parseConfig(
         QStringLiteral("mode \"resize\" {\n"
@@ -1775,8 +1781,8 @@ void TestSources::swayReadsEveryBindingWordEndingInABraceAsABlock() {
         &note);
 
     QCOMPARE(binds.size(), 2);
-    // Three blocks opened and three closed, so the mode is still the heading
-    // on the last line.
+    // Three blocks opened and three closed, so the mode is still the
+    // heading on the last line.
     for (const Bind &bind : binds) {
         QCOMPARE(bind.group, QStringLiteral("resize"));
     }
@@ -1784,9 +1790,9 @@ void TestSources::swayReadsEveryBindingWordEndingInABraceAsABlock() {
 }
 
 void TestSources::swayEndsABlockOnTheLastWord() {
-    // sway reads the end of a block from the last word of the line, the same
-    // way it reads the start, so a line ending in a brace ends the block
-    // around it whatever stands in front of that brace.
+    // sway reads the end of a block from the last word of the line, the
+    // same way it reads the start, so a line ending in a brace ends the
+    // block around it whatever stands in front of that brace.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("mode \"resize\" {\n"
@@ -1817,10 +1823,11 @@ void TestSources::swayEndsABlockOnTheLastWord() {
 }
 
 void TestSources::swayOpensNoBlockOnAVariableHoldingABrace() {
-    // sway looks for the brace before it replaces a variable, so a line whose
-    // last word is the name of a variable opens no block, whatever that
-    // variable holds. Opened here, the brace below would close the phantom
-    // instead of the mode and everything after it would keep the heading.
+    // sway looks for the brace before it replaces a variable, so a line
+    // whose last word is the name of a variable opens no block, whatever
+    // that variable holds. Opened here, the brace below would close the
+    // phantom instead of the mode and everything after it would keep the
+    // heading.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("set $brace \"{\"\n"
@@ -1837,10 +1844,10 @@ void TestSources::swayOpensNoBlockOnAVariableHoldingABrace() {
 }
 
 void TestSources::swayNamesAModeThroughAVariable() {
-    // The name of a block is expanded even though the brace beside it is not:
-    // sway hangs the name in front of every line inside the block and replaces
-    // the variables in the two together, so the mode is headed by what the
-    // variable holds rather than by the name of the variable.
+    // The name of a block is expanded even though the brace beside it is
+    // not: sway hangs the name in front of every line inside the block and
+    // replaces the variables in the two together, so the mode is headed by
+    // what the variable holds rather than by the name of the variable.
     QString note;
     const QList<Bind> binds =
         SourceSway::parseConfig(QStringLiteral("set $name resize\n"
@@ -1854,8 +1861,9 @@ void TestSources::swayNamesAModeThroughAVariable() {
 }
 
 void TestSources::swayReadsEveryBindingWordAsOne() {
-    // sway binds with four words, and only one of them puts a key on screen.
-    // A keycode is counted as left out, a switch and a gesture are not.
+    // sway binds with four words, and only one of them puts a key on
+    // screen. A keycode is counted as left out, a switch and a gesture are
+    // not.
     QString note;
     const QList<Bind> binds = SourceSway::parseConfig(
         QStringLiteral("set $mod Mod4\n"
@@ -1876,10 +1884,11 @@ void TestSources::swayReadsEveryBindingWordAsOne() {
     QCOMPARE(binds.constFirst().group, QStringLiteral("resize"));
     // And the one after the mode stands outside it.
     QCOMPARE(binds.constLast().group, defaultGroupName());
-    // One sentence, and it counts the three keycodes and nothing else. Three
-    // rather than one, because a count of one is written out as a word in
-    // some languages and would carry no digit to look for; and the switch and
-    // the gesture would make it five if they were counted with them.
+    // One sentence, and it counts the three keycodes and nothing else.
+    // Three rather than one, because a count of one is written out as a
+    // word in some languages and would carry no digit to look for; and the
+    // switch and the gesture would make it five if they were counted with
+    // them.
     //
     // A switch and a gesture were never keyboard shortcuts, so neither is
     // reported as missing, which a second sentence would say.
@@ -1939,10 +1948,10 @@ void TestSources::swayKeepsAModeAcrossAnInnerBlock() {
 }
 
 void TestSources::swayRefusesAnAnswerTooLargeToBeOne() {
-    // The socket is named by an environment variable, so what answers is not
-    // guaranteed to be sway. A length word is four bytes and can say four
-    // gigabytes, which would be asked of the thread that draws before a byte
-    // of it is read.
+    // The socket is named by an environment variable, so what answers is
+    // not guaranteed to be sway. A length word is four bytes and can say
+    // four gigabytes, which would be asked of the thread that draws before
+    // a byte of it is read.
     QByteArray reply("i3-ipc", 6);
     const quint32 length = 0xFFFFFFFFU;
     const quint32 type = 9;
@@ -1965,9 +1974,10 @@ void TestSources::swayRefusesAnAnswerTooLargeToBeOne() {
     QVERIFY(compositor.wait(kServerWaitMs));
 
     QVERIFY(binds.isEmpty());
-    // The announced length has to appear in the message, or this passes just
-    // as well when the read simply ran out of time and nothing was checked.
-    // The number rather than a word, because the message is translated.
+    // The announced length has to appear in the message, or this passes
+    // just as well when the read simply ran out of time and nothing was
+    // checked. The number rather than a word, because the message is
+    // translated.
     QVERIFY2(note.contains(QString::number(length)), qPrintable(note));
 }
 
@@ -2001,8 +2011,8 @@ void TestSources::swayAsksTheRunningCompositor() {
     const QList<Bind> binds = source.read(&note);
     QVERIFY(compositor.wait(kServerWaitMs));
 
-    // What went out is the request for the configuration, in the same shape:
-    // the magic, no payload, and the type that asks for it.
+    // What went out is the request for the configuration, in the same
+    // shape: the magic, no payload, and the type that asks for it.
     const QByteArray request = compositor.request();
     QCOMPARE(request.size(), 14);
     QCOMPARE(request.left(6), QByteArray("i3-ipc"));
