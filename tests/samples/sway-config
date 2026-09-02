@@ -44,13 +44,22 @@ mode "resize" {
 bindsym $mod+r mode $mode_resize
 
 # --- Shapes that only a split like sway's reads correctly ---
+#
+# Each of these ends in a "{" that is inside something still open, so the last
+# word is not a "{" and the line binds instead of opening a block. Read with a
+# simpler split they open one, and everything below is swallowed as its
+# contents. This is the shape to test on: the words are joined back together
+# for the description, so a regrouping that leaves the blanks where they were
+# cannot be seen there.
 
-# An unclosed quote swallows the rest of the line, so the "{" is part of the
-# command and this line binds something instead of opening a block.
+# A double quote that is never closed.
 bindsym $mod+t exec "foo {
 
-# The criteria brackets hold together across the blank inside them.
-bindsym $mod+i exec [title="a b"] foo
+# A single quote, which a split on quotes alone does not know at all.
+bindsym $mod+p exec 'foo {
+
+# The criteria brackets, which hold until the first "]".
+bindsym $mod+i exec [title=a {
 
 # --- Everything below has to be skipped ---
 

@@ -185,9 +185,12 @@ QString actionText(const QString &command) {
 //
 // A run is held together by paired double quotes, by paired single quotes and
 // by the criteria brackets "[" and "]", and a backslash covers whatever comes
-// after it. Whichever of those opens first is the one that counts, so a
-// bracket inside a quoted string is an ordinary character. The marks stay in
-// the word rather than being taken off, which is what the readers below expect.
+// after it. A bracket inside either kind of quote is an ordinary character,
+// and so is a double quote inside single ones. The brackets are the weaker
+// hold: a double quote opens inside them as well, and while it stands open the
+// "]" no longer closes them, so [a "b] c is one word rather than two. The
+// marks stay in the word rather than being taken off, which is what the
+// readers below expect.
 //
 // A quote that is never closed swallows the rest of the line, and that is the
 // whole reason this is not a simpler split: "exec \"foo {" ends in a word of
@@ -198,6 +201,10 @@ QString actionText(const QString &command) {
 // The brackets do not nest: the first "]" closes them, so "[a [b] c]" is two
 // words. A backslash cancels the one before it, so "foo\\ bar" is two words
 // while "foo\ bar" is one.
+//
+// One place parts from sway: a NUL inside a line ends the line for it and is
+// an ordinary character here. Only a configuration that holds a NUL in a line
+// reaches that, and such a line is cut short long before this sees it.
 QStringList words(const QString &line) {
     static const QString separators = QString::fromLatin1(kWordSeparators);
     QStringList out;

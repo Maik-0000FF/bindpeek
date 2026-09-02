@@ -94,7 +94,7 @@ constexpr int kServerWaitMs = 5000;
 
 // How many binds the sway sample yields. Named once: the file is read twice,
 // from disk and over the socket, and both readings have to agree with it.
-constexpr int kSwaySampleBinds = 18;
+constexpr int kSwaySampleBinds = 19;
 
 // Stands in for HYPRLAND_INSTANCE_SIGNATURE. Short on purpose: the socket path
 // is built below the runtime directory and a UNIX socket name is limited to
@@ -1496,7 +1496,7 @@ void TestSources::swayReadsTheSample() {
     QString note;
     const QList<Bind> binds = source.read(&note);
 
-    // Twenty-five bind lines in the sample, seven of which cannot be named.
+    // Twenty-six bind lines in the sample, seven of which cannot be named.
     QCOMPARE(binds.size(), kSwaySampleBinds);
     // The command is what the shortcut is called, with the variable in it
     // already replaced.
@@ -1519,19 +1519,25 @@ void TestSources::swayReadsTheSample() {
 }
 
 void TestSources::swaySplitsALineTheWaySwayDoes() {
-    // Two shapes a simpler split reads wrongly. An unclosed quote runs to the
-    // end of the line, so the "{" belongs to the command and the line binds
-    // something rather than opening a block. The criteria brackets hold
-    // together across the blank inside them, so what follows them is the
-    // command and not a word of its own.
+    // Three lines whose last word is a "{" only if the split is the simpler
+    // one: the double quote, the single quote and the criteria brackets each
+    // hold it. Read that way the line opens a block and binds nothing, and
+    // the lines below it are swallowed as the contents of that block.
+    //
+    // Asked at the block rather than at the grouping, deliberately. The words
+    // are joined back together for the description, so a regrouping that
+    // leaves the blanks where they were says nothing there; whether the line
+    // binds at all does.
     SourceSway source(sample(QStringLiteral("sway-config")));
     QString note;
     const QList<Bind> binds = source.read(&note);
 
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+T")),
              QStringLiteral("foo {"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+P")),
+             QStringLiteral("'foo {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+I")),
-             QStringLiteral("[title=a b] foo"));
+             QStringLiteral("[title=a {"));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
