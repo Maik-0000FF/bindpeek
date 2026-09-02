@@ -204,10 +204,12 @@ QString unquoted(const QString &text) {
 // configuration, not of the answer. A mark that is part of the text stays, so
 // an apostrophe inside a word and a pair inside another pair are left alone.
 //
-// What that costs is here: a mark left standing at the front of the first word
-// hides the word from the table below, so "'kill" is shown as it is written
-// rather than as "Close window". Kept that way on purpose, because such a line
-// is broken and sway does not read it as kill either.
+// What that costs is here: a mark left standing anywhere in the first word
+// hides that word from the table below, because the whole word is looked up as
+// it stands. So "'kill" and "kill'" are both shown as written rather than as
+// "Close window", while "'kill'" is a pair, comes off, and is found. Kept
+// that way on purpose, because such a line is broken and sway does not read it
+// as kill either.
 //
 // Every way out of here goes through the one check at the end. Source.h
 // promises a description on every bind, and a configuration holds shapes that
