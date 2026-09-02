@@ -1568,9 +1568,10 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     QVERIFY(quiet != nullptr);
     QCOMPARE(quiet->group, QStringLiteral("quiet"));
 
-    // And so are the two keywords that only show up in the note: the sample
-    // writes both "Include" and "BindCode", and each has to be recognised for
-    // its line to be reported rather than read as something else.
+    // And so are the two keywords that leave no shortcut behind: an include
+    // line pulls in what is not read, a keycode names no key, and both are
+    // reported instead. The sample writes them as "Include" and "BindCode", so
+    // each of these two messages is only there if the word was recognised.
     QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
     QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }

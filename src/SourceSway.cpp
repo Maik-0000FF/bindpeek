@@ -146,14 +146,19 @@ const QHash<QString, const char *> &actionTexts() {
 // A word as it is compared, which is in lower case.
 //
 // sway looks a command up without regard to case, so "BindSym" starts a bind
-// there just as "bindsym" does, and "Kill" runs. Folded in one place, because
-// the keywords and the table of action words both have to answer the same way,
-// and two foldings would disagree on a character sooner or later.
+// there just as "bindsym" does, and "Kill" runs. The keywords and the table of
+// action words are folded through here together, because two foldings would
+// disagree on a character sooner or later. The one other place that folds is
+// the pointer prefix far below, which mirrors what sway does to that name and
+// cannot drift, since "button" holds no letter this could differ on.
 //
-// Wider than sway's, which folds ASCII alone: this folds what Unicode says,
-// so a word built from look-alike letters is taken for the keyword here and is
-// none there. The difference runs the safe way, towards reading a line rather
-// than dropping one, and it takes a homoglyph to reach at all.
+// Wider than sway's, which folds ASCII alone. Measured, the whole difference
+// is one character: of every code point in Unicode exactly one folds to an
+// ASCII letter, the Kelvin sign to "k". No keyword holds a k, so a keyword is
+// read here exactly as sway reads it. Three action words do, so "kill",
+// "workspace" and "sticky" can be spelled with that sign and are described
+// here while sway resolves nothing. The difference runs the safe way, towards
+// reading a line rather than dropping one.
 QString folded(const QString &word) { return word.toLower(); }
 
 // Takes the quotes off a command that read as a pair.
