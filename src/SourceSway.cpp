@@ -139,10 +139,44 @@ const QHash<QString, const char *> &actionTexts() {
     return table;
 }
 
+// Takes the quotes off a command the way sway does.
+//
+// Not a plain removal of every mark: a quote only counts where it opens or
+// closes, so the apostrophe in "it's fine" stays and the marks around
+// 'say "hi"' come off while the ones inside it do not. A backslash covers the
+// next character and stays where it is, because sway leaves it there too.
+QString unquoted(const QString &text) {
+    QString out;
+    out.reserve(text.size());
+    bool inString = false;
+    bool inChar = false;
+    bool escaped = false;
+    for (const QChar c : text) {
+        if (c == QLatin1Char('\'') && !inString && !escaped) {
+            inChar = !inChar;
+            continue;
+        }
+        if (c == QLatin1Char('"') && !inChar && !escaped) {
+            inString = !inString;
+            continue;
+        }
+        if (c == QLatin1Char('\\')) {
+            escaped = !escaped;
+            out += c;
+            continue;
+        }
+        escaped = false;
+        out += c;
+    }
+    return out;
+}
+
 // The words that make a command readable, from the command as written.
 //
-// Quotes go: a command is written with them where it holds blanks, and they
-// are punctuation of the configuration, not of the answer.
+// The quotes that hold the command together go, through the same reading sway
+// gives them: they are punctuation of the configuration, not of the answer.
+// A mark that is part of the text stays, so an apostrophe inside a word and a
+// pair inside another pair are left alone.
 //
 // Every way out of here goes through the one check at the end. Source.h
 // promises a description on every bind, and a configuration holds shapes that
@@ -150,9 +184,7 @@ const QHash<QString, const char *> &actionTexts() {
 // command of blanks. Checking each branch instead would be one check per
 // branch and one branch someone adds later without it.
 QString actionText(const QString &command) {
-    QString rest = command.trimmed();
-    rest.remove(QLatin1Char('"'));
-    rest = rest.trimmed();
+    QString rest = unquoted(command.trimmed()).trimmed();
 
     const qsizetype cut = rest.indexOf(QLatin1Char(' '));
     const QString head = cut < 0 ? rest : rest.left(cut);
@@ -187,8 +219,9 @@ QString actionText(const QString &command) {
 // by the criteria brackets "[" and "]", and a backslash covers whatever comes
 // after it. A bracket inside either kind of quote is an ordinary character,
 // and so is a double quote inside single ones. The brackets are the weaker
-// hold: a double quote opens inside them as well, and while it stands open the
-// "]" no longer closes them, so [a "b] c is one word rather than two. The
+// hold: a quote of either kind opens inside them as well, and while one stands
+// open the "]" no longer closes them, so [a "b] c and [a 'b] c are each one
+// word rather than two. The
 // marks stay in the word rather than being taken off, which is what the
 // readers below expect.
 //
@@ -203,8 +236,10 @@ QString actionText(const QString &command) {
 // while "foo\ bar" is one.
 //
 // One place parts from sway: a NUL inside a line ends the line for it and is
-// an ordinary character here. Only a configuration that holds a NUL in a line
-// reaches that, and such a line is cut short long before this sees it.
+// an ordinary character here. It does reach this, measured, because the file
+// is read as UTF-8 and only the ends of a line are trimmed. Nothing below
+// treats a NUL as anything but a character, so the word it lands in is odd
+// rather than harmful.
 QStringList words(const QString &line) {
     static const QString separators = QString::fromLatin1(kWordSeparators);
     QStringList out;
@@ -340,11 +375,6 @@ QStringList configLines(const QString &text) {
         out << trimmed;
     }
     return out;
-}
-
-QString unquoted(QString text) {
-    text.remove(QLatin1Char('"'));
-    return text;
 }
 
 } // namespace

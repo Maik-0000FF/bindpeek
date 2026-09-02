@@ -1521,8 +1521,8 @@ void TestSources::swayReadsTheSample() {
 void TestSources::swaySplitsALineTheWaySwayDoes() {
     // Three lines whose last word is a "{" only if the split is the simpler
     // one: the double quote, the single quote and the criteria brackets each
-    // hold it. Read that way the line opens a block and binds nothing, and
-    // the lines below it are swallowed as the contents of that block.
+    // hold it. Read that way each line opens a block and binds nothing, which
+    // is three of the nineteen binds gone, measured.
     //
     // Asked at the block rather than at the grouping, deliberately. The words
     // are joined back together for the description, so a regrouping that
@@ -1535,7 +1535,7 @@ void TestSources::swaySplitsALineTheWaySwayDoes() {
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+T")),
              QStringLiteral("foo {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+P")),
-             QStringLiteral("'foo {"));
+             QStringLiteral("foo {"));
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+I")),
              QStringLiteral("[title=a {"));
 }
