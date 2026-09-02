@@ -207,9 +207,10 @@ QString unquoted(const QString &text) {
 // What that costs is here: a mark left standing anywhere in the first word
 // hides that word from the table below, because the whole word is looked up as
 // it stands. So "'kill" and "kill'" are both shown as written rather than as
-// "Close window", while "'kill'" is a pair, comes off, and is found. Kept
-// that way on purpose, because such a line is broken and sway does not read it
-// as kill either.
+// "Close window", and nothing is lost by it: such a line is broken, and sway
+// finds no handler for it either. Where both marks are there, "'kill'", they
+// pair off, come off, and the word is found, which is the one place this is
+// kinder than sway rather than stricter.
 //
 // Every way out of here goes through the one check at the end. Source.h
 // promises a description on every bind, and a configuration holds shapes that
