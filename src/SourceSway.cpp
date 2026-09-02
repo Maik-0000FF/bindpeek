@@ -12,7 +12,6 @@
 #include <QJsonParseError>
 #include <QLocalSocket>
 #include <QProcessEnvironment>
-#include <QRegularExpression>
 #include <QTextStream>
 
 #include <algorithm>
@@ -61,6 +60,9 @@ constexpr char kBlockClose[] = "}";
 constexpr char kFlagPrefix[] = "--";
 constexpr char kVariablePrefix[] = "$";
 constexpr char kComboSeparator[] = "+";
+
+// The bytes sway counts as space between words.
+constexpr char kWordSeparators[] = " \f\n\r\t\v";
 
 // What restricts a bind to one keyboard group. It says nothing about which
 // keys are held, so it is dropped and the bind kept.
@@ -179,13 +181,81 @@ QString actionText(const QString &command) {
                : head;
 }
 
-// Splits a line into words, keeping what is inside double quotes together.
+// Splits a line into words the way sway itself does.
+//
+// A run is held together by paired double quotes, by paired single quotes and
+// by the criteria brackets "[" and "]", and a backslash covers whatever comes
+// after it. Whichever of those opens first is the one that counts, so a
+// bracket inside a quoted string is an ordinary character. The marks stay in
+// the word rather than being taken off, which is what the readers below expect.
+//
+// A quote that is never closed swallows the rest of the line, and that is the
+// whole reason this is not a simpler split: "exec \"foo {" ends in a word of
+// its own, not in a "{", so the line binds a command instead of opening a
+// block. Only a broken configuration reaches that, but reading it differently
+// from sway means reading it wrongly.
+//
+// The brackets do not nest: the first "]" closes them, so "[a [b] c]" is two
+// words. A backslash cancels the one before it, so "foo\\ bar" is two words
+// while "foo\ bar" is one.
 QStringList words(const QString &line) {
-    static const QRegularExpression pattern(QStringLiteral("\"[^\"]*\"|\\S+"));
+    static const QString separators = QString::fromLatin1(kWordSeparators);
     QStringList out;
-    auto it = pattern.globalMatch(line);
-    while (it.hasNext()) {
-        out << it.next().captured();
+    bool inString = false;   // between double quotes
+    bool inChar = false;     // between single quotes
+    bool inBrackets = false; // between the criteria brackets
+    bool escaped = false;
+    bool inWord = false;
+    int start = 0;
+    int at = 0;
+
+    while (at <= line.size()) {
+        if (!inWord) {
+            while (at < line.size() && separators.contains(line.at(at))) {
+                ++at;
+            }
+            start = at;
+            inWord = true;
+            if (at == line.size()) {
+                break;
+            }
+        }
+        const bool ended = at == line.size();
+        const QChar c = ended ? QChar() : line.at(at);
+        bool closes = false;
+
+        if (c == QLatin1Char('"') && !inChar && !escaped) {
+            inString = !inString;
+        } else if (c == QLatin1Char('\'') && !inString && !escaped) {
+            inChar = !inChar;
+        } else if (c == QLatin1Char('[') && !inString && !inChar &&
+                   !inBrackets && !escaped) {
+            inBrackets = true;
+        } else if (c == QLatin1Char(']') && !inString && !inChar &&
+                   inBrackets && !escaped) {
+            inBrackets = false;
+        } else if (c == QLatin1Char('\\')) {
+            escaped = !escaped;
+        } else if (ended || (!inString && !inChar && !inBrackets && !escaped &&
+                             separators.contains(c))) {
+            closes = true;
+        }
+
+        if (!closes) {
+            if (c != QLatin1Char('\\')) {
+                escaped = false;
+            }
+            ++at;
+            continue;
+        }
+        if (at > start) {
+            out << line.mid(start, at - start);
+        }
+        inWord = false;
+        escaped = false;
+        if (ended) {
+            break;
+        }
     }
     return out;
 }

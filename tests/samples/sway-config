@@ -43,6 +43,15 @@ mode "resize" {
 # Switching to a mode is a command, not a block.
 bindsym $mod+r mode $mode_resize
 
+# --- Shapes that only a split like sway's reads correctly ---
+
+# An unclosed quote swallows the rest of the line, so the "{" is part of the
+# command and this line binds something instead of opening a block.
+bindsym $mod+t exec "foo {
+
+# The criteria brackets hold together across the blank inside them.
+bindsym $mod+i exec [title="a b"] foo
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.
