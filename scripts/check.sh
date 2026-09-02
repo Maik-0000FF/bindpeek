@@ -367,6 +367,12 @@ marker_end="$marker_word:end"
 # about one quotes the name as it was written, which is what the reader has to
 # find on the line.
 #
+# The words of the exception are cut at every byte that is neither a letter nor
+# a digit, so that a comment closing the line, "-->", is not read as a name. A
+# name holding anything else could then not be excepted at all, a hyphenated
+# one being the case to expect; all four today are letters only, and such a
+# name would be read as two unknown ones, which complains rather than passes.
+#
 # The price is known and taken deliberately. A name sitting inside a longer
 # word answers just as well, "swayed" for sway, so a listing written that way
 # would pass while naming nothing. None does today, measured: every match
