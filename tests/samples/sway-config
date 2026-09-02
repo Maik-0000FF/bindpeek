@@ -65,6 +65,20 @@ bindsym $mod+i exec [title=a {
 # around it, so the description keeps it.
 bindsym $mod+n exec don't panic
 
+# --- Keywords, which sway reads without regard to case ---
+
+# The keyword and the command word both written differently. sway runs this
+# line, so it has to be read here as well, keyword and description alike.
+BindSym $mod+u Kill
+
+# The same for a variable and for a mode heading.
+Set $loud Mod1+Shift
+bindsym $loud+u exec siren
+
+Mode "quiet" {
+    bindsym F9 mode "default"
+}
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.

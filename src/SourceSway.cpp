@@ -95,6 +95,10 @@ constexpr char kButtonPrefixLong[] = "BTN_";
 // %1 is filled with the rest of the command, so an entry either spells the
 // action out or hands the argument through. sway's own vocabulary, which is
 // i3's: the words are the ones written in the configuration.
+//
+// Every key is lower case, and has to stay that way: the word is lowered
+// before it is looked up here, so a key with a capital in it would never be
+// found.
 const QHash<QString, const char *> &actionTexts() {
     static const QHash<QString, const char *> table = {
         {QStringLiteral("exec"), QT_TRANSLATE_NOOP("SourceSway", "%1")},
@@ -205,8 +209,8 @@ QString unquoted(const QString &text) {
 // an apostrophe inside a word and a pair inside another pair are left alone.
 //
 // What that costs is here: a mark left standing anywhere in the first word
-// hides that word from the table below, because the whole word is looked up as
-// it stands. So "'kill" and "kill'" are both shown as written rather than as
+// hides that word from the table below, because the whole word is looked up,
+// mark and all. So "'kill" and "kill'" are both shown as written rather than as
 // "Close window", and nothing is lost by it: such a line is broken, and sway
 // finds no handler for it either. Where both marks are there, "'kill'", they
 // pair off, come off, and the word is found, which is the one place this is
@@ -225,7 +229,7 @@ QString actionText(const QString &command) {
     const QString tail = cut < 0 ? QString() : rest.mid(cut + 1).trimmed();
 
     QString text;
-    const auto found = actionTexts().constFind(head);
+    const auto found = actionTexts().constFind(head.toLower());
     if (found == actionTexts().cend()) {
         // Not a word this knows. The command itself is still the best answer
         // there is, and a shortcut with an unhelpful description beats one
@@ -353,12 +357,22 @@ QString expand(QString text, const QHash<QString, QString> &variables) {
     return text;
 }
 
+// Whether a word is that keyword, read the way sway reads one.
+//
+// sway looks a command up without regard to case, so "BindSym" starts a bind
+// there just as "bindsym" does, and "Kill" runs. Asked through one function
+// because every keyword below has to answer the same way; comparing as written
+// somewhere would drop the line rather than describe it oddly.
+bool isKeyword(const QString &word, const char *keyword) {
+    return word.compare(QLatin1String(keyword), Qt::CaseInsensitive) == 0;
+}
+
 // Whether a line binds something, whatever it binds it to.
 bool bindsSomething(const QString &keyword) {
-    return keyword == QLatin1String(kKeywordBindsym) ||
-           keyword == QLatin1String(kKeywordBindcode) ||
-           keyword == QLatin1String(kKeywordBindswitch) ||
-           keyword == QLatin1String(kKeywordBindgesture);
+    return isKeyword(keyword, kKeywordBindsym) ||
+           isKeyword(keyword, kKeywordBindcode) ||
+           isKeyword(keyword, kKeywordBindswitch) ||
+           isKeyword(keyword, kKeywordBindgesture);
 }
 
 // The heading in force right now, empty while no mode is open.
@@ -540,8 +554,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
                                  .join(QLatin1Char(' ')),
                              variables));
             QString heading = openHeading(blocks);
-            if (name.size() > 1 &&
-                name.constFirst() == QLatin1String(kKeywordMode)) {
+            if (name.size() > 1 && isKeyword(name.constFirst(), kKeywordMode)) {
                 name.removeFirst();
                 name.removeAll(QLatin1String(kModeMarkupFlag));
                 heading = unquoted(name.join(QLatin1Char(' '))).trimmed();
@@ -564,8 +577,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             }
             continue;
         }
-        if (parts.constFirst() == QLatin1String(kKeywordSet) &&
-            parts.size() >= 3) {
+        if (isKeyword(parts.constFirst(), kKeywordSet) && parts.size() >= 3) {
             const QString &name = parts.at(1);
             if (name.startsWith(QLatin1String(kVariablePrefix))) {
                 const QString value =
@@ -596,7 +608,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // file is being read. i3 grew a second property for the included
         // files; sway, whose IPC follows i3's, has not. Given a file through
         // --source, the line is not followed either.
-        if (keyword == QLatin1String(kKeywordInclude)) {
+        if (isKeyword(keyword, kKeywordInclude)) {
             // The line, not the files: one of these may name a whole
             // directory, and how many files that is cannot be known from
             // here.
@@ -613,8 +625,8 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
 
         // Of the four, only one puts a key on screen.
-        if (keyword != QLatin1String(kKeywordBindsym)) {
-            if (keyword == QLatin1String(kKeywordBindcode)) {
+        if (!isKeyword(keyword, kKeywordBindsym)) {
+            if (isKeyword(keyword, kKeywordBindcode)) {
                 // A keycode is a number on this keyboard's layout and has no
                 // name to put on screen. Counted, because it would have been
                 // a keyboard shortcut.
