@@ -361,7 +361,11 @@ marker_end="$marker_word:end"
 # backend files, and there for all four names at once; every other listing
 # writes the names it has to name as words. Case is ignored for a related
 # reason: the option's vocabulary is lower case and prose writes each session
-# the way its own project does.
+# the way its own project does. The exception on the opening line is read
+# that way too, both the keyword and the name after it, so that "Except KDE"
+# at the start of a sentence excepts what "except kde" excepts. A complaint
+# about one quotes the name as it was written, which is what the reader has to
+# find on the line.
 #
 # The price is known and taken deliberately. A name sitting inside a longer
 # word answers just as well, "swayed" for sway, so a listing written that way
@@ -423,8 +427,8 @@ while IFS= read -r -d '' file; do
             count = split(rest, word, /[^a-zA-Z0-9]+/)
             for (j = 1; j <= count; j++) {
                 if (word[j] == "") continue
-                if (word[j] == "except") { skipping = 1; continue }
-                if (skipping) skipped[word[j]] = 1
+                if (tolower(word[j]) == "except") { skipping = 1; continue }
+                if (skipping) skipped[tolower(word[j])] = word[j]
             }
             next
         }
@@ -438,21 +442,22 @@ while IFS= read -r -d '' file; do
             lower = tolower(text)
             asked = 0
             for (i = 1; i in names; i++) {
-                if (names[i] in skipped) continue
+                if (tolower(names[i]) in skipped) continue
                 asked++
                 if (index(lower, tolower(names[i])) == 0)
                     print "listing at line " start " does not name \x27" \
                         names[i] "\x27"
             }
             for (name in skipped) {
+                written = skipped[name]
                 known = 0
                 for (i = 1; i in names; i++)
-                    if (names[i] == name) known = 1
+                    if (tolower(names[i]) == name) known = 1
                 if (!known)
-                    print "listing at line " start " excepts \x27" name \
+                    print "listing at line " start " excepts \x27" written \
                         "\x27, which is no environment"
-                else if (index(lower, tolower(name)) != 0)
-                    print "listing at line " start " excepts \x27" name \
+                else if (index(lower, name) != 0)
+                    print "listing at line " start " excepts \x27" written \
                         "\x27 and names it anyway"
             }
             if (asked == 0)
