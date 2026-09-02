@@ -143,6 +143,19 @@ const QHash<QString, const char *> &actionTexts() {
     return table;
 }
 
+// A word as it is compared, which is in lower case.
+//
+// sway looks a command up without regard to case, so "BindSym" starts a bind
+// there just as "bindsym" does, and "Kill" runs. Folded in one place, because
+// the keywords and the table of action words both have to answer the same way,
+// and two foldings would disagree on a character sooner or later.
+//
+// Wider than sway's, which folds ASCII alone: this folds what Unicode says,
+// so a word built from look-alike letters is taken for the keyword here and is
+// none there. The difference runs the safe way, towards reading a line rather
+// than dropping one, and it takes a homoglyph to reach at all.
+QString folded(const QString &word) { return word.toLower(); }
+
 // Takes the quotes off a command that read as a pair.
 //
 // The marks that hold a command together are punctuation of the configuration
@@ -229,7 +242,7 @@ QString actionText(const QString &command) {
     const QString tail = cut < 0 ? QString() : rest.mid(cut + 1).trimmed();
 
     QString text;
-    const auto found = actionTexts().constFind(head.toLower());
+    const auto found = actionTexts().constFind(folded(head));
     if (found == actionTexts().cend()) {
         // Not a word this knows. The command itself is still the best answer
         // there is, and a shortcut with an unhelpful description beats one
@@ -357,14 +370,10 @@ QString expand(QString text, const QHash<QString, QString> &variables) {
     return text;
 }
 
-// Whether a word is that keyword, read the way sway reads one.
-//
-// sway looks a command up without regard to case, so "BindSym" starts a bind
-// there just as "bindsym" does, and "Kill" runs. Asked through one function
-// because every keyword below has to answer the same way; comparing as written
-// somewhere would drop the line rather than describe it oddly.
+// Whether a word is that keyword. Every keyword is written in lower case, so
+// the folded word can be compared against it as it stands.
 bool isKeyword(const QString &word, const char *keyword) {
-    return word.compare(QLatin1String(keyword), Qt::CaseInsensitive) == 0;
+    return folded(word) == QLatin1String(keyword);
 }
 
 // Whether a line binds something, whatever it binds it to.

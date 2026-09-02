@@ -86,7 +86,7 @@ bindsym $mod+button1 kill
 bindsym --whole-window $mod+BTN_RIGHT floating toggle
 
 # A keycode has no name to put on screen.
-bindcode $mod+24 exec $term
+BindCode $mod+24 exec $term
 
 # Modifiers the keyboard watch never reports.
 bindsym Mod3+x exec nothing
@@ -96,7 +96,7 @@ bindsym Lock+z exec nothing
 # A line that pulls further configuration in. What it names is not part of
 # what was read, and neither are the binds in it, which has to be said rather
 # than passed over.
-include /etc/sway/config.d/*
+Include /etc/sway/config.d/*
 
 # Nothing to run.
 bindsym $mod+q

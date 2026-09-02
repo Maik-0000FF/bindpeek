@@ -1567,6 +1567,12 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     const Bind *quiet = find(binds, QStringLiteral("F9"));
     QVERIFY(quiet != nullptr);
     QCOMPARE(quiet->group, QStringLiteral("quiet"));
+
+    // And so are the two keywords that only show up in the note: the sample
+    // writes both "Include" and "BindCode", and each has to be recognised for
+    // its line to be reported rather than read as something else.
+    QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
+    QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
