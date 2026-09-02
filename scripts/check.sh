@@ -72,8 +72,29 @@ sources() {
         done
 }
 
+# What a gate shows of a file, with the prefix taken off that belongs to the
+# call rather than to the file. Every name leaves sources() with "./" in front
+# of it, and a tool reports the name it was given, so a run otherwise spells
+# the same file two ways: the messages written here strip the prefix, the ones
+# written by a tool do not.
+#
+# Bound to the start of a line and to the two forms that put the name after a
+# word, which is how shellcheck ("In ./x.sh line 2:") and qmllint ("Warning:
+# ./x.qml:1:1:") write it, while clang-format, desktop-file-validate and
+# actionlint put it first. clang-tidy reports an absolute path and is left
+# untouched by all of it, and goes through here only so that no gate is the one
+# that was forgotten. A source line quoted back by a tool keeps what it says,
+# unless it begins with "./" itself, which is what reading the output rather
+# than the tool costs.
+#
+# Standard error is folded in, because that is where most of these write, and
+# pipefail keeps the tool's status rather than sed's.
+run_on_sources() {
+    xargs -0 -r "$@" 2>&1 | sed -E 's#^(In |Warning: )?\./#\1#'
+}
+
 step "clang-format (dry run, warnings are errors)"
-sources '*.cpp' '*.h' | xargs -0 -r clang-format --dry-run --Werror
+sources '*.cpp' '*.h' | run_on_sources clang-format --dry-run --Werror
 
 step "REUSE compliance"
 reuse lint
@@ -81,7 +102,7 @@ reuse lint
 step "desktop-file-validate"
 # The desktop database is unforgiving and silent: a malformed entry is dropped
 # without a word, and the program simply never shows up in any menu.
-sources '*.desktop' | xargs -0 -r desktop-file-validate
+sources '*.desktop' | run_on_sources desktop-file-validate
 
 step "workflow"
 # The file that says what runs on every push is shell inside YAML inside a
@@ -96,7 +117,7 @@ step "workflow"
 workflow_globs=('.github/workflows/*.yml' '.github/workflows/*.yaml')
 workflow_count=$(sources "${workflow_globs[@]}" | tr -cd '\0' | wc -c)
 if [ "$workflow_count" -gt 0 ]; then
-    sources "${workflow_globs[@]}" | xargs -0 -r actionlint
+    sources "${workflow_globs[@]}" | run_on_sources actionlint
 else
     echo "no workflow files"
 fi
@@ -104,7 +125,7 @@ fi
 step "shellcheck (warnings and above)"
 # Discovered rather than listed, so a newly added script cannot slip past the
 # gate by not being named here.
-sources '*.sh' | xargs -0 -r shellcheck -S warning
+sources '*.sh' | run_on_sources shellcheck -S warning
 
 step "the install pair can read the build files"
 # Everything install.sh and uninstall.sh work out before they touch anything:
@@ -521,14 +542,14 @@ step "qmllint"
 # The QML imports live in the Qt package; the first entry of the import path is
 # the one the dev shell exports for exactly this.
 sources '*.qml' \
-    | xargs -0 -r qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor
+    | run_on_sources qmllint -I "${QML2_IMPORT_PATH%%:*}" -I src -I src/editor
 
 step "clang-tidy"
 # The compile database drives it, so every file is checked with the flags it is
 # really built with. Header warnings are limited to this project's own headers
 # (HeaderFilterRegex in .clang-tidy), or Qt's would drown everything.
 sources 'src/*.cpp' 'tests/*.cpp' \
-    | xargs -0 -r clang-tidy -p "$BUILD_DIR" --quiet
+    | run_on_sources clang-tidy -p "$BUILD_DIR" --quiet
 
 if [ "$RUN_NIX" = 1 ]; then
     step "nix flake check"
