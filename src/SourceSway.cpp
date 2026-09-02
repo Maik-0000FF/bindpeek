@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 namespace bindpeek {
 namespace {
@@ -149,10 +148,10 @@ const QHash<QString, const char *> &actionTexts() {
 // wrong on screen.
 //
 // This is deliberately not what sway does with such a line. sway reads the
-// command to run it, and its own stripping is applied to neither a bind nor an
-// exec anyway; what is built here is a line for a person to read. Where both
-// have something to say the answers agree, and they part only where a mark
-// stands alone.
+// command to run it, and takes a mark off only in narrow places: never for a
+// bind, and for an exec only where a single argument begins with one. What is
+// built here is a line for a person to read. Where both have something to say
+// the answers agree, and they part only where a mark stands alone.
 //
 // Three readers ask for this: the command a bind runs, the name of a mode,
 // and the value of a variable. Taking the marks off the mode name is what sway
@@ -160,7 +159,7 @@ const QHash<QString, const char *> &actionTexts() {
 // and lets them turn up wherever the variable is used; kept here they would
 // only travel to the command and come off there, so they come off at once.
 QString unquoted(const QString &text) {
-    std::vector<bool> paired(static_cast<std::size_t>(text.size()), false);
+    QList<bool> paired(text.size(), false);
     qsizetype opened = -1;
     bool inString = false;
     bool inChar = false;
@@ -170,8 +169,8 @@ QString unquoted(const QString &text) {
         const QChar c = text.at(i);
         if (c == QLatin1Char('\'') && !inString && !escaped) {
             if (inChar) {
-                paired[static_cast<std::size_t>(opened)] = true;
-                paired[static_cast<std::size_t>(i)] = true;
+                paired[opened] = true;
+                paired[i] = true;
             }
             opened = inChar ? -1 : i;
             inChar = !inChar;
@@ -179,8 +178,8 @@ QString unquoted(const QString &text) {
         }
         if (c == QLatin1Char('"') && !inChar && !escaped) {
             if (inString) {
-                paired[static_cast<std::size_t>(opened)] = true;
-                paired[static_cast<std::size_t>(i)] = true;
+                paired[opened] = true;
+                paired[i] = true;
             }
             opened = inString ? -1 : i;
             inString = !inString;
@@ -192,7 +191,7 @@ QString unquoted(const QString &text) {
     QString out;
     out.reserve(text.size());
     for (qsizetype i = 0; i < text.size(); ++i) {
-        if (!paired[static_cast<std::size_t>(i)]) {
+        if (!paired[i]) {
             out += text.at(i);
         }
     }
@@ -201,10 +200,14 @@ QString unquoted(const QString &text) {
 
 // The words that make a command readable, from the command as written.
 //
-// The quotes that hold the command together go, through the same reading sway
-// gives them: they are punctuation of the configuration, not of the answer.
-// A mark that is part of the text stays, so an apostrophe inside a word and a
-// pair inside another pair are left alone.
+// The quotes that hold the command together go: they are punctuation of the
+// configuration, not of the answer. A mark that is part of the text stays, so
+// an apostrophe inside a word and a pair inside another pair are left alone.
+//
+// What that costs is here: a mark left standing at the front of the first word
+// hides the word from the table below, so "'kill" is shown as it is written
+// rather than as "Close window". Kept that way on purpose, because such a line
+// is broken and sway does not read it as kill either.
 //
 // Every way out of here goes through the one check at the end. Source.h
 // promises a description on every bind, and a configuration holds shapes that

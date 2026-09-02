@@ -61,6 +61,10 @@ bindsym $mod+p exec 'foo {
 # The criteria brackets, which hold until the first "]".
 bindsym $mod+i exec [title=a {
 
+# A mark that never finds its partner is part of the word, not punctuation
+# around it, so the description keeps it.
+bindsym $mod+n exec don't panic
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.
