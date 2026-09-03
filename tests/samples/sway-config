@@ -43,6 +43,42 @@ mode "resize" {
 # Switching to a mode is a command, not a block.
 bindsym $mod+r mode $mode_resize
 
+# --- Shapes that only a split like sway's reads correctly ---
+#
+# Each of these ends in a "{" that is inside something still open, so the last
+# word is not a "{" and the line binds instead of opening a block. Read with a
+# simpler split each of them opens one and binds nothing, which is three binds
+# lost. This is the shape to test on: the words are joined back together for
+# the description, so a regrouping that leaves the blanks where they were
+# cannot be seen there.
+
+# A double quote that is never closed.
+bindsym $mod+t exec "foo {
+
+# A single quote, which a split on quotes alone does not know at all.
+bindsym $mod+p exec 'foo {
+
+# The criteria brackets, which hold until the first "]".
+bindsym $mod+i exec [title=a {
+
+# A mark that never finds its partner is part of the word, not punctuation
+# around it, so the description keeps it.
+bindsym $mod+n exec don't panic
+
+# --- Keywords, which sway reads without regard to case ---
+
+# The keyword and the command word both written differently. sway runs this
+# line, so it has to be read here as well, keyword and description alike.
+BindSym $mod+u Kill
+
+# The same for a variable and for a mode heading.
+Set $loud Mod1+Shift
+bindsym $loud+u exec siren
+
+Mode "quiet" {
+    bindsym F9 mode "default"
+}
+
 # --- Everything below has to be skipped ---
 
 # Pointer buttons, written both ways sway accepts.
@@ -50,7 +86,7 @@ bindsym $mod+button1 kill
 bindsym --whole-window $mod+BTN_RIGHT floating toggle
 
 # A keycode has no name to put on screen.
-bindcode $mod+24 exec $term
+BindCode $mod+24 exec $term
 
 # Modifiers the keyboard watch never reports.
 bindsym Mod3+x exec nothing
@@ -60,7 +96,7 @@ bindsym Lock+z exec nothing
 # A line that pulls further configuration in. What it names is not part of
 # what was read, and neither are the binds in it, which has to be said rather
 # than passed over.
-include /etc/sway/config.d/*
+Include /etc/sway/config.d/*
 
 # Nothing to run.
 bindsym $mod+q

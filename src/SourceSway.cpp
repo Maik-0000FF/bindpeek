@@ -12,7 +12,6 @@
 #include <QJsonParseError>
 #include <QLocalSocket>
 #include <QProcessEnvironment>
-#include <QRegularExpression>
 #include <QTextStream>
 
 #include <algorithm>
@@ -62,6 +61,9 @@ constexpr char kFlagPrefix[] = "--";
 constexpr char kVariablePrefix[] = "$";
 constexpr char kComboSeparator[] = "+";
 
+// The bytes sway counts as space between words.
+constexpr char kWordSeparators[] = " \f\n\r\t\v";
+
 // What restricts a bind to one keyboard group. It says nothing about which
 // keys are held, so it is dropped and the bind kept.
 //
@@ -93,6 +95,10 @@ constexpr char kButtonPrefixLong[] = "BTN_";
 // %1 is filled with the rest of the command, so an entry either spells the
 // action out or hands the argument through. sway's own vocabulary, which is
 // i3's: the words are the ones written in the configuration.
+//
+// Every key is lower case, and has to stay that way: the word is lowered
+// before it is looked up here, so a key with a capital in it would never be
+// found.
 const QHash<QString, const char *> &actionTexts() {
     static const QHash<QString, const char *> table = {
         {QStringLiteral("exec"), QT_TRANSLATE_NOOP("SourceSway", "%1")},
@@ -137,10 +143,96 @@ const QHash<QString, const char *> &actionTexts() {
     return table;
 }
 
+// A word as it is compared, which is in lower case.
+//
+// sway looks a command up without regard to case, so "BindSym" starts a bind
+// there just as "bindsym" does, and "Kill" runs. The keywords and the table of
+// action words are folded through here together, because two foldings would
+// disagree on a character sooner or later. The one other place that folds is
+// the pointer prefix far below, which mirrors what sway does to that name and
+// cannot drift, since "button" holds no letter this could differ on.
+//
+// Wider than sway's, which folds ASCII alone. Measured, the whole difference
+// is one character: of every code point in Unicode exactly one folds to an
+// ASCII letter, the Kelvin sign to "k". No keyword holds a k, so a keyword is
+// read here exactly as sway reads it. Three action words do, so "kill",
+// "workspace" and "sticky" can be spelled with that sign and are described
+// here while sway resolves nothing. The difference runs the safe way, towards
+// reading a line rather than dropping one.
+QString folded(const QString &word) { return word.toLower(); }
+
+// Takes the quotes off a command that read as a pair.
+//
+// The marks that hold a command together are punctuation of the configuration
+// and not of the answer, so they go. A mark that never finds its partner is
+// not punctuation, it is part of the text: the apostrophe in "don't panic"
+// opens a run that nothing closes, and taking it off would spell the word
+// wrong on screen.
+//
+// This is deliberately not what sway does with such a line. sway reads the
+// command to run it, and takes a mark off only in narrow places: never for a
+// bind, and for an exec only where a single argument begins with one. What is
+// built here is a line for a person to read. Where both have something to say
+// the answers agree, and they part only where a mark stands alone.
+//
+// Three readers ask for this: the command a bind runs, the name of a mode,
+// and the value of a variable. Taking the marks off the mode name is what sway
+// does with it too. Taking them off a variable is not, sway keeps them there
+// and lets them turn up wherever the variable is used; kept here they would
+// only travel to the command and come off there, so they come off at once.
+QString unquoted(const QString &text) {
+    QList<bool> paired(text.size(), false);
+    qsizetype opened = -1;
+    bool inString = false;
+    bool inChar = false;
+    bool escaped = false;
+
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
+        if (c == QLatin1Char('\'') && !inString && !escaped) {
+            if (inChar) {
+                paired[opened] = true;
+                paired[i] = true;
+            }
+            opened = inChar ? -1 : i;
+            inChar = !inChar;
+            continue;
+        }
+        if (c == QLatin1Char('"') && !inChar && !escaped) {
+            if (inString) {
+                paired[opened] = true;
+                paired[i] = true;
+            }
+            opened = inString ? -1 : i;
+            inString = !inString;
+            continue;
+        }
+        escaped = c == QLatin1Char('\\') && !escaped;
+    }
+
+    QString out;
+    out.reserve(text.size());
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        if (!paired[i]) {
+            out += text.at(i);
+        }
+    }
+    return out;
+}
+
 // The words that make a command readable, from the command as written.
 //
-// Quotes go: a command is written with them where it holds blanks, and they
-// are punctuation of the configuration, not of the answer.
+// The quotes that hold the command together go: they are punctuation of the
+// configuration, not of the answer. A mark that is part of the text stays, so
+// an apostrophe inside a word and a pair inside another pair are left alone.
+//
+// What that costs is here: a mark left standing anywhere in the first word
+// hides that word from the table below, because the whole word is looked up,
+// mark and all. So "'kill" and "kill'" are both shown as written rather than as
+// "Close window", and nothing is lost by it: such a line is broken, and sway
+// finds no handler for it either. Where both marks are there, "'kill'", they
+// pair off, come off, and the word is found, which is the one place this is
+// kinder than sway rather than stricter.
 //
 // Every way out of here goes through the one check at the end. Source.h
 // promises a description on every bind, and a configuration holds shapes that
@@ -148,16 +240,14 @@ const QHash<QString, const char *> &actionTexts() {
 // command of blanks. Checking each branch instead would be one check per
 // branch and one branch someone adds later without it.
 QString actionText(const QString &command) {
-    QString rest = command.trimmed();
-    rest.remove(QLatin1Char('"'));
-    rest = rest.trimmed();
+    QString rest = unquoted(command.trimmed()).trimmed();
 
     const qsizetype cut = rest.indexOf(QLatin1Char(' '));
     const QString head = cut < 0 ? rest : rest.left(cut);
     const QString tail = cut < 0 ? QString() : rest.mid(cut + 1).trimmed();
 
     QString text;
-    const auto found = actionTexts().constFind(head);
+    const auto found = actionTexts().constFind(folded(head));
     if (found == actionTexts().cend()) {
         // Not a word this knows. The command itself is still the best answer
         // there is, and a shortcut with an unhelpful description beats one
@@ -179,13 +269,90 @@ QString actionText(const QString &command) {
                : head;
 }
 
-// Splits a line into words, keeping what is inside double quotes together.
+// Splits a line into words the way sway itself does.
+//
+// A run is held together by paired double quotes, by paired single quotes and
+// by the criteria brackets "[" and "]", and a backslash covers whatever comes
+// after it. A bracket inside either kind of quote is an ordinary character,
+// and so is a double quote inside single ones. The brackets are the weaker
+// hold: a quote of either kind opens inside them as well, and while one stands
+// open the "]" no longer closes them, so [a "b] c and [a 'b] c are each one
+// word rather than two. The marks stay in the word rather than being taken
+// off, which is what the readers below expect.
+//
+// A quote that is never closed swallows the rest of the line, and that is the
+// whole reason this is not a simpler split: "exec \"foo {" ends in a word of
+// its own, not in a "{", so the line binds a command instead of opening a
+// block. Only a broken configuration reaches that, but reading it differently
+// from sway means reading it wrongly.
+//
+// The brackets do not nest: the first "]" closes them, so "[a [b] c]" is two
+// words. A backslash cancels the one before it, so "foo\\ bar" is two words
+// while "foo\ bar" is one.
+//
+// One place parts from sway: a NUL inside a line ends the line for it and is
+// an ordinary character here. It does reach this, measured, because the file
+// is read as UTF-8 and only the ends of a line are trimmed. Nothing below
+// treats a NUL as anything but a character, so the word it lands in is odd
+// rather than harmful.
 QStringList words(const QString &line) {
-    static const QRegularExpression pattern(QStringLiteral("\"[^\"]*\"|\\S+"));
+    static const QString separators = QString::fromLatin1(kWordSeparators);
     QStringList out;
-    auto it = pattern.globalMatch(line);
-    while (it.hasNext()) {
-        out << it.next().captured();
+    bool inString = false;   // between double quotes
+    bool inChar = false;     // between single quotes
+    bool inBrackets = false; // between the criteria brackets
+    bool escaped = false;
+    bool inWord = false;
+    int start = 0;
+    int at = 0;
+
+    while (at <= line.size()) {
+        if (!inWord) {
+            while (at < line.size() && separators.contains(line.at(at))) {
+                ++at;
+            }
+            start = at;
+            inWord = true;
+            if (at == line.size()) {
+                break;
+            }
+        }
+        const bool ended = at == line.size();
+        const QChar c = ended ? QChar() : line.at(at);
+        bool closes = false;
+
+        if (c == QLatin1Char('"') && !inChar && !escaped) {
+            inString = !inString;
+        } else if (c == QLatin1Char('\'') && !inString && !escaped) {
+            inChar = !inChar;
+        } else if (c == QLatin1Char('[') && !inString && !inChar &&
+                   !inBrackets && !escaped) {
+            inBrackets = true;
+        } else if (c == QLatin1Char(']') && !inString && !inChar &&
+                   inBrackets && !escaped) {
+            inBrackets = false;
+        } else if (c == QLatin1Char('\\')) {
+            escaped = !escaped;
+        } else if (ended || (!inString && !inChar && !inBrackets && !escaped &&
+                             separators.contains(c))) {
+            closes = true;
+        }
+
+        if (!closes) {
+            if (c != QLatin1Char('\\')) {
+                escaped = false;
+            }
+            ++at;
+            continue;
+        }
+        if (at > start) {
+            out << line.mid(start, at - start);
+        }
+        inWord = false;
+        escaped = false;
+        if (ended) {
+            break;
+        }
     }
     return out;
 }
@@ -208,12 +375,18 @@ QString expand(QString text, const QHash<QString, QString> &variables) {
     return text;
 }
 
+// Whether a word is that keyword. Every keyword is written in lower case, so
+// the folded word can be compared against it as it stands.
+bool isKeyword(const QString &word, const char *keyword) {
+    return folded(word) == QLatin1String(keyword);
+}
+
 // Whether a line binds something, whatever it binds it to.
 bool bindsSomething(const QString &keyword) {
-    return keyword == QLatin1String(kKeywordBindsym) ||
-           keyword == QLatin1String(kKeywordBindcode) ||
-           keyword == QLatin1String(kKeywordBindswitch) ||
-           keyword == QLatin1String(kKeywordBindgesture);
+    return isKeyword(keyword, kKeywordBindsym) ||
+           isKeyword(keyword, kKeywordBindcode) ||
+           isKeyword(keyword, kKeywordBindswitch) ||
+           isKeyword(keyword, kKeywordBindgesture);
 }
 
 // The heading in force right now, empty while no mode is open.
@@ -263,11 +436,6 @@ QStringList configLines(const QString &text) {
         out << trimmed;
     }
     return out;
-}
-
-QString unquoted(QString text) {
-    text.remove(QLatin1Char('"'));
-    return text;
 }
 
 } // namespace
@@ -400,8 +568,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
                                  .join(QLatin1Char(' ')),
                              variables));
             QString heading = openHeading(blocks);
-            if (name.size() > 1 &&
-                name.constFirst() == QLatin1String(kKeywordMode)) {
+            if (name.size() > 1 && isKeyword(name.constFirst(), kKeywordMode)) {
                 name.removeFirst();
                 name.removeAll(QLatin1String(kModeMarkupFlag));
                 heading = unquoted(name.join(QLatin1Char(' '))).trimmed();
@@ -424,8 +591,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
             }
             continue;
         }
-        if (parts.constFirst() == QLatin1String(kKeywordSet) &&
-            parts.size() >= 3) {
+        if (isKeyword(parts.constFirst(), kKeywordSet) && parts.size() >= 3) {
             const QString &name = parts.at(1);
             if (name.startsWith(QLatin1String(kVariablePrefix))) {
                 const QString value =
@@ -456,7 +622,7 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         // file is being read. i3 grew a second property for the included
         // files; sway, whose IPC follows i3's, has not. Given a file through
         // --source, the line is not followed either.
-        if (keyword == QLatin1String(kKeywordInclude)) {
+        if (isKeyword(keyword, kKeywordInclude)) {
             // The line, not the files: one of these may name a whole
             // directory, and how many files that is cannot be known from
             // here.
@@ -473,8 +639,8 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         }
 
         // Of the four, only one puts a key on screen.
-        if (keyword != QLatin1String(kKeywordBindsym)) {
-            if (keyword == QLatin1String(kKeywordBindcode)) {
+        if (!isKeyword(keyword, kKeywordBindsym)) {
+            if (isKeyword(keyword, kKeywordBindcode)) {
                 // A keycode is a number on this keyboard's layout and has no
                 // name to put on screen. Counted, because it would have been
                 // a keyboard shortcut.

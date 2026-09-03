@@ -92,6 +92,10 @@ QString writeFile(const QDir &directory, const QString &name,
 // only keeps a hang from lasting forever, nothing normally comes near it.
 constexpr int kServerWaitMs = 5000;
 
+// How many binds the sway sample yields. Named once: the file is read twice,
+// from disk and over the socket, and both readings have to agree with it.
+constexpr int kSwaySampleBinds = 23;
+
 // Stands in for HYPRLAND_INSTANCE_SIGNATURE. Short on purpose: the socket path
 // is built below the runtime directory and a UNIX socket name is limited to
 // 108 bytes, temporary directory included.
@@ -278,6 +282,8 @@ private slots:
     // --- sway -------------------------------------------------------------
 
     void swayReadsTheSample();
+    void swaySplitsALineTheWaySwayDoes();
+    void swayReadsAKeywordWithoutRegardToCase();
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAnIncludeIsNotFollowed();
@@ -1491,8 +1497,8 @@ void TestSources::swayReadsTheSample() {
     QString note;
     const QList<Bind> binds = source.read(&note);
 
-    // Twenty-three bind lines in the sample, seven of which cannot be named.
-    QCOMPARE(binds.size(), 16);
+    // Thirty bind lines in the sample, seven of which cannot be named.
+    QCOMPARE(binds.size(), kSwaySampleBinds);
     // The command is what the shortcut is called, with the variable in it
     // already replaced.
     // Asked through the same normalization the panel shows: Return is drawn
@@ -1511,6 +1517,65 @@ void TestSources::swayReadsTheSample() {
     // The keyboard group restricts a bind but is not a key of its own.
     QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+X")),
              QStringLiteral("xterm"));
+}
+
+void TestSources::swaySplitsALineTheWaySwayDoes() {
+    // Three lines whose last word is a "{" only if the split is the simpler
+    // one: the double quote, the single quote and the criteria brackets each
+    // hold it. Read that way each line opens a block and binds nothing, which
+    // is three of the nineteen binds gone, measured.
+    //
+    // Asked at the block rather than at the grouping, deliberately. The words
+    // are joined back together for the description, so a regrouping that
+    // leaves the blanks where they were says nothing there; whether the line
+    // binds at all does.
+    //
+    // The opening mark stays in the description of the first two: it never
+    // finds its partner, so it is text rather than punctuation.
+    //
+    // The fourth line is that rule where it matters most: an apostrophe in
+    // the middle of a word spells the word, and taking it off would spell it
+    // wrong.
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+T")),
+             QStringLiteral("\"foo {"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+P")),
+             QStringLiteral("'foo {"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+I")),
+             QStringLiteral("[title=a {"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+N")),
+             QStringLiteral("don't panic"));
+}
+
+void TestSources::swayReadsAKeywordWithoutRegardToCase() {
+    // sway looks a command up without regard to case, so a line written
+    // "BindSym" binds there and "Kill" runs. Read as written, the bind would be
+    // dropped rather than described oddly, so the shortcut would be missing.
+    SourceSway source(sample(QStringLiteral("sway-config")));
+    QString note;
+    const QList<Bind> binds = source.read(&note);
+
+    QCOMPARE(descriptionOf(binds, QStringLiteral("SUPER+U")),
+             QStringLiteral("Close window"));
+    QCOMPARE(descriptionOf(binds, QStringLiteral("ALT+SHIFT+U")),
+             QStringLiteral("siren"));
+
+    // The heading of a block is read the same way.
+    const Bind *quiet = find(binds, QStringLiteral("F9"));
+    QVERIFY(quiet != nullptr);
+    QCOMPARE(quiet->group, QStringLiteral("quiet"));
+
+    // And so are the two keywords that leave no shortcut behind: an include
+    // line pulls in what is not read, a keycode names no key, and both are
+    // reported instead. The sample writes them as "Include" and "BindCode", so
+    // each of these two messages is only there if the word was recognised.
+    // Pinned as the words they say, because the note is not translated in a
+    // test, which loads no catalogue.
+    QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
+    QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
@@ -1987,7 +2052,7 @@ void TestSources::swayAsksTheRunningCompositor() {
     QCOMPARE(sentType, 9U);
 
     // Same list as from the file: the transport changes nothing.
-    QCOMPARE(binds.size(), 16);
+    QCOMPARE(binds.size(), kSwaySampleBinds);
     // Asked through the same normalization the panel shows: Return is drawn
     // as its symbol, and writing that symbol out here would measure this
     // test's spelling rather than the backend.
