@@ -181,21 +181,22 @@ int main() {
 
         changed |= devices.dispatch(fds, devicesAt, &keyTaken);
 
-        // Sent before anybody new is let in. The other way round, a panel that
-        // connects in this very round gets its snapshot and then, a line
-        // later, a report saying a key was taken, and takes itself off the
-        // screen for a keystroke that happened before it existed.
+        // The last reader of the poll answers, and therefore the last moment
+        // at which the client list still has the length those answers were
+        // counted from. Everything below shortens it, so everything below
+        // comes after this line: broadcast drops whoever it cannot reach, and
+        // dropStrangers drops whoever left their seat.
+        server.dispatch(fds, serverAt, state.report(false));
+
         if (changed || keyTaken) {
             server.broadcast(state.report(keyTaken));
         }
 
-        server.dispatch(fds, serverAt, state.report(false));
+        // Only now do the ones accepted a moment ago join, so that a panel
+        // which connected during this very round is not told a key was taken
+        // before it existed. It has its snapshot already.
+        server.admit();
 
-        // After the dispatches and never before them. Both of them read their
-        // answers back at the places the poll array put them, and this is the
-        // one thing here that shortens the list those places were counted
-        // from.
-        //
         // On the correction beat rather than at every keystroke: somebody
         // whose session was switched away from is no longer at a screen of
         // this machine and must stop being told, and a second and a half is

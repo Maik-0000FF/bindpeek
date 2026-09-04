@@ -116,6 +116,41 @@ step "shellcheck (warnings and above)"
 # gate by not being named here.
 sources '*.sh' | xargs -0 -r shellcheck -S warning
 
+
+step "a script that can be run says so, and only those"
+# ./install.sh and ./uninstall.sh are how the readme, the installation page and
+# the workflow all name them. Without the executable bit that is "Permission
+# denied" for everybody, and the bit goes missing quietly: a file rewritten by
+# a tool that writes a new one and moves it into place comes back with the
+# default permissions, and a diff of the contents shows nothing at all. That
+# happened twice here before this gate existed.
+#
+# The rule is the shebang rather than a list of names: a file that names an
+# interpreter on its first line is meant to be started, one that does not is
+# meant to be sourced. Both directions, so a helper that grows a bit it has no
+# use for is caught as well.
+mode_wrong=0
+while IFS= read -r -d '' file; do
+    IFS= read -r first_line < "$file" || true
+    case "$first_line" in
+        '#!'*)
+            if [ ! -x "$file" ]; then
+                echo "starts with a shebang but is not executable: $file"
+                mode_wrong=1
+            fi
+            ;;
+        *)
+            if [ -x "$file" ]; then
+                echo "is executable but names no interpreter: $file"
+                mode_wrong=1
+            fi
+            ;;
+    esac
+done < <(sources '*.sh')
+if [ "$mode_wrong" != 0 ]; then
+    exit 1
+fi
+
 step "the install pair can read the build files"
 # Everything install.sh and uninstall.sh work out before they touch anything:
 # the two program names, the entry, the icon. All of it is read out of the

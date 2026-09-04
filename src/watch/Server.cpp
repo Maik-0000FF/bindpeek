@@ -87,6 +87,9 @@ Server::~Server() {
     for (const Client &client : m_clients) {
         ::close(client.fd);
     }
+    for (const Client &client : m_pending) {
+        ::close(client.fd);
+    }
     // The listening socket is not closed: it belongs to the service manager,
     // which keeps listening while this process is away and starts it again on
     // the next connection.
@@ -168,6 +171,13 @@ void Server::broadcast(const Report &report) {
     }
 }
 
+void Server::admit() {
+    for (const Client &client : m_pending) {
+        m_clients.push_back(client);
+    }
+    m_pending.clear();
+}
+
 void Server::dropStrangers() {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
         const std::size_t index = at - 1;
@@ -212,6 +222,14 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
                 ++held;
             }
         }
+        // The ones accepted a moment ago count too, or a burst inside one
+        // round would walk past the limit while none of them is in the list
+        // yet.
+        for (const Client &client : m_pending) {
+            if (client.uid == uid) {
+                ++held;
+            }
+        }
         if (held >= kMaxClientsPerUser) {
             ::close(fd);
             continue;
@@ -224,7 +242,7 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
             ::close(fd);
             continue;
         }
-        m_clients.push_back(Client{fd, uid});
+        m_pending.push_back(Client{fd, uid});
     }
 }
 
