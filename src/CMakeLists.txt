@@ -70,10 +70,10 @@ add_executable(bindpeek
   # dialog have to say the same thing.
   AppInfo.cpp
   Appearance.cpp
-  KeyboardWatch.cpp
   LayerPlacement.cpp
   SystemScheme.cpp
   OverlayController.cpp
+  WatchClient.cpp
 )
 
 target_link_libraries(bindpeek PRIVATE
@@ -83,11 +83,15 @@ target_link_libraries(bindpeek PRIVATE
   Qt6::Quick
   # The desktop portal is asked over D-Bus for the light/dark setting.
   Qt6::DBus
-  # Turns the window into a wlr-layer-shell surface. Without it there is no
-  # exclusive keyboard focus, and without that no modifier filter.
+  # Turns the window into a wlr-layer-shell surface. That is what puts the
+  # panel above the windows at the edge it is anchored to, and what lets it
+  # ask for no keyboard focus at all, which is the thing that keeps the
+  # shortcut on screen firing when it is pressed.
   LayerShellQt::Interface
-  # Reads the keyboards under /dev/input without grabbing them.
-  PkgConfig::Libevdev
+  # The shape of the record the keyboard service sends. No device is opened
+  # here and libevdev is not linked: this program runs as the person using it,
+  # and that account has no business holding a keyboard descriptor.
+  bindpeek_watch_protocol
 )
 
 # The QML lives in the binary, so the overlay needs no files at runtime.
@@ -177,10 +181,18 @@ install(FILES ${CMAKE_SOURCE_DIR}/assets/logo-mark-black.svg
 #
 # No Qt anywhere in here, on purpose. This is the part that holds the
 # descriptors, and what it is made of is the argument for trusting it.
-add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp)
-target_include_directories(bindpeek_watch_core
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/watch
+
+# The shape of the record, and nothing else. Carried by a library of its own
+# because it is the one thing the service and the panel have in common: the
+# panel must not reach the code that opens devices, and this makes that a
+# property of the build rather than a habit.
+add_library(bindpeek_watch_protocol INTERFACE)
+target_include_directories(bindpeek_watch_protocol
+  INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/watch
 )
+
+add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp)
+target_link_libraries(bindpeek_watch_core PUBLIC bindpeek_watch_protocol)
 
 add_executable(bindpeek-watch
   watch/main.cpp
