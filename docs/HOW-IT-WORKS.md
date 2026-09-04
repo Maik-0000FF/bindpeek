@@ -18,22 +18,31 @@ the panel would have to take the focus to see the modifier, and then the
 shortcut you are asking about would fire into the panel instead of the program
 you meant.
 
-So the keyboard is not read through Wayland at all. bindpeek opens the event
-devices under `/dev/input` and watches them directly, below the compositor. It
-reads and never grabs, so every key still goes where it was going. What it looks
-at is which modifiers are down and whether some other key was pressed, and
-nothing else.
+So the keyboard is not read through Wayland at all. The event devices under
+`/dev/input` are watched directly, below the compositor. They are read and
+never grabbed, so every key still goes where it was going. What is looked at is
+which modifiers are down and whether some other key was pressed, and nothing
+else.
 
-That is what membership in the `input` group is for, and it is worth being plain
-about the price:
+Reading them is not something the panel does. A program that reads those
+devices can read every keystroke on the machine, and granting that to your
+account would grant it to every other program you run, for as long as the
+account exists. So a service of its own does the reading:
 
-> Every program you run gains read access to every input device, and can record
-> every keystroke on the machine, including what you type into other windows.
-> The grant is per account, not per program, and Linux has no narrower one for
-> this.
+- It runs under an account the service manager makes when it starts and unmakes
+  when it stops. No login on the machine gains anything by it being there.
+- It is started by a socket when a panel connects, and it ends itself once the
+  last panel has gone. Nothing holds a keyboard while nothing is showing.
+- What leaves it is which modifiers are held and the bare fact that some other
+  key went down. No key codes, no characters.
+- It reads nothing from whoever connects, and it answers only somebody who is
+  logged in at a screen of this machine.
+
+The panel therefore holds no keyboard descriptor at all, and cannot: it is not
+even linked against the library that would open one.
 
 `bindpeek --keys` prints the held modifiers as they change and nothing else,
-which is the quickest way to see whether the devices can be read at all.
+which is the quickest way to see whether the service can be reached.
 
 ## Knowing what they fire
 
@@ -77,26 +86,34 @@ On a session without it, bindpeek says which session
 it found and what is missing, rather than coming up as an ordinary window with a
 title bar.
 
-## Why two programs
+## Why three programs
 
 `bindpeek` is the panel. `bindpeek-editor` is the settings window, and it
-carries the tray icon.
+carries the tray icon. `bindpeek-watch` is the service that reads the keyboard.
 
-They are separate because the tray has to outlive the panel. Switching the panel
-off from the tray ends that process; if the two were one program, the switch
-would take the tray with it and there would be nothing left to switch it back
-on. The settings window drives the panel through the same settings file the
+The first two are separate because the tray has to outlive the panel. Switching
+the panel off from the tray ends that process; if the two were one program, the
+switch would take the tray with it and there would be nothing left to switch it
+back on. The settings window drives the panel through the same settings file the
 panel watches, so what you see in its preview and what appears on screen come
 from the same code.
+
+The third is separate so that reading the keyboard is something a program can
+do rather than something your account can do. It starts when a panel connects
+and ends when the last one leaves, and while it runs it belongs to an account
+that exists only for it.
 
 ## What it does not do
 
 - It opens no network connection of any kind. Every socket it touches is local:
   the compositor's own, the session bus for the light/dark setting and the tray
-  icon, and one socket of its own so a second start of the settings window
-  raises the window that is already open.
+  icon, the service's socket for the modifiers, and one socket of its own so a
+  second start of the settings window raises the window that is already open.
 - It writes nowhere but `~/.config/bindpeek`, plus a lock file and that socket
   in the runtime directory.
+- It reads no key but the modifiers. What the service hands out is which of the
+  four are held and the bare fact that some other key went down, never which
+  one, and nothing on the panel's side of that socket could ask for more.
 - It runs no shortcut. The panel shows what a combination is bound to and has no
   way to carry it out; the key goes to the compositor and the compositor does
   what it was told. Two things it does start: the panel, which the settings

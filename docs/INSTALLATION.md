@@ -26,17 +26,18 @@ something that reads like a fault in the code.
 
 Two things, and they are worth keeping apart.
 
-**The programs themselves** go to `/usr/local`: the two binaries, the desktop
-entry and its icon, and nothing else goes there. Two more files are written
-outside it, both in your own home: the autostart entry, if you say yes to that
-question, and `~/.config/bindpeek/bindpeek.conf`, which the program writes for
-itself on its first start.
+**The programs themselves** go to `/usr/local`: the three binaries, the desktop
+entry and its icon, and the two units of the keyboard service. Nothing else
+goes there. Two more files are written outside it, both in your own home: the
+autostart entry, if you say yes to that question, and
+`~/.config/bindpeek/bindpeek.conf`, which the program writes for itself on its
+first start.
 
 **The packages needed to build them** are whatever your distribution calls
 CMake, Ninja, pkg-config, a C++20 compiler, Qt 6.7 or newer (base,
-declarative, svg, wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
-derivatives the QML runtime modules come as packages of their own and are in
-the list as well.
+declarative, svg, wayland and the Linguist tools), layer-shell-qt, libevdev and
+libsystemd. On Debian and its derivatives the QML runtime modules come as
+packages of their own and are in the list as well.
 
 **One more that is wanted rather than needed**: KDE's KConfig framework, which
 only the KDE backend uses. It is listed and installed alongside the others, but
@@ -84,12 +85,14 @@ programs go.
 4. Asks the running session whether its shortcuts can be read, using the program
    it has just built. This only reports; it never stops the installation.
 5. Installs to `/usr/local`, then stops any copy that was already running.
-6. **Asks** whether to add you to the `input` group. Say no and everything is
-   installed but the panel will refuse to start.
-7. **Asks** whether to start the tray with your session.
-
-If the group was added, log out and back in. Group membership reaches a login
-when the login is made, not before.
+6. **Asks** whether to switch on the service that reads the keyboard. Say no and
+   everything is installed but the panel will refuse to start; it is one command
+   away at any time. Where there is no service manager running, as in a
+   container, the units are installed and the command is named instead.
+7. Offers to take away the `input` group if an earlier version put your account
+   in it. Nothing here needs it any more, and while it is there every program
+   your account runs can read every key you press.
+8. **Asks** whether to start the tray with your session.
 
 ### With no terminal to ask on
 
@@ -114,8 +117,9 @@ is administrative rights, and where sudo would want a password for them, the
 script stops right there and says so, before a single package is touched. Where
 the rights are given without a password, which is what a container or a rule of
 its own does, it carries on, and every question falls through to the answer it
-offers: the packages are installed, the group is not touched, and the autostart
-is left as it was. The script says which of the two it skipped.
+offers: the packages are installed, the service is not switched on, the group is
+not touched, and the autostart is left as it was. The script says which of them
+it skipped.
 
 What it cannot tell apart is a terminal with nobody in front of it. A run in a
 detached session, or one handed a terminal of its own by a wrapper, passes for
@@ -124,7 +128,7 @@ else would.
 
 ## Nix / NixOS
 
-The flake builds the two programs and carries a NixOS module:
+The flake builds the three programs and carries a NixOS module:
 
 Two separate places, so this is two excerpts rather than one file:
 
@@ -140,19 +144,28 @@ bindpeek.url = "github:Maik-0000FF/bindpeek";
 imports = [ inputs.bindpeek.nixosModules.default ];
 programs.bindpeek = {
   enable = true;
-  inputAccessFor = [ "alice" ];
   autoStart = true;
 };
 ```
 
-`enable` alone puts the two programs on `PATH` and changes nothing else. The
-other two options are separate switches, and off by default, because each widens
-what the machine allows rather than what it merely offers:
+`enable` puts the three programs on `PATH` and switches on the service that
+reads the keyboard, socket and all. That service is not a switch of its own,
+because there is nothing to weigh: it grants no account anything, it runs
+nothing until a panel connects, and without it the panel cannot see a modifier
+and refuses to start.
 
-- `inputAccessFor` adds the listed users to the `input` group. Read
-  [How It Works](HOW-IT-WORKS.md#knowing-which-modifiers-are-down) before
-  setting it.
-- `autoStart` installs the desktop entry into `/etc/xdg/autostart`.
+`autoStart` is a switch, and off by default, because it starts a program in
+every graphical session on the machine. It installs the desktop entry into
+`/etc/xdg/autostart`.
+
+An earlier version had `inputAccessFor`, which put the listed users in the
+`input` group. It is gone, and a configuration still carrying it stops the
+rebuild with a sentence saying so. Removing the option does not remove the
+membership, so take that away as well, for each account that has it:
+
+```bash
+sudo gpasswd -d alice input
+```
 
 Just building it, without the module:
 
@@ -167,13 +180,13 @@ nix run .#bindpeek -- --list
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
 sudo cmake --install build
-sudo usermod -aG input "$USER"   # then log out and back in
+sudo systemctl enable --now bindpeek-watch.socket
 ```
 
 What has to be installed first, under whatever your distribution calls it:
 CMake, Ninja, pkg-config, a C++20 compiler, Qt 6 (base, declarative, svg,
-wayland and the Linguist tools), layer-shell-qt and libevdev. On Debian and its
-derivatives the QML runtime modules are packaged separately and are needed as
+wayland and the Linguist tools), layer-shell-qt, libevdev and libsystemd. On
+Debian and its derivatives the QML runtime modules are packaged separately and are needed as
 well. KDE's KConfig framework is wanted on top of that and the build says so if
 it is missing, leaving out the KDE backend and nothing else.
 `scripts/_packages.sh` has the exact names for all four families, and it is the

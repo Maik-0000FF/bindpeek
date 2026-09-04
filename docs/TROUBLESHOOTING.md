@@ -17,18 +17,22 @@ than failing quietly, and the sentence usually is the answer:
 bindpeek
 ```
 
-### "No keyboard could be read under /dev/input"
+### "The keyboard service is not answering"
 
-The `input` group is missing. Add it and log out and back in:
+The panel does not read the keyboard itself. A service does, and it is started
+by a socket unit that is not enabled yet:
 
 ```bash
-sudo usermod -aG input "$USER"
+sudo systemctl enable --now bindpeek-watch.socket
 ```
 
-Group membership reaches a login when the login is made. `id -nG` with no
-argument says what the login you are in can do, and `id -nG "$USER"` says what
-the account has been granted. When the two disagree, the answer is to log in
-again.
+The socket is what has to be enabled, not the service: it holds the listening
+end while nothing is running and starts the service when a panel connects.
+Whether it is there at all:
+
+```bash
+systemctl status bindpeek-watch.socket
+```
 
 Then check that the modifiers actually arrive:
 
@@ -37,7 +41,31 @@ bindpeek --keys
 ```
 
 It prints the held modifiers as they change and nothing else. If that stays
-silent while you press Shift, the devices are the problem, not the panel.
+silent while you press Shift, look at what the service says:
+
+```bash
+journalctl -u bindpeek-watch.service -b
+```
+
+### The panel used to work and stopped after an upgrade
+
+A panel that was already running keeps talking to the service it started with.
+When the package is replaced under it, the two can disagree about what the
+records look like, and the panel says so once and then keeps quiet. Start it
+again, from the tray or from a terminal.
+
+### The `input` group is still on your account
+
+Earlier versions asked for it, and nothing removes it by itself. While it is
+there, every program your account runs can read every key you press, including
+what you type into other windows. bindpeek has no use for it any more:
+
+```bash
+sudo gpasswd -d "$USER" input
+```
+
+`./install.sh` and `./uninstall.sh` both offer to do this. The membership is
+gone from your next login, not from the one you are in.
 
 ### "GNOME/Mutter does not implement wlr-layer-shell"
 
