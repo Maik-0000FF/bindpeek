@@ -70,10 +70,10 @@ add_executable(bindpeek
   # dialog have to say the same thing.
   AppInfo.cpp
   Appearance.cpp
-  KeyboardWatch.cpp
   LayerPlacement.cpp
   SystemScheme.cpp
   OverlayController.cpp
+  WatchClient.cpp
 )
 
 target_link_libraries(bindpeek PRIVATE
@@ -83,11 +83,15 @@ target_link_libraries(bindpeek PRIVATE
   Qt6::Quick
   # The desktop portal is asked over D-Bus for the light/dark setting.
   Qt6::DBus
-  # Turns the window into a wlr-layer-shell surface. Without it there is no
-  # exclusive keyboard focus, and without that no modifier filter.
+  # Turns the window into a wlr-layer-shell surface. That is what puts the
+  # panel above the windows at the edge it is anchored to, and what lets it
+  # ask for no keyboard focus at all, which is the thing that keeps the
+  # shortcut on screen firing when it is pressed.
   LayerShellQt::Interface
-  # Reads the keyboards under /dev/input without grabbing them.
-  PkgConfig::Libevdev
+  # The shape of the record the keyboard service sends. No device is opened
+  # here and libevdev is not linked: this program runs as the person using it,
+  # and that account has no business holding a keyboard descriptor.
+  bindpeek_watch_protocol
 )
 
 # The QML lives in the binary, so the overlay needs no files at runtime.
@@ -167,3 +171,73 @@ install(FILES ${BINDPEEK_DESKTOP_SOURCE}
 install(FILES ${CMAKE_SOURCE_DIR}/assets/logo-mark-black.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
         RENAME ${BINDPEEK_ICON_NAME}.svg)
+
+# --- The keyboard watch ------------------------------------------------------
+#
+# A third program, and the only one that reads the event devices. It exists so
+# that nobody's account has to: the ability to read every keystroke belongs to
+# this service and lasts exactly as long as it runs, instead of belonging to a
+# person and outliving the program that wanted it.
+#
+# No Qt anywhere in here, on purpose. This is the part that holds the
+# descriptors, and what it is made of is the argument for trusting it.
+
+# The shape of the record, and nothing else. Carried by a library of its own
+# because it is the one thing the service and the panel have in common: the
+# panel must not reach the code that opens devices, and this makes that a
+# property of the build rather than a habit.
+add_library(bindpeek_watch_protocol INTERFACE)
+target_include_directories(bindpeek_watch_protocol
+  INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/watch
+)
+
+add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp)
+target_link_libraries(bindpeek_watch_core PUBLIC bindpeek_watch_protocol)
+
+add_executable(bindpeek-watch
+  watch/main.cpp
+  watch/Devices.cpp
+  watch/Server.cpp
+)
+target_link_libraries(bindpeek-watch PRIVATE
+  bindpeek_watch_core
+  # Reads the keyboards under /dev/input without grabbing them.
+  PkgConfig::Libevdev
+  # Takes the listening socket from the service manager and asks it who is on
+  # the other end of a connection.
+  PkgConfig::Libsystemd
+)
+
+# Said rather than left to the global setting: moc has no business here, and a
+# target that says so cannot quietly grow a Q_OBJECT later.
+set_target_properties(bindpeek_watch_core bindpeek-watch
+                      PROPERTIES AUTOMOC OFF)
+
+install(TARGETS bindpeek-watch RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# The units, with the socket path and the program path filled in from the
+# settings at the top of the build rather than written into them. That is what
+# keeps the unit that binds the socket and the client that connects to it from
+# ever naming two different paths.
+set(BINDPEEK_WATCH_BIN ${CMAKE_INSTALL_FULL_BINDIR}/bindpeek-watch)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.socket.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SOCKET_UNIT} @ONLY
+)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.service.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SERVICE_UNIT} @ONLY
+)
+
+# Below the install prefix, which the service manager searches: for the usual
+# prefix that is /usr/local/lib/systemd/system, one of the four directories
+# systemd reads system units from.
+#
+# Relative, like every other rule here. An absolute path built from the prefix
+# is fixed when the build is configured, so an install given a prefix of its
+# own would put the programs in one place and these two files in another.
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SOCKET_UNIT}
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SERVICE_UNIT}
+  DESTINATION lib/systemd/system
+)

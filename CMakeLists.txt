@@ -25,6 +25,27 @@ add_compile_definitions(BINDPEEK_VERSION="${PROJECT_VERSION}")
 set(BINDPEEK_DESKTOP_ID "bindpeek")
 add_compile_definitions(BINDPEEK_DESKTOP_ID="${BINDPEEK_DESKTOP_ID}")
 
+# Where the service listens and where the panel knocks. One setting, because
+# the value crosses three files that cannot check each other: the socket unit
+# binds it, the service's client connects to it, and neither would say a word
+# if they disagreed, the panel would simply never find the service.
+#
+# The directory is named separately because the socket unit asks for it by
+# name: RuntimeDirectory is taken relative to /run and creates it, so the two
+# have to be built from one another rather than written out twice.
+set(BINDPEEK_WATCH_RUNTIME_DIR "bindpeek")
+set(BINDPEEK_WATCH_SOCKET "/run/${BINDPEEK_WATCH_RUNTIME_DIR}/watch")
+add_compile_definitions(BINDPEEK_WATCH_SOCKET="${BINDPEEK_WATCH_SOCKET}")
+
+# The names of the two units. The service unit requires the socket by name,
+# the panel names the socket in the one message it can write about a service
+# it cannot reach, and both install scripts have to find the files again; so
+# both are named once here and read from here everywhere else.
+set(BINDPEEK_WATCH_SOCKET_UNIT "bindpeek-watch.socket")
+set(BINDPEEK_WATCH_SERVICE_UNIT "bindpeek-watch.service")
+add_compile_definitions(
+  BINDPEEK_WATCH_SOCKET_UNIT="${BINDPEEK_WATCH_SOCKET_UNIT}")
+
 # The entry as it lives in this checkout, which is not the name it is installed
 # under: the id above is what it becomes, this is where it comes from. Named
 # once because the install rule and the icon name below both need it, and the
@@ -63,6 +84,12 @@ find_package(LayerShellQt REQUIRED)
 # libevdev ships only a pkg-config file, no CMake package.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
+
+# libsystemd, for the two things the service cannot do without it: take the
+# listening socket from the service manager, and ask whether the user on the
+# other end of a connection is logged in at all. Both are systemd's own
+# business, and the service is started by systemd or not at all.
+pkg_check_modules(Libsystemd REQUIRED IMPORTED_TARGET libsystemd)
 
 # KDE's own configuration library. It reads kglobalshortcutsrc exactly the way
 # KDE writes it (double escaping of list commas and tabs); a hand-written

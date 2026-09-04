@@ -3,30 +3,33 @@
 #
 # NixOS module for bindpeek.
 #
-# Installing the package is one switch. The two things that cannot be done
-# safely by default are separate switches of their own, both off, because both
-# widen what the machine allows rather than what it merely offers:
+# Installing the package is one switch. It brings the service that reads the
+# keyboard with it, socket and all, because that service is how the panel sees
+# a modifier at all and because it grants nothing to anybody: it runs under an
+# account the service manager makes and unmakes around it, and no login on the
+# machine gains anything by it being there.
 #
-#   inputAccessFor  hands out the ability to read every keystroke
+# One thing is a switch of its own, off, because it widens what the machine
+# does rather than what it merely offers:
+#
 #   autoStart       starts a tray program in every user's session
-#
-# Enabling bindpeek alone therefore changes nothing except that the two
-# programs exist on PATH.
 #
 # What the programs do with what they are given: they open no network
 # connection of any kind. Every socket they touch is a local one, and they are
-# of two kinds: the compositor's own, which is the Wayland display socket and,
-# under Hyprland, that compositor's IPC socket as well, both at the place the
-# session names for them, usually below $XDG_RUNTIME_DIR but not necessarily,
-# since WAYLAND_DISPLAY may be an absolute path and the Hyprland socket falls
-# back to /run/user/$UID; and the session bus, used to ask the desktop
+# of three kinds: the compositor's own, which is the Wayland display socket
+# and, under Hyprland, that compositor's IPC socket as well, both at the place
+# the session names for them, usually below $XDG_RUNTIME_DIR but not
+# necessarily, since WAYLAND_DISPLAY may be an absolute path and the Hyprland
+# socket falls back to /run/user/$UID; the session bus, used to ask the desktop
 # portal whether the palette is light or dark and to export the tray icon over
-# StatusNotifier. To those the settings window adds one of its own, a socket
-# in the runtime directory and the only one anything connects to rather than
-# out of. It carries no data: a second start of the settings window connects
-# to it and nothing is read from the connection, the connection itself being
-# the whole message, which is that the window already open should come
-# forward.
+# StatusNotifier; and the keyboard service's own socket, which carries which
+# modifiers are held and the bare fact that some other key went down, and
+# nothing else in either direction. To those the settings window adds one of
+# its own, a socket in the runtime directory and the only one anything connects
+# to rather than out of. It carries no data: a second start of the settings
+# window connects to it and nothing is read from the connection, the connection
+# itself being the whole message, which is that the window already open should
+# come forward.
 #
 # Three things are read out of /proc, each of them one line long and each
 # about a process the session named itself: the command line of the running
@@ -35,11 +38,13 @@
 # panel, so the settings window can tell its own panel from one left over by
 # an earlier version of the package.
 #
-# Nothing is read from the keyboard other than which modifiers are down and
-# whether some other key was pressed, nothing is written anywhere but the
-# settings under ~/.config/bindpeek and, in the runtime directory, the panel's
-# lock file and that socket, and the two links in the about dialog open only
-# when somebody clicks them.
+# The keyboard is read by the service and by nothing else. What it reads is
+# masked in the kernel to the keys alone, what it hands out is which modifiers
+# are down and whether some other key was pressed, and it answers only to
+# somebody logged in. Nothing is written anywhere but the settings under
+# ~/.config/bindpeek and, in the runtime directory, the panel's lock file and
+# that socket, and the two links in the about dialog open only when somebody
+# clicks them.
 {
   config,
   lib,
@@ -58,6 +63,29 @@ let
   desktopEntry = "bindpeek.desktop";
 in
 {
+  # Said rather than dropped. A configuration that still carries the old option
+  # stops the build with this sentence, which is the point: the membership it
+  # asked for is still on those accounts, and it grants what it always granted.
+  # Letting the option vanish would take the grant out of the configuration
+  # while leaving it on the machine, and nobody would be told.
+  imports = [
+    (lib.mkRemovedOptionModule [ "programs" "bindpeek" "inputAccessFor" ] ''
+      bindpeek no longer needs anybody to be in the `input` group. The
+      keyboard is read by a service of its own, which the package brings with
+      it and which runs under an account the service manager makes and unmakes
+      around it.
+
+      Remove this option. The membership it added is not removed by removing
+      it, so take it away as well, on each account that has it:
+
+          sudo gpasswd -d <user> input
+
+      Leaving it in place means every program those accounts run can still read
+      every key pressed on this machine, which is what the option always
+      granted and what the service exists to avoid.
+    '')
+  ];
+
   options.programs.bindpeek = {
     enable = lib.mkEnableOption "bindpeek, a cheat sheet for the shortcuts assigned in the running session";
 
@@ -82,31 +110,6 @@ in
         `overlays.default` provides; importing the flake's
         `nixosModules.default` sets it to the flake's own build instead, so the
         overlay is not required.
-      '';
-    };
-
-    inputAccessFor = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [ "alice" ];
-      description = ''
-        Users to add to the `input` group.
-
-        bindpeek reads the keyboard through `/dev/input`, below the compositor.
-        It has to: the panel appears while a modifier is being held, and a
-        Wayland client receives no key events before it has focus, so there is
-        no way to see the modifier that is supposed to summon the panel.
-
-        Membership in `input` is therefore required for the overlay to work at
-        all. Understand what it grants before setting this:
-
-        > Every program the listed user runs gains read access to all input
-        > devices, and can record every keystroke on the machine, including
-        > passwords typed into other applications. The grant is per user, not
-        > per program, and Linux offers no narrower one for this.
-
-        Left empty, the package is still installed and the overlay refuses to
-        start with a message naming this group, rather than failing silently.
       '';
     };
 
@@ -144,7 +147,15 @@ in
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [ cfg.package ];
 
-    users.groups.input.members = cfg.inputAccessFor;
+    # The units the package carries, and the socket switched on with them. The
+    # socket is what makes the service exist at all: it holds the listening end
+    # while nothing is running, and starts the service when a panel connects.
+    #
+    # On rather than optional, because there is nothing to weigh. It grants no
+    # account anything, it runs nothing until a panel asks, and without it the
+    # panel this module installs cannot see a modifier and refuses to start.
+    systemd.packages = [ cfg.package ];
+    systemd.sockets.bindpeek-watch.wantedBy = [ "sockets.target" ];
 
     # The packaged entry, not a copy of it: a second spelling of Exec or Icon
     # here would drift away from the one the package installs.

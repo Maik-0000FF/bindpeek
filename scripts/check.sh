@@ -24,6 +24,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BUILD_DIR=build-check # gitignored via build*/
 
+# How much the service that holds the keyboards may be allowed to do, on the
+# scale systemd-analyze uses internally: ten times the number it prints. The
+# unit scores 0.6 as it stands, and 15 leaves room for the scoring to shift
+# between systemd versions without leaving room for a setting to go missing.
+#
+# A ceiling rather than the exact number on purpose. Pinning today's value
+# fails on somebody else's systemd for no fault of the unit, and a gate that
+# fails for the wrong reason is a gate that gets switched off.
+WATCH_EXPOSURE_CEILING=15
+
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 
 # Every file this repository would carry, which is what the gates below have to
@@ -106,6 +116,40 @@ step "shellcheck (warnings and above)"
 # gate by not being named here.
 sources '*.sh' | xargs -0 -r shellcheck -S warning
 
+step "a script that can be run says so, and only those"
+# ./install.sh and ./uninstall.sh are how the readme, the installation page and
+# the workflow all name them. Without the executable bit that is "Permission
+# denied" for everybody, and the bit goes missing quietly: a file rewritten by
+# a tool that writes a new one and moves it into place comes back with the
+# default permissions, and a diff of the contents shows nothing at all. That
+# happened twice here before this gate existed.
+#
+# The rule is the shebang rather than a list of names: a file that names an
+# interpreter on its first line is meant to be started, one that does not is
+# meant to be sourced. Both directions, so a helper that grows a bit it has no
+# use for is caught as well.
+mode_wrong=0
+while IFS= read -r -d '' file; do
+    IFS= read -r first_line < "$file" || true
+    case "$first_line" in
+        '#!'*)
+            if [ ! -x "$file" ]; then
+                echo "starts with a shebang but is not executable: $file"
+                mode_wrong=1
+            fi
+            ;;
+        *)
+            if [ -x "$file" ]; then
+                echo "is executable but names no interpreter: $file"
+                mode_wrong=1
+            fi
+            ;;
+    esac
+done < <(sources '*.sh')
+if [ "$mode_wrong" != 0 ]; then
+    exit 1
+fi
+
 step "the install pair can read the build files"
 # Everything install.sh and uninstall.sh work out before they touch anything:
 # the two program names, the entry, the icon. All of it is read out of the
@@ -119,12 +163,25 @@ step "the install pair can read the build files"
     . "$ROOT/scripts/_style.sh"
     # shellcheck source=scripts/_paths.sh
     . "$ROOT/scripts/_paths.sh"
-    printf '  %s\n' "$PANEL" "$SETTINGS" "$DESKTOP_ID.desktop" "$ICON_NAME.svg"
+    printf '  %s\n' "$PANEL" "$SETTINGS" "$WATCH" \
+        "$DESKTOP_ID.desktop" "$ICON_NAME.svg" "$WATCH_SOCKET_UNIT"
 )
 
 step "configure and build"
 cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build "$BUILD_DIR" -j"$(nproc)"
+
+step "the keyboard service is allowed no more than it says"
+# The one unit here where a setting quietly dropped is a real loss, and
+# nothing else would notice: it is the program that reads the event devices.
+#
+# Read offline and against the file the build just wrote. Without --offline
+# the tool asks the running service manager, which knows nothing about a unit
+# that has not been installed, and in a sandbox there is no manager to ask at
+# all.
+systemd-analyze security --offline=true \
+    --threshold="$WATCH_EXPOSURE_CEILING" \
+    "$BUILD_DIR/src/bindpeek-watch.service" | tail -n 1
 
 step "tests"
 ctest --test-dir "$BUILD_DIR" --output-on-failure

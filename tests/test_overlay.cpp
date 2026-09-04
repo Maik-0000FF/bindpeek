@@ -13,9 +13,9 @@
 // and asked to deliver one signal, which is the way the controller learns
 // which modifiers are held.
 
-#include "KeyboardWatch.h"
 #include "OverlayController.h"
 #include "Source.h"
+#include "WatchClient.h"
 
 #include <QTest>
 #include <QVariantMap>
@@ -127,7 +127,7 @@ void TestOverlay::headingsAppearOnceEachAndInSourceOrder() {
         bind(held, QStringLiteral("C"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
     emit watch.heldChanged(held);
@@ -174,7 +174,7 @@ void TestOverlay::arrangingByModifierHeadsEachCombinationNearestFirst() {
         bind(superShift, QStringLiteral("D"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     controller.setArrangesByModifier(true);
     QVERIFY(controller.reload());
@@ -206,7 +206,7 @@ void TestOverlay::onlyTheHeldCombinationIsShown() {
         bind(ctrlOnly, QStringLiteral("C"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
 
@@ -247,7 +247,7 @@ void TestOverlay::sortingTheRowsLeavesTheHeadingsWhereTheyAre() {
         bind(superOnly, QStringLiteral("H"), QStringLiteral("window")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
     emit watch.heldChanged(superOnly);
@@ -267,7 +267,7 @@ void TestOverlay::deeperEntriesAreMarkedAsSuch() {
         bind(superShift, QStringLiteral("B"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
     emit watch.heldChanged(superOnly);
@@ -297,7 +297,7 @@ void TestOverlay::showingOnlyWhatFiresLeavesTheRestOut() {
         bind(superShift, QStringLiteral("B"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
 
@@ -325,7 +325,7 @@ void TestOverlay::aLoneShiftIsNotAQuestion() {
              QStringLiteral("B"), QStringLiteral("Other")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
     controller.setIgnoreLoneShift(true);
@@ -363,7 +363,7 @@ void TestOverlay::theSurfaceNeverGoesDownAtTheMomentItIsNeeded() {
              QStringLiteral("Programs")),
     });
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
 
@@ -394,7 +394,7 @@ void TestOverlay::releasingEveryModifierEmptiesTheView() {
     auto source = std::make_unique<StubSource>(
         QList<Bind>{bind(held, QStringLiteral("A"), QStringLiteral("Other"))});
 
-    KeyboardWatch watch;
+    WatchClient watch;
     OverlayController controller(std::move(source), &watch, kShowDelayMs);
     QVERIFY(controller.reload());
 

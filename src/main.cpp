@@ -4,12 +4,12 @@
 #include "AppInfo.h"
 #include "Appearance.h"
 #include "Compositor.h"
-#include "KeyboardWatch.h"
 #include "LayerPlacement.h"
 #include "OverlayController.h"
 #include "Settings.h"
 #include "Source.h"
 #include "SourceHyprland.h"
+#include "WatchClient.h"
 #ifdef BINDPEEK_WITH_KDE
 #include "SourceKde.h"
 #endif
@@ -180,26 +180,25 @@ void printList(QTextStream &out, const QString &sourceName,
 }
 
 // Prints the held modifiers as they change, and nothing else. A way to see
-// whether the event devices are readable and whether the modifiers arrive,
+// whether the keyboard service is reachable and whether the modifiers arrive,
 // without a display and without a compositor in the way.
 int runKeyWatch(QTextStream &out, QTextStream &err) {
-    auto *watch = new KeyboardWatch(QCoreApplication::instance());
-    const int count = watch->start();
-    if (count == 0) {
+    auto *watch = new WatchClient(QCoreApplication::instance());
+    if (!watch->start()) {
         err << QCoreApplication::translate(
-                   "main", "No keyboard could be read under /dev/input. "
-                           "Membership in the \"input\" group is required.")
+                   "main", "The keyboard service is not answering at %1. It is "
+                           "started by %2.")
+                   .arg(WatchClient::socketPath(), WatchClient::socketUnit())
             << Qt::endl;
         return 1;
     }
 
     out << QCoreApplication::translate(
-               "main", "Watching %n keyboard(s). Ctrl+C ends it.", nullptr,
-               count)
+               "main", "Connected to the keyboard service. Ctrl+C ends it.")
         << Qt::endl;
 
     QObject::connect(
-        watch, &KeyboardWatch::heldChanged, [&out](const QStringList &held) {
+        watch, &WatchClient::heldChanged, [&out](const QStringList &held) {
             out << (held.isEmpty()
                         ? QStringLiteral("-")
                         : held.join(QString::fromLatin1(kShortcutSeparator)))
@@ -260,13 +259,16 @@ int runOverlay(std::unique_ptr<Source> source, QTextStream &err) {
         return 1;
     }
 
-    // The keyboard is read below the compositor, so the panel can follow a
-    // held modifier without taking the key away from whoever it is bound to.
-    auto *watch = new KeyboardWatch(QCoreApplication::instance());
-    if (watch->start() == 0) {
+    // The keyboard is read below the compositor by a service of its own, so
+    // the panel can follow a held modifier without taking the key away from
+    // whoever it is bound to, and without this program ever being able to read
+    // a keystroke.
+    auto *watch = new WatchClient(QCoreApplication::instance());
+    if (!watch->start()) {
         err << QCoreApplication::translate(
-                   "main", "No keyboard could be read under /dev/input. "
-                           "Membership in the \"input\" group is required.")
+                   "main", "The keyboard service is not answering at %1. It is "
+                           "started by %2.")
+                   .arg(WatchClient::socketPath(), WatchClient::socketUnit())
             << QChar(QLatin1Char(0x0A));
         return 1;
     }
@@ -331,9 +333,10 @@ int runOverlay(std::unique_ptr<Source> source, QTextStream &err) {
     // not arrive.
     if (auto *layerWindow = LayerShellQt::Window::get(window)) {
         layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
-        // Never take the keyboard. The panel is a bystander: the modifiers are
-        // read from the event devices, and every key stays with the compositor
-        // so the shortcut on screen actually fires when it is pressed.
+        // Never take the keyboard. The panel is a bystander: the modifiers
+        // arrive from the keyboard service, and every key stays with the
+        // compositor so the shortcut on screen actually fires when it is
+        // pressed.
         layerWindow->setKeyboardInteractivity(
             LayerShellQt::Window::KeyboardInteractivityNone);
         layerWindow->setScope(QLatin1String(kLayerShellScope));
@@ -476,7 +479,7 @@ int main(int argc, char **argv) {
         QCoreApplication::translate(
             "main",
             "Print the held modifiers as they change, for checking that "
-            "the event devices are readable."));
+            "the keyboard service is reachable."));
 
     parser.addOption(optionList);
     parser.addOption(optionKeys);

@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Maik-0000FF
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Removes what install.sh put on the machine: the two programs, the desktop
-# entry and its icon, the autostart entry, and on request the settings.
+# Removes what install.sh put on the machine: the three programs, the units of
+# the service that reads the keyboard, the desktop entry and its icon, the
+# autostart entry, and on request the settings.
 #
 # What it does not touch is the packages that were installed to build with.
 # Other things on the machine want Qt and cmake too, and taking them away
@@ -75,6 +76,8 @@ else
     # default is the best that can be said, and it is where install.sh puts
     # things.
     CANDIDATES=("$INSTALL_DESKTOP" "$INSTALL_ICON")
+    CANDIDATES+=("$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT")
+    CANDIDATES+=("$INSTALL_UNIT_DIR/$WATCH_SERVICE_UNIT")
     for program in "${PROGRAMS[@]}"; do
         CANDIDATES+=("$INSTALL_BINDIR/$program")
     done
@@ -97,9 +100,28 @@ fi
 #
 # A machine that grants the rights without a password, which is what a
 # container or a rule of its own does, passes here and carries on unattended.
-if [ "${#TO_REMOVE[@]}" -ne 0 ] &&
+# Whether anything below wants administrative rights. Two things do: removing
+# the installed files, and switching off a unit that is still enabled. Asked
+# together and before the first of them, or a run with nothing left to remove
+# would skip this and walk into a password prompt at the unit instead.
+NEEDS_ROOT=0
+if [ "${#TO_REMOVE[@]}" -ne 0 ]; then
+    NEEDS_ROOT=1
+fi
+if [ -d /run/systemd/system ] &&
+    { systemctl is-enabled --quiet "$WATCH_SOCKET_UNIT" 2>/dev/null ||
+        systemctl is-active --quiet "$WATCH_SOCKET_UNIT" 2>/dev/null; }; then
+    UNIT_IS_ON=1
+else
+    UNIT_IS_ON=0
+fi
+if [ "$UNIT_IS_ON" = 1 ]; then
+    NEEDS_ROOT=1
+fi
+
+if [ "$NEEDS_ROOT" = 1 ] &&
     ! sudo -n true 2>/dev/null && ! can_ask; then
-    fail "Removing the installed files wants administrative rights, and" \
+    fail "Removing what was installed wants administrative rights, and" \
         "there is no terminal to ask for a password on." \
         "Run it where it can ask, or give this account a sudo rule that needs" \
         "no password." \
@@ -111,7 +133,15 @@ fi
 
 step "Stopping"
 STOPPED=0
-for program in "${PROGRAMS[@]}"; do
+if [ "$UNIT_IS_ON" = 1 ]; then
+    # Switched off before the files go, or the manager keeps a socket listening
+    # for a unit that is no longer on disk. --now takes the running service
+    # down with it.
+    sudo systemctl disable --now "$WATCH_SOCKET_UNIT" >/dev/null 2>&1 || true
+    ok "$WATCH_SOCKET_UNIT"
+    STOPPED=1
+fi
+for program in "${SESSION_PROGRAMS[@]}"; do
     # Same match as the install: the name pkill compares is cut short, so the
     # whole command line is searched instead, with or without a path in front.
     if pkill -u "$INVOKING_USER" -f "^([^ ]*/)?$program(\$| )" 2>/dev/null; then
@@ -136,6 +166,17 @@ else
         sudo rm -f "$file"
         ok "$file"
     done
+fi
+
+# The manager keeps its own picture of what units exist, and the two just
+# deleted are still in it. Told here rather than left for the next boot, where
+# they would show up as units that cannot be started.
+#
+# Only when something was actually removed. With nothing to remove there is
+# nothing to forget either, and this is the one step that would otherwise ask
+# for a password on a run that was told it would not need one.
+if [ -d /run/systemd/system ] && [ "${#TO_REMOVE[@]}" -ne 0 ]; then
+    sudo systemctl daemon-reload
 fi
 
 # --- The autostart entry ----------------------------------------------------
@@ -172,20 +213,38 @@ else
     note "none at $SETTINGS_DIR"
 fi
 
-# --- The group --------------------------------------------------------------
+# --- A membership that is no longer wanted ----------------------------------
 
-# Named rather than done. Nothing here knows what else on this machine was
-# given the group for, and taking it away from an account that needs it for
-# something else is not something to do quietly.
-step "Reading the keyboard"
+# Earlier versions asked for this group, and it granted far more than the panel
+# ever used: every program of that account could read every key, whatever
+# window it was typed into. Nothing here needs it any more, so an account still
+# carrying it is carrying it for nothing.
+#
+# Offered rather than done. Nothing here knows what else on this machine was
+# given the group for, and taking it from an account that needs it elsewhere is
+# not something to do quietly.
+step "An older membership"
 if id -nG "$INVOKING_USER" | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
-    note "$INVOKING_USER is in the '$INPUT_GROUP' group."
-    note "Other programs may have been given it too, so it is left as it is."
-    note "To drop it yourself:"
-    note "    sudo gpasswd -d $INVOKING_USER $INPUT_GROUP"
+    warn "$INVOKING_USER is in the '$INPUT_GROUP' group." \
+        "While it is there, every program this account runs can read every" \
+        "key pressed, including what is typed into other windows."
+    ask "Remove $INVOKING_USER from the '$INPUT_GROUP' group? [y/N]"
+    if [ "$ASK_EOF" = 1 ]; then
+        note "Nobody to ask, so it is left alone. To drop it:"
+        note "    sudo gpasswd -d $INVOKING_USER $INPUT_GROUP"
+    else
+        case "$REPLY" in
+            [Yy]*)
+                sudo gpasswd -d "$INVOKING_USER" "$INPUT_GROUP" >/dev/null
+                ok "removed; this login keeps it until the next one"
+                ;;
+            *)
+                note "left alone; something else may have been given it too"
+                ;;
+        esac
+    fi
 else
-    note "$INVOKING_USER is not in the '$INPUT_GROUP' group."
+    ok "not in the '$INPUT_GROUP' group"
 fi
-
 echo
 banner "bindpeek: removed"
