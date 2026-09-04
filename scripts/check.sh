@@ -129,7 +129,8 @@ step "the install pair can read the build files"
     . "$ROOT/scripts/_style.sh"
     # shellcheck source=scripts/_paths.sh
     . "$ROOT/scripts/_paths.sh"
-    printf '  %s\n' "$PANEL" "$SETTINGS" "$DESKTOP_ID.desktop" "$ICON_NAME.svg"
+    printf '  %s\n' "$PANEL" "$SETTINGS" "$WATCH" \
+        "$DESKTOP_ID.desktop" "$ICON_NAME.svg" "$WATCH_SOCKET_UNIT"
 )
 
 step "configure and build"

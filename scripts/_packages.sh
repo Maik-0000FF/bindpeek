@@ -26,8 +26,8 @@
 #
 # All four hold the same things under different names: the build tools, Qt 6
 # with the QML runtime, the layer-shell binding the panel is drawn as, libevdev
-# for reading the keyboard, and KDE's KConfig for reading the shortcut file the
-# KDE backend is given.
+# for reading the keyboard and libsystemd for the service that does it, and
+# KDE's KConfig for reading the shortcut file the KDE backend is given.
 #
 # The Debian list names the QML modules one at a time because that distribution
 # ships them separately, and a missing one is not a build error: the program
@@ -40,7 +40,7 @@ dependencies_for() {
         arch)
             DEPENDENCIES=(cmake ninja pkgconf gcc
                 qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools
-                layer-shell-qt libevdev)
+                layer-shell-qt libevdev systemd-libs)
             ;;
         debian)
             DEPENDENCIES=(cmake ninja-build pkg-config g++
@@ -49,19 +49,19 @@ dependencies_for() {
                 qml6-module-qtquick qml6-module-qtquick-controls
                 qml6-module-qtquick-layouts qml6-module-qtquick-templates
                 qml6-module-qtquick-window qml6-module-qtqml-workerscript
-                liblayershellqtinterface-dev libevdev-dev)
+                liblayershellqtinterface-dev libevdev-dev libsystemd-dev)
             ;;
         fedora)
             DEPENDENCIES=(cmake ninja-build gcc-c++ pkgconf
                 qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel
                 qt6-qtwayland qt6-qttools-devel qt6-linguist
-                layer-shell-qt-devel libevdev-devel)
+                layer-shell-qt-devel libevdev-devel systemd-devel)
             ;;
         suse)
             DEPENDENCIES=(cmake ninja gcc-c++ pkgconf-pkg-config
                 qt6-base-devel qt6-declarative-devel qt6-svg-devel qt6-wayland
                 qt6-linguist-devel
-                layer-shell-qt6-devel libevdev-devel)
+                layer-shell-qt6-devel libevdev-devel systemd-devel)
             ;;
         *)
             DEPENDENCIES=()

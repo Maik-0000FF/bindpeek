@@ -368,7 +368,9 @@ jobs:
           . scripts/_paths.sh
           missing=0
           for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
-                   "$INSTALL_DESKTOP" "$INSTALL_ICON"; do
+                   "$INSTALL_BINDIR/$WATCH" "$INSTALL_DESKTOP" \
+                   "$INSTALL_ICON" "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
+                   "$INSTALL_UNIT_DIR/$WATCH.service"; do
             if [ -e "$f" ]; then
               echo "ok: $f"
             else
@@ -390,7 +392,9 @@ jobs:
           . scripts/_paths.sh
           left=0
           for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
-                   "$INSTALL_DESKTOP" "$INSTALL_ICON"; do
+                   "$INSTALL_BINDIR/$WATCH" "$INSTALL_DESKTOP" \
+                   "$INSTALL_ICON" "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
+                   "$INSTALL_UNIT_DIR/$WATCH.service"; do
             if [ -e "$f" ]; then
               echo "left behind: $f"
               left=1
@@ -465,10 +469,15 @@ jobs:
             'while :; do echo y; sleep 1; done | script -qec ./install.sh /dev/null'
 
       - name: The answers were acted on
-        # Both of the things a yes here asks for: the entry that starts the
-        # tray with the session, and the group the panel cannot read the
-        # keyboard without. Both names are asked of the same file the scripts
-        # ask, rather than written out again.
+        # What a yes here asks for, and what the install puts in place either
+        # way: the entry that starts the tray with the session, and the units
+        # of the service that reads the keyboard. Every name is asked of the
+        # same file the scripts ask, rather than written out again.
+        #
+        # The units are checked as files rather than as something enabled.
+        # There is no service manager running in a container, so the script
+        # takes its other path and says where to enable them; what it can be
+        # held to here is that they were installed at all.
         run: |
           . scripts/_style.sh
           PROJECT_ROOT="$PWD"
@@ -480,25 +489,27 @@ jobs:
           export HOME XDG_CONFIG_HOME
           . scripts/_paths.sh
           fail=0
-          if [ -f "$AUTOSTART_ENTRY" ]; then
-            echo "ok: $AUTOSTART_ENTRY"
-          else
-            echo "missing: $AUTOSTART_ENTRY"
-            fail=1
-          fi
-          if id -nG tester | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
-            echo "ok: tester is in the $INPUT_GROUP group"
-          else
-            echo "missing: tester was not added to the $INPUT_GROUP group"
-            fail=1
-          fi
+          for wanted in \
+            "$AUTOSTART_ENTRY" \
+            "$INSTALL_BINDIR/$WATCH" \
+            "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
+            "$INSTALL_UNIT_DIR/$WATCH.service"
+          do
+            if [ -f "$wanted" ]; then
+              echo "ok: $wanted"
+            else
+              echo "missing: $wanted"
+              fail=1
+            fi
+          done
           exit $fail
 
       - name: install.sh again, answering no
         # The other half of that question, and the only way to reach it: a no
         # takes away an entry that is there, which is how somebody turns the
-        # autostart off again. Nothing else is asked this time round, the
-        # packages being installed already and the group being held already.
+        # autostart off again. Little else is asked this time round, the
+        # packages being installed already and there being no service manager
+        # in a container to enable anything with.
         run: |
           # Killed ten seconds after being asked, if it comes to that. No
           # --foreground: that flag exists to leave the children of the

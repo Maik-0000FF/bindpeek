@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Maik-0000FF
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Removes what install.sh put on the machine: the two programs, the desktop
-# entry and its icon, the autostart entry, and on request the settings.
+# Removes what install.sh put on the machine: the three programs, the units of
+# the service that reads the keyboard, the desktop entry and its icon, the
+# autostart entry, and on request the settings.
 #
 # What it does not touch is the packages that were installed to build with.
 # Other things on the machine want Qt and cmake too, and taking them away
@@ -75,6 +76,8 @@ else
     # default is the best that can be said, and it is where install.sh puts
     # things.
     CANDIDATES=("$INSTALL_DESKTOP" "$INSTALL_ICON")
+    CANDIDATES+=("$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT")
+    CANDIDATES+=("$INSTALL_UNIT_DIR/$WATCH.service")
     for program in "${PROGRAMS[@]}"; do
         CANDIDATES+=("$INSTALL_BINDIR/$program")
     done
@@ -111,7 +114,18 @@ fi
 
 step "Stopping"
 STOPPED=0
-for program in "${PROGRAMS[@]}"; do
+if [ -d /run/systemd/system ]; then
+    # Disabled before the files go, or the manager keeps a socket listening for
+    # a unit that is no longer on disk and complains at every boot about it.
+    # --now takes the running service down with it.
+    if systemctl is-enabled --quiet "$WATCH_SOCKET_UNIT" 2>/dev/null ||
+        systemctl is-active --quiet "$WATCH_SOCKET_UNIT" 2>/dev/null; then
+        sudo systemctl disable --now "$WATCH_SOCKET_UNIT" >/dev/null 2>&1 || true
+        ok "$WATCH_SOCKET_UNIT"
+        STOPPED=1
+    fi
+fi
+for program in "${SESSION_PROGRAMS[@]}"; do
     # Same match as the install: the name pkill compares is cut short, so the
     # whole command line is searched instead, with or without a path in front.
     if pkill -u "$INVOKING_USER" -f "^([^ ]*/)?$program(\$| )" 2>/dev/null; then
@@ -136,6 +150,13 @@ else
         sudo rm -f "$file"
         ok "$file"
     done
+fi
+
+# The manager keeps its own picture of what units exist, and the two just
+# deleted are still in it. Told here rather than left for the next boot, where
+# they would show up as units that cannot be started.
+if [ -d /run/systemd/system ]; then
+    sudo systemctl daemon-reload
 fi
 
 # --- The autostart entry ----------------------------------------------------
@@ -172,20 +193,38 @@ else
     note "none at $SETTINGS_DIR"
 fi
 
-# --- The group --------------------------------------------------------------
+# --- A membership that is no longer wanted ----------------------------------
 
-# Named rather than done. Nothing here knows what else on this machine was
-# given the group for, and taking it away from an account that needs it for
-# something else is not something to do quietly.
-step "Reading the keyboard"
+# Earlier versions asked for this group, and it granted far more than the panel
+# ever used: every program of that account could read every key, whatever
+# window it was typed into. Nothing here needs it any more, so an account still
+# carrying it is carrying it for nothing.
+#
+# Offered rather than done. Nothing here knows what else on this machine was
+# given the group for, and taking it from an account that needs it elsewhere is
+# not something to do quietly.
+step "An older membership"
 if id -nG "$INVOKING_USER" | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
-    note "$INVOKING_USER is in the '$INPUT_GROUP' group."
-    note "Other programs may have been given it too, so it is left as it is."
-    note "To drop it yourself:"
-    note "    sudo gpasswd -d $INVOKING_USER $INPUT_GROUP"
+    warn "$INVOKING_USER is in the '$INPUT_GROUP' group." \
+        "While it is there, every program this account runs can read every" \
+        "key pressed, including what is typed into other windows."
+    ask "Remove $INVOKING_USER from the '$INPUT_GROUP' group? [y/N]"
+    if [ "$ASK_EOF" = 1 ]; then
+        note "Nobody to ask, so it is left alone. To drop it:"
+        note "    sudo gpasswd -d $INVOKING_USER $INPUT_GROUP"
+    else
+        case "$REPLY" in
+            [Yy]*)
+                sudo gpasswd -d "$INVOKING_USER" "$INPUT_GROUP" >/dev/null
+                ok "removed; this login keeps it until the next one"
+                ;;
+            *)
+                note "left alone; something else may have been given it too"
+                ;;
+        esac
+    fi
 else
-    note "$INVOKING_USER is not in the '$INPUT_GROUP' group."
+    ok "not in the '$INPUT_GROUP' group"
 fi
-
 echo
 banner "bindpeek: removed"

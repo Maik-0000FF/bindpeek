@@ -7,9 +7,9 @@
 # carries the tray icon.
 #
 # Two things here widen what the machine allows rather than what it merely
-# offers, and both are asked for rather than done: membership in the group that
-# grants read access to the keyboard, and starting the tray with every login.
-# Where there is nobody to ask, neither happens.
+# offers, and both are asked for rather than done: enabling the service that
+# reads the keyboard, and starting the tray with every login. Where there is
+# nobody to ask, neither happens.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -48,8 +48,9 @@ fi
 if [ "$DISTRO" = nixos ]; then
     step "NixOS builds this from the flake, not from here."
     note "  nix build            # result/bin/$PANEL, result/bin/$SETTINGS"
-    note "The group membership and the autostart belong in the system"
-    note "configuration; the module in nix/ has an option for each."
+    note "The service and the autostart belong in the system configuration;"
+    note "the module in nix/ turns on the first with the package and has an"
+    note "option for the second."
     exit 0
 fi
 
@@ -58,11 +59,11 @@ if [ "$DISTRO" = unknown ]; then
         "By hand, in this order:" \
         "  1. install cmake, ninja, pkg-config, a C++20 compiler, Qt 6" \
         "     (base, declarative, svg, wayland, linguist tools)," \
-        "     layer-shell-qt, libevdev and KDE's KConfig framework" \
+        "     layer-shell-qt, libevdev, libsystemd and KDE's KConfig framework" \
         "  2. cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release" \
         "  3. cmake --build build -j\$(nproc)" \
         "  4. sudo cmake --install build" \
-        "  5. add yourself to the '$INPUT_GROUP' group and log in again"
+        "  5. sudo systemctl enable --now $WATCH_SOCKET_UNIT"
     exit 1
 fi
 
@@ -239,7 +240,7 @@ ok "installed to $INSTALL_BINDIR"
 # pkill compares is cut at fifteen characters, which is shorter than the name of
 # the settings window. An entry in an autostart file starts the bare name and a
 # terminal a full path, so both are allowed for.
-for program in "${PROGRAMS[@]}"; do
+for program in "${SESSION_PROGRAMS[@]}"; do
     pkill -u "$INVOKING_USER" -f "^([^ ]*/)?$program(\$| )" 2>/dev/null || true
 done
 
@@ -247,43 +248,68 @@ done
 
 # The panel appears while a modifier is held down. A Wayland program is told
 # nothing about a key until it has the focus, and the panel deliberately never
-# takes it, so the modifiers are read from the event devices below the
-# compositor instead. That needs the group, and there is no narrower grant for
-# it on Linux.
+# takes it, so the modifiers are read below the compositor from the event
+# devices.
 #
-# Two questions, not one, and they have different answers. What this login can
-# do is what `id` reports for the running process; what the account has been
-# granted is what it reports for the name. A membership added a moment ago
-# shows up in the second and not in the first, and it is the first that decides
-# whether the panel starts today.
+# That reading is done by a service of its own, under an account that exists
+# only while it runs. Nobody's login carries the ability to read every
+# keystroke, and nothing is left behind when the package goes.
 step "Reading the keyboard"
-NEEDS_RELOGIN=0
-if id -nG | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
-    ok "this login can read the keyboard"
-elif id -nG "$INVOKING_USER" | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
-    warn "$INVOKING_USER is in the '$INPUT_GROUP' group, but this login is not"
-    NEEDS_RELOGIN=1
+if [ ! -d /run/systemd/system ]; then
+    # A container, or a machine that boots something else. The unit is on disk
+    # either way; enabling it is for wherever it will actually run.
+    note "No service manager running here, so the unit is installed but not"
+    note "enabled. Where it runs:"
+    note "    sudo systemctl enable --now $WATCH_SOCKET_UNIT"
 else
-    warn "$INVOKING_USER is not in the '$INPUT_GROUP' group" \
-        "Without it the panel refuses to start. With it, every program you" \
-        "run can read every key you press, including what you type into" \
-        "other windows. The grant is per account, not per program."
-    ask "Add $INVOKING_USER to the '$INPUT_GROUP' group? [y/N]"
-    case "$REPLY" in
-        [Yy]*)
-            # A minimal image can be without the group, where usermod would
-            # fail rather than create it.
-            getent group "$INPUT_GROUP" >/dev/null || sudo groupadd "$INPUT_GROUP"
-            sudo usermod -aG "$INPUT_GROUP" "$INVOKING_USER"
-            ok "added"
-            NEEDS_RELOGIN=1
-            ;;
-        *)
-            warn "left alone; the panel will say so when it refuses to start"
-            ;;
-    esac
+    # The unit was written a moment ago by the install above, and the manager
+    # has not read it yet.
+    sudo systemctl daemon-reload
+    ask "Enable the keyboard service? Without it the panel does not start. [Y/n]"
+    if [ "$ASK_EOF" = 1 ]; then
+        note "Nobody to ask, so it is left alone. Enable it with:"
+        note "    sudo systemctl enable --now $WATCH_SOCKET_UNIT"
+    elif [[ "$REPLY" == [Nn]* ]]; then
+        warn "left alone; the panel will say so when it refuses to start"
+    else
+        sudo systemctl enable --now "$WATCH_SOCKET_UNIT"
+        ok "$WATCH_SOCKET_UNIT is listening"
+    fi
 fi
 
+# --- A membership that is no longer wanted ----------------------------------
+
+# Earlier versions of this asked for the group, and it granted far more than
+# the panel ever used: every program of that account could read every key,
+# whatever window it was typed into, for as long as the account existed.
+#
+# Offered rather than done. Nothing here knows what else on this machine was
+# given the group for, and taking it from an account that needs it for
+# something else is not something to do quietly.
+step "An older membership"
+if id -nG "$INVOKING_USER" | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
+    warn "$INVOKING_USER is in the '$INPUT_GROUP' group." \
+        "bindpeek does not need it any more. While it is there, every" \
+        "program this account runs can read every key pressed, including" \
+        "what is typed into other windows."
+    ask "Remove $INVOKING_USER from the '$INPUT_GROUP' group? [y/N]"
+    if [ "$ASK_EOF" = 1 ]; then
+        note "Nobody to ask, so it is left alone. To drop it:"
+        note "    sudo gpasswd -d $INVOKING_USER $INPUT_GROUP"
+    else
+        case "$REPLY" in
+            [Yy]*)
+                sudo gpasswd -d "$INVOKING_USER" "$INPUT_GROUP" >/dev/null
+                ok "removed; this login keeps it until the next one"
+                ;;
+            *)
+                note "left alone; something else may have been given it too"
+                ;;
+        esac
+    fi
+else
+    ok "not in the '$INPUT_GROUP' group, which is where this wants to be"
+fi
 # --- Starting with the session ----------------------------------------------
 
 # The entry that is installed with the package, copied rather than written a
@@ -323,10 +349,6 @@ fi
 
 echo
 banner "bindpeek: installed"
-if [ "$NEEDS_RELOGIN" = 1 ]; then
-    warn "Log out and back in, or this login still cannot read the keyboard."
-    echo
-fi
 note "Start the tray icon and the settings window:"
 note "    $SETTINGS"
 note ""
