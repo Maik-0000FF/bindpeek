@@ -167,3 +167,61 @@ install(FILES ${BINDPEEK_DESKTOP_SOURCE}
 install(FILES ${CMAKE_SOURCE_DIR}/assets/logo-mark-black.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
         RENAME ${BINDPEEK_ICON_NAME}.svg)
+
+# --- The keyboard watch ------------------------------------------------------
+#
+# A third program, and the only one that reads the event devices. It exists so
+# that nobody's account has to: the ability to read every keystroke belongs to
+# this service and lasts exactly as long as it runs, instead of belonging to a
+# person and outliving the program that wanted it.
+#
+# No Qt anywhere in here, on purpose. This is the part that holds the
+# descriptors, and what it is made of is the argument for trusting it.
+add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp)
+target_include_directories(bindpeek_watch_core
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/watch
+)
+
+add_executable(bindpeek-watch
+  watch/main.cpp
+  watch/Devices.cpp
+  watch/Server.cpp
+)
+target_link_libraries(bindpeek-watch PRIVATE
+  bindpeek_watch_core
+  # Reads the keyboards under /dev/input without grabbing them.
+  PkgConfig::Libevdev
+  # Takes the listening socket from the service manager and asks it who is on
+  # the other end of a connection.
+  PkgConfig::Libsystemd
+)
+
+# Said rather than left to the global setting: moc has no business here, and a
+# target that says so cannot quietly grow a Q_OBJECT later.
+set_target_properties(bindpeek_watch_core bindpeek-watch
+                      PROPERTIES AUTOMOC OFF)
+
+install(TARGETS bindpeek-watch RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# The units, with the socket path and the program path filled in from the
+# settings at the top of the build rather than written into them. That is what
+# keeps the unit that binds the socket and the client that connects to it from
+# ever naming two different paths.
+set(BINDPEEK_WATCH_BIN ${CMAKE_INSTALL_FULL_BINDIR}/bindpeek-watch)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.socket.in
+  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.socket @ONLY
+)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.service.in
+  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.service @ONLY
+)
+
+# Below the install prefix, which the service manager searches: for the usual
+# prefix that is /usr/local/lib/systemd/system, one of the four directories
+# systemd reads system units from.
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.socket
+  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.service
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/systemd/system
+)

@@ -28,6 +28,9 @@
         pkgs.qt6.qtwayland # Wayland platform plugin
         pkgs.kdePackages.layer-shell-qt # wlr-layer-shell surface
         pkgs.libevdev # reads /dev/input below the compositor
+        # The service takes its listening socket from the service manager and
+        # asks it whether the user connecting is logged in at all.
+        pkgs.systemd
         # KDE own configuration library: reads kglobalshortcutsrc the way KDE
         # writes it.
         pkgs.kdePackages.kconfig
@@ -357,6 +360,9 @@
               # shellchecks the shell inside it, which nothing else here sees.
               pkgs.actionlint
               pkgs.qt6.qttools
+              # systemd-analyze, which reads the units the build writes and
+              # scores what the service is allowed to do.
+              pkgs.systemd
             ];
             buildInputs = dependencies pkgs;
 

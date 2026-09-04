@@ -24,6 +24,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BUILD_DIR=build-check # gitignored via build*/
 
+# How much the service that holds the keyboards may be allowed to do, on the
+# scale systemd-analyze uses internally: ten times the number it prints. The
+# unit scores 0.6 as it stands, and 15 leaves room for the scoring to shift
+# between systemd versions without leaving room for a setting to go missing.
+#
+# A ceiling rather than the exact number on purpose. Pinning today's value
+# fails on somebody else's systemd for no fault of the unit, and a gate that
+# fails for the wrong reason is a gate that gets switched off.
+WATCH_EXPOSURE_CEILING=15
+
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 
 # Every file this repository would carry, which is what the gates below have to
@@ -125,6 +135,18 @@ step "the install pair can read the build files"
 step "configure and build"
 cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build "$BUILD_DIR" -j"$(nproc)"
+
+step "the keyboard service is allowed no more than it says"
+# The one unit here where a setting quietly dropped is a real loss, and
+# nothing else would notice: it is the program that reads the event devices.
+#
+# Read offline and against the file the build just wrote. Without --offline
+# the tool asks the running service manager, which knows nothing about a unit
+# that has not been installed, and in a sandbox there is no manager to ask at
+# all.
+systemd-analyze security --offline=true \
+    --threshold="$WATCH_EXPOSURE_CEILING" \
+    "$BUILD_DIR/src/bindpeek-watch.service" | tail -n 1
 
 step "tests"
 ctest --test-dir "$BUILD_DIR" --output-on-failure
