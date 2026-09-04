@@ -181,7 +181,14 @@ add_test(NAME layer_placement COMMAND test_layer_placement)
 # The state the keyboard watch keeps, measured without a keyboard. That is what
 # the service is split for: the part with a state takes key codes and hands
 # back a record, and the part that opens descriptors keeps no state of its own.
-add_executable(test_watch test_watch.cpp)
-target_link_libraries(test_watch PRIVATE bindpeek_watch_core Qt6::Test)
+# The client is compiled in so that both ends of the record are measured in
+# one place: the service writes it and the panel reads it, and the reading is
+# the only checking code on the panel side of the socket.
+add_executable(test_watch
+  test_watch.cpp
+  ${CMAKE_SOURCE_DIR}/src/WatchClient.cpp
+)
+target_link_libraries(test_watch PRIVATE bindpeek_watch_core bindpeek_sources
+                                         Qt6::Test)
 
 add_test(NAME watch COMMAND test_watch)

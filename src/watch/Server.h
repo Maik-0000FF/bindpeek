@@ -4,6 +4,7 @@
 #pragma once
 
 #include <poll.h>
+#include <sys/types.h>
 
 #include <cstddef>
 #include <vector>
@@ -19,11 +20,11 @@ namespace bindpeek::watch {
 // half that holds the keyboards cannot be talked into anything.
 class Server {
 public:
+    Server() = default;
     ~Server();
 
     Server(const Server &) = delete;
     Server &operator=(const Server &) = delete;
-    Server() = default;
 
     // Takes the listening socket from the service manager. The service is
     // started by its socket unit and never by hand, so a missing socket is a
@@ -43,15 +44,29 @@ public:
 
     void broadcast(const Report &report);
 
+    // Drops whoever is no longer at an active seat. Checked again rather than
+    // only at the door: a session can be switched away from long after it
+    // connected, and the records would otherwise keep going to a screen
+    // nobody is looking at.
+    void dropStrangers();
+
     std::size_t clients() const;
 
 private:
+    struct Client {
+        int fd;
+        // Kept so the check can be made again later without asking the
+        // descriptor a second time, and so the limit can be counted per
+        // person rather than over everybody at once.
+        uid_t uid;
+    };
+
     void drop(std::size_t at);
     // Returns false when the client is gone or unreachable.
     bool sendTo(int fd, const Report &report);
 
     int m_listen = -1;
-    std::vector<int> m_clients;
+    std::vector<Client> m_clients;
 };
 
 } // namespace bindpeek::watch

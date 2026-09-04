@@ -310,6 +310,7 @@ if id -nG "$INVOKING_USER" | tr ' ' '\n' | grep -qx "$INPUT_GROUP"; then
 else
     ok "not in the '$INPUT_GROUP' group, which is where this wants to be"
 fi
+
 # --- Starting with the session ----------------------------------------------
 
 # The entry that is installed with the package, copied rather than written a

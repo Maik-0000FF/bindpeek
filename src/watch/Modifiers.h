@@ -59,11 +59,26 @@ private:
         int code;
     };
 
-    // Every modifier key that is physically down, in the order it went down.
-    // Everything else is derived from this, which is why the order the panel
-    // shows is the order the user pressed in and why two keyboards need no
-    // special case anywhere.
+    // What the keys that are down produce, in the order they were pressed.
+    std::vector<std::uint8_t> produced() const;
+
+    // Brings the held list into line with that. Returns true when it changed,
+    // which is the only thing any of the callers report.
+    bool refresh();
+
+    // Every modifier key that is physically down. What is held follows from
+    // it, and the two-keyboard case needs no special handling anywhere.
     std::vector<Key> m_down;
+
+    // The modifiers that are held, in the order they first went down, kept
+    // rather than worked out afresh each time.
+    //
+    // Kept, because working it out from the keys would move a modifier that
+    // never lifted. Hold SUPER on one keyboard, then SHIFT, then SUPER on a
+    // second: letting the first SUPER go leaves SUPER held by the second, but
+    // the earliest key producing it is now the later one, and the panel would
+    // re-sort under somebody's fingers for a release that changed nothing.
+    std::vector<std::uint8_t> m_held;
 };
 
 } // namespace bindpeek::watch

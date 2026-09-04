@@ -139,7 +139,6 @@
               fsType = "ext4";
             };
             system.stateVersion = "24.05";
-            users.users.alice.isNormalUser = true;
           };
 
           # The flake output, which carries its own package.
@@ -194,7 +193,12 @@
               ) config.environment.systemPackages;
               packageName = config.programs.bindpeek.package.pname or "";
               autostartCount = builtins.length autostart;
-              members = config.users.groups.input.members;
+              # The units travel with the package rather than being written out
+              # here, so what is asserted is that the package was handed to the
+              # service manager at all and that the socket was switched on.
+              units = builtins.any (p: (p.pname or "") == "bindpeek") config.systemd.packages;
+              socket = config.systemd.sockets ? bindpeek-watch;
+              socketWantedBy = config.systemd.sockets.bindpeek-watch.wantedBy or [ ];
             };
 
           # Bound rather than written out at both places it is needed: the
@@ -207,12 +211,14 @@
 
           cases = [
             {
-              name = "enabled installs the package and nothing more";
+              name = "enabled installs the package and the service with it";
               system = evalWith { programs.bindpeek.enable = true; };
               expect = {
                 package = true;
                 autostartCount = 0;
-                members = [ ];
+                units = true;
+                socket = true;
+                socketWantedBy = [ "sockets.target" ];
                 packageName = "bindpeek";
               };
             }
@@ -222,20 +228,9 @@
               expect = {
                 package = false;
                 autostartCount = 0;
-                members = [ ];
-                packageName = "bindpeek";
-              };
-            }
-            {
-              name = "input access reaches the named user and nobody else";
-              system = evalWith {
-                programs.bindpeek.enable = true;
-                programs.bindpeek.inputAccessFor = [ "alice" ];
-              };
-              expect = {
-                package = true;
-                autostartCount = 0;
-                members = [ "alice" ];
+                units = false;
+                socket = false;
+                socketWantedBy = [ ];
                 packageName = "bindpeek";
               };
             }
@@ -245,7 +240,9 @@
               expect = {
                 package = true;
                 autostartCount = 1;
-                members = [ ];
+                units = true;
+                socket = true;
+                socketWantedBy = [ "sockets.target" ];
                 packageName = "bindpeek";
               };
             }
@@ -261,7 +258,9 @@
               expect = {
                 package = false;
                 autostartCount = 0;
-                members = [ ];
+                units = false;
+                socket = true;
+                socketWantedBy = [ "sockets.target" ];
                 packageName = "hello";
               };
             }
@@ -277,7 +276,9 @@
               expect = {
                 package = true;
                 autostartCount = 0;
-                members = [ ];
+                units = true;
+                socket = true;
+                socketWantedBy = [ "sockets.target" ];
                 packageName = "bindpeek";
               };
             }
@@ -295,6 +296,28 @@
               "${case.name}: ${name} is ${builtins.toJSON forced.${name}}, expected ${builtins.toJSON case.expect.${name}}"
             ) (builtins.attrNames wrong);
 
+          # The option that is gone has to say so rather than be quietly
+          # ignored. A configuration still carrying it still has the group on
+          # those accounts, and a removal that said nothing would take the
+          # grant out of the configuration while leaving it on the machine.
+          removedOption = builtins.tryEval (
+            builtins.seq
+              (evalWith {
+                programs.bindpeek.enable = true;
+                programs.bindpeek.inputAccessFor = [ "alice" ];
+              }).config.system.build.toplevel.drvPath
+              null
+          );
+
+          # And that it is still an option at all, which is what carries the
+          # sentence. A silent deletion refuses the same configuration, with a
+          # message about an option nobody has heard of and no word about the
+          # group that is still on those accounts, so the case above alone
+          # cannot tell the two apart.
+          removedOptionIsNamed =
+            (evalWith { programs.bindpeek.enable = true; }).options.programs.bindpeek
+            ? inputAccessFor;
+
           # Imported on its own and without the overlay there is no package to
           # be had, and the module says so rather than letting Nix guess at a
           # name. Nothing else covers that message.
@@ -307,7 +330,11 @@
           failures =
             lib.concatMap measure cases
             ++ lib.optional missingPackage.success
-              "the module without a package evaluated instead of saying so";
+              "the module without a package evaluated instead of saying so"
+            ++ lib.optional removedOption.success
+              "the option that no longer exists was taken without a word"
+            ++ lib.optional (!removedOptionIsNamed)
+              "the option that no longer exists was deleted rather than named";
 
           # The file the autostart entry links to. Named by the module, not by
           # this check, and looked at in the build below: a link into the

@@ -11,12 +11,14 @@
 
 #include "Modifiers.h"
 #include "Protocol.h"
+#include "WatchClient.h"
 
 #include <linux/input-event-codes.h>
 
 #include <QObject>
 #include <QTest>
 
+#include <initializer_list>
 #include <vector>
 
 using namespace bindpeek::watch;
@@ -46,11 +48,18 @@ private slots:
     void a_repeat_is_not_a_second_press();
     void one_modifier_two_keys();
     void one_modifier_two_keyboards();
+    void a_release_that_changes_nothing_moves_nothing();
     void a_lost_keyboard_takes_its_keys();
     void reconcile_corrects_in_both_directions();
     void reconcile_leaves_the_order_of_survivors();
     void the_record_says_what_is_held();
     void all_four_fit_in_the_record();
+    void a_good_record_is_read();
+    void the_taken_flag_is_read();
+    void a_record_of_the_wrong_size_is_refused();
+    void another_version_is_named_as_such();
+    void a_count_past_the_end_is_refused();
+    void an_unknown_modifier_refuses_the_record();
 };
 
 // Every code the table answers to maps to a modifier, and both sides of the
@@ -139,6 +148,23 @@ void TestWatch::one_modifier_two_keyboards() {
     QVERIFY(state.held().empty());
 }
 
+// Two keyboards, and letting go of one SUPER while the other still holds it.
+// The modifier does not lift, and it must not move either: the panel sorts by
+// what is held, and shuffling that under somebody's fingers is a change they
+// did not make.
+void TestWatch::a_release_that_changes_nothing_moves_nothing() {
+    Modifiers state;
+    state.press(kBoard, KEY_LEFTMETA);
+    state.press(kBoard, KEY_LEFTSHIFT);
+    state.press(kOther, KEY_LEFTMETA);
+
+    const std::vector<std::uint8_t> before{kSuper, kShift};
+    QCOMPARE(state.held(), before);
+
+    QVERIFY(!state.release(kBoard, KEY_LEFTMETA));
+    QCOMPARE(state.held(), before);
+}
+
 void TestWatch::a_lost_keyboard_takes_its_keys() {
     Modifiers state;
     state.press(kBoard, KEY_LEFTMETA);
@@ -222,6 +248,93 @@ void TestWatch::all_four_fit_in_the_record() {
 
     const std::vector<std::uint8_t> expected{kSuper, kCtrl, kAlt, kShift};
     QCOMPARE(reported(record), expected);
+}
+
+// --- The record as the panel reads it ---------------------------------------
+//
+// The other half of the same eight bytes. Measured here rather than in a test
+// of its own because a record is one agreement, and an agreement is best read
+// with both ends of it on the same page.
+
+namespace {
+
+// A record as the service would send it.
+Report sent(std::initializer_list<std::uint8_t> held, bool keyTaken) {
+    Report out{};
+    out.version = kProtocolVersion;
+    out.flags = keyTaken ? kFlagKeyTaken : static_cast<std::uint8_t>(0);
+    out.count = static_cast<std::uint8_t>(held.size());
+    std::size_t at = 0;
+    for (const std::uint8_t id : held) {
+        out.held[at++] = id;
+    }
+    return out;
+}
+
+} // namespace
+
+void TestWatch::a_good_record_is_read() {
+    const Report record = sent({kSuper, kShift}, false);
+    const bindpeek::Heard heard = bindpeek::hear(&record, sizeof record);
+
+    QVERIFY(heard.understood);
+    QVERIFY(!heard.wrongVersion);
+    QVERIFY(!heard.keyTaken);
+    QCOMPARE(heard.held,
+             QStringList({QStringLiteral("SUPER"), QStringLiteral("SHIFT")}));
+}
+
+void TestWatch::the_taken_flag_is_read() {
+    const Report record = sent({kSuper}, true);
+    const bindpeek::Heard heard = bindpeek::hear(&record, sizeof record);
+
+    QVERIFY(heard.understood);
+    QVERIFY(heard.keyTaken);
+}
+
+// A datagram of the wrong length is somebody else's idea of the record, not a
+// short read: the socket keeps each one whole.
+void TestWatch::a_record_of_the_wrong_size_is_refused() {
+    const Report record = sent({kSuper}, false);
+    QVERIFY(!bindpeek::hear(&record, sizeof record - 1).understood);
+    QVERIFY(!bindpeek::hear(&record, sizeof record + 1).understood);
+    QVERIFY(!bindpeek::hear(&record, 0).understood);
+}
+
+// A service that was replaced under a running panel. Told apart from a
+// malformed record, because the panel has something to say about it.
+void TestWatch::another_version_is_named_as_such() {
+    Report record = sent({kSuper}, false);
+    record.version = kProtocolVersion + 1;
+    const bindpeek::Heard heard = bindpeek::hear(&record, sizeof record);
+
+    QVERIFY(!heard.understood);
+    QVERIFY(heard.wrongVersion);
+}
+
+// A count larger than the field it counts. What is being kept out is the
+// reading walking past the four entries, so the byte just past them is given a
+// value that would read perfectly well: without the guard the answer comes
+// back understood, with five names in it. A record refused for holding an
+// unknown number would not have said anything about the guard.
+void TestWatch::a_count_past_the_end_is_refused() {
+    Report record = sent({kSuper, kCtrl, kAlt, kShift}, false);
+    record.count = static_cast<std::uint8_t>(kMaxHeld + 1);
+    record.reserved = kSuper;
+    const bindpeek::Heard heard = bindpeek::hear(&record, sizeof record);
+
+    QVERIFY(!heard.understood);
+    QVERIFY(!heard.wrongVersion);
+}
+
+// A number with no name behind it, in a record whose version says there should
+// be one. Refused whole rather than shown with a gap in it.
+void TestWatch::an_unknown_modifier_refuses_the_record() {
+    const Report record = sent({kSuper, 200}, false);
+    const bindpeek::Heard heard = bindpeek::hear(&record, sizeof record);
+
+    QVERIFY(!heard.understood);
+    QVERIFY(heard.held.isEmpty());
 }
 
 QTEST_APPLESS_MAIN(TestWatch)

@@ -217,6 +217,13 @@ bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
                 rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_SYNC,
                                          &event);
             }
+            // Back to reading ordinarily. The replay ends by saying it has no
+            // more to say, and taking that as the end of everything would
+            // leave whatever arrived after the gap sitting in libevdev's own
+            // buffer, where no poll can see it: it would surface at the next
+            // keystroke or at the next correction, seconds later.
+            rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_NORMAL,
+                                     &event);
             continue;
         }
 

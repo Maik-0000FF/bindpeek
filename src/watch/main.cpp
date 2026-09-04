@@ -171,17 +171,37 @@ int main() {
 
         bool changed = false;
         bool keyTaken = false;
+        bool onTheBeat = false;
 
         if ((fds[1].revents & POLLIN) != 0) {
             drain(resyncTimer);
             changed = devices.resync();
+            onTheBeat = true;
         }
 
         changed |= devices.dispatch(fds, devicesAt, &keyTaken);
-        server.dispatch(fds, serverAt, state.report(false));
 
+        // Sent before anybody new is let in. The other way round, a panel that
+        // connects in this very round gets its snapshot and then, a line
+        // later, a report saying a key was taken, and takes itself off the
+        // screen for a keystroke that happened before it existed.
         if (changed || keyTaken) {
             server.broadcast(state.report(keyTaken));
+        }
+
+        server.dispatch(fds, serverAt, state.report(false));
+
+        // After the dispatches and never before them. Both of them read their
+        // answers back at the places the poll array put them, and this is the
+        // one thing here that shortens the list those places were counted
+        // from.
+        //
+        // On the correction beat rather than at every keystroke: somebody
+        // whose session was switched away from is no longer at a screen of
+        // this machine and must stop being told, and a second and a half is
+        // soon enough for that while costing nothing in between.
+        if (onTheBeat) {
+            server.dropStrangers();
         }
 
         const bool idle = server.clients() == 0;

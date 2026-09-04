@@ -370,7 +370,7 @@ jobs:
           for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
                    "$INSTALL_BINDIR/$WATCH" "$INSTALL_DESKTOP" \
                    "$INSTALL_ICON" "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
-                   "$INSTALL_UNIT_DIR/$WATCH.service"; do
+                   "$INSTALL_UNIT_DIR/$WATCH_SERVICE_UNIT"; do
             if [ -e "$f" ]; then
               echo "ok: $f"
             else
@@ -394,7 +394,7 @@ jobs:
           for f in "$INSTALL_BINDIR/$PANEL" "$INSTALL_BINDIR/$SETTINGS" \
                    "$INSTALL_BINDIR/$WATCH" "$INSTALL_DESKTOP" \
                    "$INSTALL_ICON" "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
-                   "$INSTALL_UNIT_DIR/$WATCH.service"; do
+                   "$INSTALL_UNIT_DIR/$WATCH_SERVICE_UNIT"; do
             if [ -e "$f" ]; then
               echo "left behind: $f"
               left=1
@@ -493,7 +493,7 @@ jobs:
             "$AUTOSTART_ENTRY" \
             "$INSTALL_BINDIR/$WATCH" \
             "$INSTALL_UNIT_DIR/$WATCH_SOCKET_UNIT" \
-            "$INSTALL_UNIT_DIR/$WATCH.service"
+            "$INSTALL_UNIT_DIR/$WATCH_SERVICE_UNIT"
           do
             if [ -f "$wanted" ]; then
               echo "ok: $wanted"

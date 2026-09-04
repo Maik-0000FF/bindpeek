@@ -18,55 +18,74 @@
 namespace bindpeek::watch {
 namespace {
 
-// The state sd-login reports for a user with no session at all. Every other
-// answer means there is one, whether it is the one in front of the screen or
-// one that has been switched away from.
-constexpr char kNoSession[] = "offline";
+// How many connections one person may hold at once. A panel is one, and a
+// second is the moment during a restart when the old one has not let go yet.
+// Counted per user rather than over everybody, so that one account cannot use
+// up the room another one needs.
+constexpr std::size_t kMaxClientsPerUser = 4;
 
-// How many panels may be connected at once. One is the ordinary number and a
-// second is a moment during a restart; past that it is not a panel. A ceiling
-// at all because every connection costs a descriptor and a receive queue that
-// is never drained, and the socket is reachable by anybody logged in.
-constexpr std::size_t kMaxClients = 8;
+// Whether a user is at a seat right now, with a session in the foreground.
+//
+// A positive test rather than a list of states to refuse. sd_uid_get_state
+// would answer "lingering" for an account that is not logged in at all but has
+// services running, and "closing" for one that has logged out, and both of
+// those are exactly who this is meant to keep out; a check written as "not
+// offline" lets both in. Measured against sd_uid_get_state(3), which spells
+// out both of those states.
+//
+// The seats are enumerated rather than left to the library. Asked with no seat
+// at all, sd_uid_is_on_seat falls back to the seat of the caller's own
+// session, and this service has none: it runs under an account the service
+// manager makes for it. Read in sd-login.c, file_of_seat.
+//
+// It reads /run/systemd/seats, not /proc, so ProtectProc in the unit does not
+// blind it.
+//
+// What this does not say: which keyboard the records came from. One service
+// reads every keyboard on the machine, so on a machine with two seats the
+// person at one of them learns when the person at the other pressed a
+// modifier. Everybody served here is at a screen of this machine, which is the
+// line that can be drawn from here.
+bool atAnActiveSeat(uid_t uid) {
+    char **seats = nullptr;
+    const int count = sd_get_seats(&seats);
+    if (count < 0) {
+        return false;
+    }
 
-// Whether the other end of a connection belongs to somebody logged in.
-//
-// Not to find out who they are: to turn away everyone who is nobody. The
-// records carry the moment of every keystroke, which is worth little on its
-// own and more than nothing to a system account quietly collecting it.
-//
-// The peer credentials give the user, and sd-login is then asked about that
-// user rather than about the process. That way round on purpose: the call
-// about a process reads the cgroup of the peer out of /proc, which the unit
-// hides with ProtectProc, and every client would be refused. The call about a
-// user reads /run/systemd/users, which stays readable. Measured in
-// sd-login.c, sd_peer_get_owner_uid against sd_uid_get_state.
-//
-// Any session counts, not only an active one. A nested session, a second seat
-// or a moment during a switch between them are all somebody who may look at
-// their own keyboard; what is being kept out is the account that never logs
-// in.
-bool loggedIn(int fd) {
+    bool found = false;
+    for (int at = 0; at < count; ++at) {
+        if (!found && sd_uid_is_on_seat(uid, 1, seats[at]) > 0) {
+            found = true;
+        }
+        std::free(seats[at]);
+    }
+    // The array itself, after its strings. Cast because it is a pointer to
+    // pointers and free takes one level; the check that says so is right that
+    // the conversion is worth writing out.
+    std::free(static_cast<void *>(seats));
+    return found;
+}
+
+// Who is on the other end. Not to find out who they are: to turn away everyone
+// who is not at this machine. The records carry the moment of every keystroke,
+// which is worth little on its own and more than nothing to somebody
+// collecting it.
+bool peerUid(int fd, uid_t *uid) {
     ucred peer{};
     socklen_t size = sizeof peer;
     if (::getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peer, &size) < 0) {
         return false;
     }
-
-    char *state = nullptr;
-    if (sd_uid_get_state(peer.uid, &state) < 0) {
-        return false;
-    }
-    const bool ok = std::strcmp(state, kNoSession) != 0;
-    std::free(state);
-    return ok;
+    *uid = peer.uid;
+    return true;
 }
 
 } // namespace
 
 Server::~Server() {
-    for (const int fd : m_clients) {
-        ::close(fd);
+    for (const Client &client : m_clients) {
+        ::close(client.fd);
     }
     // The listening socket is not closed: it belongs to the service manager,
     // which keeps listening while this process is away and starts it again on
@@ -102,8 +121,7 @@ bool Server::start() {
     // connection that comes out, not on the socket being accepted from.
     if (::fcntl(m_listen, F_SETFL, O_NONBLOCK) < 0) {
         std::fprintf(stderr,
-                     "bindpeek-watch: cannot set the socket non-blocking: "
-                     "%s\n",
+                     "bindpeek-watch: cannot set the socket non-blocking: %s\n",
                      std::strerror(errno));
         return false;
     }
@@ -116,17 +134,17 @@ std::size_t Server::clients() const { return m_clients.size(); }
 // answers back at exactly those places.
 void Server::appendPollFds(std::vector<pollfd> &out) const {
     out.push_back(pollfd{m_listen, POLLIN, 0});
-    for (const int fd : m_clients) {
+    for (const Client &client : m_clients) {
         // No POLLIN: nothing a client writes is ever read. Only the hang-up is
         // of interest, and that arrives without being asked for. Watched at
         // all so that a panel which has gone is noticed there and then, rather
         // than at the next keystroke.
-        out.push_back(pollfd{fd, 0, 0});
+        out.push_back(pollfd{client.fd, 0, 0});
     }
 }
 
 void Server::drop(std::size_t at) {
-    ::close(m_clients[at]);
+    ::close(m_clients[at].fd);
     m_clients.erase(m_clients.begin() + static_cast<std::ptrdiff_t>(at));
 }
 
@@ -144,7 +162,16 @@ bool Server::sendTo(int fd, const Report &report) {
 void Server::broadcast(const Report &report) {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
         const std::size_t index = at - 1;
-        if (!sendTo(m_clients[index], report)) {
+        if (!sendTo(m_clients[index].fd, report)) {
+            drop(index);
+        }
+    }
+}
+
+void Server::dropStrangers() {
+    for (std::size_t at = m_clients.size(); at > 0; --at) {
+        const std::size_t index = at - 1;
+        if (!atAnActiveSeat(m_clients[index].uid)) {
             drop(index);
         }
     }
@@ -172,10 +199,24 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
         if (fd < 0) {
             break;
         }
-        if (m_clients.size() >= kMaxClients || !loggedIn(fd)) {
+
+        uid_t uid = 0;
+        if (!peerUid(fd, &uid) || !atAnActiveSeat(uid)) {
             ::close(fd);
             continue;
         }
+
+        std::size_t held = 0;
+        for (const Client &client : m_clients) {
+            if (client.uid == uid) {
+                ++held;
+            }
+        }
+        if (held >= kMaxClientsPerUser) {
+            ::close(fd);
+            continue;
+        }
+
         // Sent at once rather than at the next change: this client connected
         // because the panel has just started, and by then a modifier may well
         // already be down.
@@ -183,7 +224,7 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
             ::close(fd);
             continue;
         }
-        m_clients.push_back(fd);
+        m_clients.push_back(Client{fd, uid});
     }
 }
 

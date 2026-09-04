@@ -37,10 +37,12 @@ set(BINDPEEK_WATCH_RUNTIME_DIR "bindpeek")
 set(BINDPEEK_WATCH_SOCKET "/run/${BINDPEEK_WATCH_RUNTIME_DIR}/watch")
 add_compile_definitions(BINDPEEK_WATCH_SOCKET="${BINDPEEK_WATCH_SOCKET}")
 
-# The name of the socket unit. The service unit requires it by name, and the
-# panel names it in the one message it can write about a service it cannot
-# reach, so the reader is told what to enable rather than left to guess.
+# The names of the two units. The service unit requires the socket by name,
+# the panel names the socket in the one message it can write about a service
+# it cannot reach, and both install scripts have to find the files again; so
+# both are named once here and read from here everywhere else.
 set(BINDPEEK_WATCH_SOCKET_UNIT "bindpeek-watch.socket")
+set(BINDPEEK_WATCH_SERVICE_UNIT "bindpeek-watch.service")
 add_compile_definitions(
   BINDPEEK_WATCH_SOCKET_UNIT="${BINDPEEK_WATCH_SOCKET_UNIT}")
 

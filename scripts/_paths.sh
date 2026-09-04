@@ -26,6 +26,7 @@
 #   $SETTINGS_DIR         where the program keeps its settings
 #   $INPUT_GROUP          the group that used to carry read access to the keyboard
 #   $WATCH_SOCKET_UNIT    the unit that starts the service
+#   $WATCH_SERVICE_UNIT   the service unit itself
 #   $INSTALL_UNIT_DIR     where that unit is installed
 #
 # shellcheck disable=SC2034
@@ -58,10 +59,9 @@ SETTINGS="$PROJECT_NAME-editor"
 WATCH="$PROJECT_NAME-watch"
 
 # Every target, so anything done to each installed file cannot miss one. Read
-# as well
-# as derived on purpose: the three names above are checked against it below, so a
-# rename in the build file that did not reach this file stops the script rather
-# than half installing.
+# as well as derived on purpose: the three names above are checked against it
+# below, so a rename in the build file that did not reach this file stops the
+# script rather than half installing.
 #
 # The name is taken and the rest of the line thrown away, because there are two
 # shapes of that line: the sources on the lines below, or a list handed in on
@@ -169,13 +169,21 @@ SETTINGS_DIR="$HOME/.config/$PROJECT_NAME"
 # it any more.
 INPUT_GROUP=input
 
-# The unit that puts the socket in place and starts the service when a panel
-# connects. Read out of the build file, which is also where the unit files take
-# it from, so a rename cannot leave the scripts enabling something that is no
+# The two units: the one that puts the socket in place and starts the service
+# when a panel connects, and the service itself. Both read out of the build
+# file, which is also where the files themselves take their names from, so a
+# rename cannot leave the scripts enabling or deleting something that is no
 # longer there.
 WATCH_SOCKET_UNIT=$(_read_line \
     's/^set(BINDPEEK_WATCH_SOCKET_UNIT "\([^"]*\)").*/\1/p' "$_TOP_BUILD_FILE")
 if [ -z "$WATCH_SOCKET_UNIT" ]; then
     fail "Could not read the name of the socket unit out of $_TOP_BUILD_FILE."
+    exit 1
+fi
+
+WATCH_SERVICE_UNIT=$(_read_line \
+    's/^set(BINDPEEK_WATCH_SERVICE_UNIT "\([^"]*\)").*/\1/p' "$_TOP_BUILD_FILE")
+if [ -z "$WATCH_SERVICE_UNIT" ]; then
+    fail "Could not read the name of the service unit out of $_TOP_BUILD_FILE."
     exit 1
 fi

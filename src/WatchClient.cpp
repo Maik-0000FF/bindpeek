@@ -47,6 +47,39 @@ QString nameOf(std::uint8_t id) {
 
 } // namespace
 
+Heard hear(const void *record, std::size_t bytes) {
+    Heard out;
+    if (bytes != sizeof(Report)) {
+        return out;
+    }
+
+    Report copy{};
+    std::memcpy(&copy, record, sizeof copy);
+
+    if (copy.version != watch::kProtocolVersion) {
+        out.wrongVersion = true;
+        return out;
+    }
+    if (copy.count > watch::kMaxHeld) {
+        return out;
+    }
+
+    for (std::size_t at = 0; at < copy.count; ++at) {
+        const QString name = nameOf(copy.held[at]);
+        if (name.isEmpty()) {
+            // A number this panel has no name for, inside a record whose
+            // version says it should. Refused whole rather than shown with a
+            // gap in it.
+            return Heard{};
+        }
+        out.held.append(name);
+    }
+
+    out.understood = true;
+    out.keyTaken = (copy.flags & watch::kFlagKeyTaken) != 0;
+    return out;
+}
+
 WatchClient::WatchClient(QObject *parent) : QObject(parent) {
     m_retry.setInterval(kRetryMs);
     connect(&m_retry, &QTimer::timeout, this, [this]() {
@@ -65,8 +98,6 @@ QString WatchClient::socketPath() {
 QString WatchClient::socketUnit() {
     return QString::fromLatin1(BINDPEEK_WATCH_SOCKET_UNIT);
 }
-
-QStringList WatchClient::held() const { return m_held; }
 
 bool WatchClient::openConnection() {
     // SOCK_SEQPACKET because that is what the service listens on: the kernel
@@ -140,32 +171,29 @@ void WatchClient::onReadable() {
             // socket is still there to knock at.
             break;
         }
-        if (got != static_cast<ssize_t>(sizeof record) ||
-            record.version != watch::kProtocolVersion ||
-            record.count > watch::kMaxHeld) {
-            // Not a record this panel knows how to read. Refused rather than
-            // guessed at: a record of another shape means the service is not
-            // the one this was built against, and reading it anyway would put
-            // arbitrary modifiers on screen.
-            break;
-        }
 
-        QStringList held;
-        held.reserve(record.count);
-        for (std::size_t at = 0; at < record.count; ++at) {
-            const QString name = nameOf(record.held[at]);
-            if (!name.isEmpty()) {
-                held.append(name);
+        const Heard heard = hear(&record, static_cast<std::size_t>(got));
+        if (!heard.understood) {
+            if (heard.wrongVersion && !m_saidWrongVersion) {
+                // Said once, and once is the point: without it a panel left
+                // running across an upgrade of the package goes quiet and
+                // knocks every two seconds for the rest of the session with
+                // nothing to show for it.
+                m_saidWrongVersion = true;
+                std::fprintf(stderr,
+                             "bindpeek: the keyboard service speaks a version "
+                             "this panel does not know. Restart the panel.\n");
             }
+            break;
         }
 
         // The order matters: whoever hears that the shortcut was taken asks
         // what is held while doing so, and must be told the new answer first.
-        if (held != m_held) {
-            m_held = held;
+        if (heard.held != m_held) {
+            m_held = heard.held;
             emit heldChanged(m_held);
         }
-        if ((record.flags & watch::kFlagKeyTaken) != 0) {
+        if (heard.keyTaken) {
             emit shortcutTaken();
         }
     }

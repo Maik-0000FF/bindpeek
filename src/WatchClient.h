@@ -11,6 +11,29 @@ class QSocketNotifier;
 
 namespace bindpeek {
 
+// What one record from the service means, and whether it means anything at
+// all.
+//
+// A record arrives from another process, which makes reading it the one piece
+// of checking code on this side of the socket. Pulled out of the reading so it
+// can be measured without one: it takes bytes and gives an answer, and the
+// part that owns a descriptor holds no judgement of its own.
+struct Heard {
+    // False when the record is not one this panel knows how to read. Nothing
+    // else in the struct means anything then.
+    bool understood = false;
+    // Set when the record announces a version this panel was not built
+    // against, which is a service that has been replaced under a running panel
+    // rather than anything malformed.
+    bool wrongVersion = false;
+    QStringList held;
+    bool keyTaken = false;
+};
+
+// bytes is what recv returned, so a short or overlong datagram is refused here
+// rather than read past.
+Heard hear(const void *record, std::size_t bytes);
+
 // The panel's end of the keyboard watch.
 //
 // The event devices are not opened here and cannot be: this program runs as
@@ -30,9 +53,6 @@ public:
     // from here; the caller says so and gives up, because a panel that cannot
     // see a modifier has nothing to show.
     bool start();
-
-    // The modifiers held right now, canonical and in the order they went down.
-    QStringList held() const;
 
     // Where the service is expected, for the message the caller writes when
     // start() says no.
@@ -60,6 +80,10 @@ private:
     int m_fd = -1;
     QSocketNotifier *m_notifier = nullptr;
     QStringList m_held;
+
+    // Said once and then not again: a service that speaks another version
+    // will keep speaking it, and a line every two seconds is noise.
+    bool m_saidWrongVersion = false;
 
     // The service ends itself once the last panel has gone, and the socket
     // starts it again on the next connection. So a lost connection is not the

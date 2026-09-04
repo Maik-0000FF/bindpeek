@@ -222,18 +222,22 @@ install(TARGETS bindpeek-watch RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 set(BINDPEEK_WATCH_BIN ${CMAKE_INSTALL_FULL_BINDIR}/bindpeek-watch)
 configure_file(
   ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.socket.in
-  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.socket @ONLY
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SOCKET_UNIT} @ONLY
 )
 configure_file(
   ${CMAKE_SOURCE_DIR}/assets/systemd/bindpeek-watch.service.in
-  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.service @ONLY
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SERVICE_UNIT} @ONLY
 )
 
 # Below the install prefix, which the service manager searches: for the usual
 # prefix that is /usr/local/lib/systemd/system, one of the four directories
 # systemd reads system units from.
+#
+# Relative, like every other rule here. An absolute path built from the prefix
+# is fixed when the build is configured, so an install given a prefix of its
+# own would put the programs in one place and these two files in another.
 install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.socket
-  ${CMAKE_CURRENT_BINARY_DIR}/bindpeek-watch.service
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/systemd/system
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SOCKET_UNIT}
+  ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SERVICE_UNIT}
+  DESTINATION lib/systemd/system
 )
