@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[Unit]
+Description=Socket for the bindpeek modifier watch
+Documentation=https://github.com/Maik-0000FF/bindpeek
+
+[Socket]
+# SOCK_SEQPACKET, not a stream: the kernel then draws the boundary around each
+# record, so neither side needs a length field and neither side holds a parser
+# for one.
+ListenSequentialPacket=@BINDPEEK_WATCH_SOCKET@
+
+# The directory the socket lives in, made by the service manager rather than by
+# the service, and kept while the socket is enabled. Preserved on purpose: the
+# service comes and goes with the panel, and the path it is reached at must not
+# come and go with it.
+RuntimeDirectory=@BINDPEEK_WATCH_RUNTIME_DIR@
+RuntimeDirectoryPreserve=yes
+
+# Open to everyone, and the decision about who is served is taken in the
+# service instead. A mode cannot express "anybody who is logged in", which is
+# the rule that is wanted: the records carry the moment of every keystroke, so
+# a system account has no business reading them, while any user at the machine
+# may read their own keyboard.
+SocketMode=0666
+
+[Install]
+WantedBy=sockets.target

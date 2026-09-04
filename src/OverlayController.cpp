@@ -3,7 +3,7 @@
 
 #include "OverlayController.h"
 
-#include "KeyboardWatch.h"
+#include "WatchClient.h"
 
 #include <QCoreApplication>
 #include <QPair>
@@ -70,7 +70,7 @@ bool nearerFirst(const Row &left, const Row &right) {
 } // namespace
 
 OverlayController::OverlayController(std::unique_ptr<Source> source,
-                                     KeyboardWatch *watch, int showDelayMs,
+                                     WatchClient *watch, int showDelayMs,
                                      QObject *parent)
     : QObject(parent), m_source(std::move(source)) {
     m_delay.setSingleShot(true);
@@ -78,9 +78,9 @@ OverlayController::OverlayController(std::unique_ptr<Source> source,
     connect(&m_delay, &QTimer::timeout, this,
             &OverlayController::onDelayElapsed);
 
-    connect(watch, &KeyboardWatch::heldChanged, this,
+    connect(watch, &WatchClient::heldChanged, this,
             &OverlayController::onHeldChanged);
-    connect(watch, &KeyboardWatch::shortcutTaken, this,
+    connect(watch, &WatchClient::shortcutTaken, this,
             &OverlayController::onShortcutTaken);
 }
 

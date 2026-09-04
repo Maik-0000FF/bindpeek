@@ -880,15 +880,12 @@
         </translation>
     </message>
     <message>
-        <source>No keyboard could be read under /dev/input. Membership in the &quot;input&quot; group is required.</source>
-        <translation>Unter /dev/input ist keine Tastatur lesbar. Dafür ist die Mitgliedschaft in der Gruppe &quot;input&quot; nötig.</translation>
+        <source>The keyboard service is not answering at %1. It is started by %2.</source>
+        <translation>Der Tastaturdienst antwortet unter %1 nicht. Er wird von %2 gestartet.</translation>
     </message>
-    <message numerus="yes">
-        <source>Watching %n keyboard(s). Ctrl+C ends it.</source>
-        <translation>
-            <numerusform>%n Tastatur wird gelesen. Ctrl+C beendet.</numerusform>
-            <numerusform>%n Tastaturen werden gelesen. Ctrl+C beendet.</numerusform>
-        </translation>
+    <message>
+        <source>Connected to the keyboard service. Ctrl+C ends it.</source>
+        <translation>Mit dem Tastaturdienst verbunden. Ctrl+C beendet.</translation>
     </message>
     <message>
         <source>bindpeek is already running as process %1.</source>
@@ -923,8 +920,8 @@
         <translation>Pfad</translation>
     </message>
     <message>
-        <source>Print the held modifiers as they change, for checking that the event devices are readable.</source>
-        <translation>Gehaltene Modifier bei jeder Änderung ausgeben, zur Prüfung ob die Eingabegeräte lesbar sind.</translation>
+        <source>Print the held modifiers as they change, for checking that the keyboard service is reachable.</source>
+        <translation>Gehaltene Modifier bei jeder Änderung ausgeben, zur Prüfung ob der Tastaturdienst erreichbar ist.</translation>
     </message>
     <message>
         <source>No supported environment detected. Force one with --environment %1.</source>

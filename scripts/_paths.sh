@@ -13,8 +13,10 @@
 #
 # After sourcing, the caller can rely on:
 #
-#   $PANEL $SETTINGS      the two programs
-#   $PROGRAMS             both of them, for anything done to each in turn
+#   $PANEL $SETTINGS      the two programs of the session
+#   $WATCH                the service that reads the keyboard
+#   $PROGRAMS             all three, for anything done to each installed file
+#   $SESSION_PROGRAMS     the two of the session, for anything run as the user
 #   $DESKTOP_ID           base name of the installed desktop entry
 #   $BUILD_DIR            where install.sh builds and uninstall.sh looks
 #   $INSTALL_BINDIR       where the programs go
@@ -22,7 +24,10 @@
 #   $INSTALL_ICON         the installed icon
 #   $AUTOSTART_ENTRY      the copy that starts the tray with the session
 #   $SETTINGS_DIR         where the program keeps its settings
-#   $INPUT_GROUP          the group that carries read access to the keyboard
+#   $INPUT_GROUP          the group that used to carry read access to the keyboard
+#   $WATCH_SOCKET_UNIT    the unit that starts the service
+#   $WATCH_SERVICE_UNIT   the service unit itself
+#   $INSTALL_UNIT_DIR     where that unit is installed
 #
 # shellcheck disable=SC2034
 # All of these are read by the sourcing script.
@@ -48,11 +53,15 @@ PROJECT_NAME=$(_read_line 's/^project(\([A-Za-z0-9_-]\{1,\}\) .*/\1/p' \
     "$_TOP_BUILD_FILE")
 PANEL="$PROJECT_NAME"
 SETTINGS="$PROJECT_NAME-editor"
+# The service that reads the keyboard, which is not one of the two the person
+# using this ever starts: it is started by its socket unit when the panel
+# connects.
+WATCH="$PROJECT_NAME-watch"
 
-# Both targets, so anything done to each in turn cannot miss one. Read as well
-# as derived on purpose: the two names above are checked against it below, so a
-# rename in the build file that did not reach this file stops the script rather
-# than half installing.
+# Every target, so anything done to each installed file cannot miss one. Read
+# as well as derived on purpose: the three names above are checked against it
+# below, so a rename in the build file that did not reach this file stops the
+# script rather than half installing.
 #
 # The name is taken and the rest of the line thrown away, because there are two
 # shapes of that line: the sources on the lines below, or a list handed in on
@@ -62,6 +71,12 @@ mapfile -t PROGRAMS < <(
     sed -n 's/^add_executable(\([A-Za-z0-9_-]\{1,\}\).*$/\1/p' \
         "$_SRC_BUILD_FILE" 2>/dev/null
 )
+
+# The two that run in the session, which is what anything looking for a running
+# process means. The service is left out on purpose: it runs under an account
+# of its own that this script has no business signalling, and the service
+# manager is what stops it.
+SESSION_PROGRAMS=("$PANEL" "$SETTINGS")
 
 DESKTOP_ID=$(_read_line 's/^set(BINDPEEK_DESKTOP_ID "\([^"]*\)").*/\1/p' \
     "$_TOP_BUILD_FILE")
@@ -99,15 +114,15 @@ if [ -z "$PROJECT_NAME" ] || [ -z "$DESKTOP_ID" ] ||
         "Run this from the checkout it came with."
     exit 1
 fi
-if [ "${#PROGRAMS[@]}" -lt 2 ]; then
+if [ "${#PROGRAMS[@]}" -lt 3 ]; then
     # A sentence of its own. Everything above was read perfectly well, and
     # telling somebody to run this from the right checkout when they already
     # are is an answer to a question they did not ask.
-    fail "The build file lists fewer than the two programs there should be." \
+    fail "The build file lists fewer than the three programs there should be." \
         "In $_SRC_BUILD_FILE, found: ${PROGRAMS[*]:-nothing}"
     exit 1
 fi
-for _expected in "$PANEL" "$SETTINGS"; do
+for _expected in "$PANEL" "$SETTINGS" "$WATCH"; do
     _found=0
     for _program in "${PROGRAMS[@]}"; do
         [ "$_program" = "$_expected" ] && _found=1
@@ -136,6 +151,10 @@ INSTALL_BINDIR="$INSTALL_PREFIX/bin"
 INSTALL_DESKTOP="$INSTALL_PREFIX/share/applications/$DESKTOP_ID.desktop"
 INSTALL_ICON="$INSTALL_PREFIX/share/icons/hicolor/scalable/apps/$ICON_NAME.svg"
 
+# Where the units the build writes are installed, which is one of the four
+# directories the service manager reads system units from.
+INSTALL_UNIT_DIR="$INSTALL_PREFIX/lib/systemd/system"
+
 # The autostart directory follows the specification, because what reads it is a
 # desktop environment and that is what a desktop environment follows.
 AUTOSTART_ENTRY="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/$DESKTOP_ID.desktop"
@@ -145,4 +164,26 @@ AUTOSTART_ENTRY="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/$DESKTOP_ID.desktop
 # where they arguably ought to be.
 SETTINGS_DIR="$HOME/.config/$PROJECT_NAME"
 
+# The group earlier versions asked for. Kept only so both scripts can find a
+# membership that is still there and offer to take it away: nothing here needs
+# it any more.
 INPUT_GROUP=input
+
+# The two units: the one that puts the socket in place and starts the service
+# when a panel connects, and the service itself. Both read out of the build
+# file, which is also where the files themselves take their names from, so a
+# rename cannot leave the scripts enabling or deleting something that is no
+# longer there.
+WATCH_SOCKET_UNIT=$(_read_line \
+    's/^set(BINDPEEK_WATCH_SOCKET_UNIT "\([^"]*\)").*/\1/p' "$_TOP_BUILD_FILE")
+if [ -z "$WATCH_SOCKET_UNIT" ]; then
+    fail "Could not read the name of the socket unit out of $_TOP_BUILD_FILE."
+    exit 1
+fi
+
+WATCH_SERVICE_UNIT=$(_read_line \
+    's/^set(BINDPEEK_WATCH_SERVICE_UNIT "\([^"]*\)").*/\1/p' "$_TOP_BUILD_FILE")
+if [ -z "$WATCH_SERVICE_UNIT" ]; then
+    fail "Could not read the name of the service unit out of $_TOP_BUILD_FILE."
+    exit 1
+fi

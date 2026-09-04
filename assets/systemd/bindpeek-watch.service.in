@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[Unit]
+Description=bindpeek modifier watch
+Documentation=https://github.com/Maik-0000FF/bindpeek
+Requires=@BINDPEEK_WATCH_SOCKET_UNIT@
+After=@BINDPEEK_WATCH_SOCKET_UNIT@
+
+[Service]
+ExecStart=@BINDPEEK_WATCH_BIN@
+
+# Started by the socket when a panel connects, and it ends itself once the last
+# one has gone. Not restarted: there is nothing to come back to until somebody
+# connects again, and then the socket starts it afresh.
+Restart=no
+
+# An account that exists only while the service runs, and the one group that
+# carries read access to the event devices. This is the whole reason the
+# service exists: the ability belongs to it and lasts as long as it does,
+# instead of belonging to a person's account and outliving the program.
+DynamicUser=yes
+SupplementaryGroups=input
+
+# The event devices and nothing else. PrivateDevices is deliberately not set:
+# it would hand the service a /dev of its own holding a handful of nodes, and
+# the keyboards would not be among them.
+DevicePolicy=closed
+DeviceAllow=char-input r
+
+# One socket to a local peer is the whole of what this talks to.
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+IPAddressDeny=any
+
+# Nothing is gained, nothing is kept, nothing is written.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+UMask=0077
+
+# The rest of the machine is none of its business.
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

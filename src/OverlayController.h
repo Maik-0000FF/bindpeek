@@ -14,7 +14,7 @@
 
 namespace bindpeek {
 
-class KeyboardWatch;
+class WatchClient;
 
 // State behind the overlay. It owns the shortcut list, follows the modifiers
 // the keyboard watch reports and decides when the panel is on screen.
@@ -51,7 +51,7 @@ class OverlayController : public QObject {
 
 public:
     // showDelayMs comes from the settings; see Settings::showDelayMs().
-    OverlayController(std::unique_ptr<Source> source, KeyboardWatch *watch,
+    OverlayController(std::unique_ptr<Source> source, WatchClient *watch,
                       int showDelayMs, QObject *parent = nullptr);
     ~OverlayController() override;
 

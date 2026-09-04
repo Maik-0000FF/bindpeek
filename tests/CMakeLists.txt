@@ -39,16 +39,15 @@ add_test(NAME compositor COMMAND test_compositor)
 
 # The controller is the second consumer of groupBinds and lives in the
 # executable, where no other test target reaches it. Its source is compiled in
-# here together with the keyboard watch it holds a pointer to, which is what
-# brings libevdev along; no device is opened, the watch is only constructed and
-# used to deliver a signal.
+# here together with the client it holds a pointer to; no connection is made,
+# the client is only constructed and used to deliver a signal.
 add_executable(test_overlay
   test_overlay.cpp
   ${CMAKE_SOURCE_DIR}/src/OverlayController.cpp
-  ${CMAKE_SOURCE_DIR}/src/KeyboardWatch.cpp
+  ${CMAKE_SOURCE_DIR}/src/WatchClient.cpp
 )
-target_link_libraries(test_overlay PRIVATE bindpeek_sources Qt6::Test
-                                           PkgConfig::Libevdev)
+target_link_libraries(test_overlay PRIVATE bindpeek_sources
+                                           bindpeek_watch_protocol Qt6::Test)
 
 add_test(NAME overlay COMMAND test_overlay)
 
@@ -178,3 +177,18 @@ target_link_libraries(test_layer_placement PRIVATE bindpeek_sources
                                                    Qt6::Test)
 
 add_test(NAME layer_placement COMMAND test_layer_placement)
+
+# The state the keyboard watch keeps, measured without a keyboard. That is what
+# the service is split for: the part with a state takes key codes and hands
+# back a record, and the part that opens descriptors keeps no state of its own.
+# The client is compiled in so that both ends of the record are measured in
+# one place: the service writes it and the panel reads it, and the reading is
+# the only checking code on the panel side of the socket.
+add_executable(test_watch
+  test_watch.cpp
+  ${CMAKE_SOURCE_DIR}/src/WatchClient.cpp
+)
+target_link_libraries(test_watch PRIVATE bindpeek_watch_core bindpeek_sources
+                                         Qt6::Test)
+
+add_test(NAME watch COMMAND test_watch)

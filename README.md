@@ -85,9 +85,11 @@ cd bindpeek
 ```
 
 The script names what is missing before it installs anything, builds, and then
-asks two questions separately, because both give away more than an installation
-normally does: whether to add you to the `input` group, and whether to start the
-tray with your session. Log out and back in afterwards if the group was added.
+asks two questions separately, because both change more than an installation
+normally does: whether to switch on the service that reads the keyboard, and
+whether to start the tray with your session. It also offers to take away the
+`input` group if an earlier version put your account in it, because nothing
+here needs it any more.
 
 ### Nix / NixOS
 
@@ -99,8 +101,7 @@ bindpeek.url = "github:Maik-0000FF/bindpeek";
 imports = [ inputs.bindpeek.nixosModules.default ];
 programs.bindpeek = {
   enable = true;
-  # Both are off by default because both widen what the machine allows:
-  inputAccessFor = [ "alice" ];   # read access to the keyboard
+  # Off by default, because it starts a program in everybody's session:
   autoStart = true;               # tray in every graphical session
 };
 ```
@@ -160,14 +161,16 @@ a comment above every line. Both are read live. See
   wlroots-based one does, which is mango, sway, river and their like, and so do
   Hyprland, KWin and niri, which are each built on something of their own and
   carry the protocol anyway. GNOME/Mutter and X11 cannot show the panel.
-- Membership in the `input` group. The panel appears while a modifier is held,
-  and a Wayland program is told nothing about a key until it has the focus,
-  which the panel deliberately never takes. The modifiers are therefore read
-  from the event devices below the compositor, and that is what the group
-  grants. See **[How It Works](docs/HOW-IT-WORKS.md)** for what it means.
-- Qt 6.7 or newer, layer-shell-qt and libevdev. `install.sh` installs them for
-  you, and shows every package by name before it does. What that comes to on
-  your distribution:
+- systemd. The keyboard is read by a service that the socket unit starts when
+  the panel connects, and that runs under an account the service manager makes
+  and unmakes around it. The panel appears while a modifier is held, and a
+  Wayland program is told nothing about a key until it has the focus, which the
+  panel deliberately never takes; so the modifiers are read below the
+  compositor, and this is what keeps that ability out of your account. See
+  **[How It Works](docs/HOW-IT-WORKS.md)**.
+- Qt 6.7 or newer, layer-shell-qt, libevdev and libsystemd. `install.sh`
+  installs them for you, and shows every package by name before it does. What
+  that comes to on your distribution:
   [What gets installed](docs/INSTALLATION.md#what-gets-installed).
 - A release recent enough to carry that Qt. On the Debian side that means
   Ubuntu 26.04 or newer and Debian trixie or newer; the automated checks build
