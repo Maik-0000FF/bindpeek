@@ -116,7 +116,6 @@ step "shellcheck (warnings and above)"
 # gate by not being named here.
 sources '*.sh' | xargs -0 -r shellcheck -S warning
 
-
 step "a script that can be run says so, and only those"
 # ./install.sh and ./uninstall.sh are how the readme, the installation page and
 # the workflow all name them. Without the executable bit that is "Permission
