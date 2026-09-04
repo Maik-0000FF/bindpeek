@@ -186,9 +186,9 @@ sudo systemctl enable --now bindpeek-watch.socket
 What has to be installed first, under whatever your distribution calls it:
 CMake, Ninja, pkg-config, a C++20 compiler, Qt 6 (base, declarative, svg,
 wayland and the Linguist tools), layer-shell-qt, libevdev and libsystemd. On
-Debian and its derivatives the QML runtime modules are packaged separately and are needed as
-well. KDE's KConfig framework is wanted on top of that and the build says so if
-it is missing, leaving out the KDE backend and nothing else.
+Debian and its derivatives the QML runtime modules are packaged separately and
+are needed as well. KDE's KConfig framework is wanted on top of that, and the
+build says so if it is missing, leaving out the KDE backend and nothing else.
 `scripts/_packages.sh` has the exact names for all four families, and it is the
 same file the script and the automated checks read.
 

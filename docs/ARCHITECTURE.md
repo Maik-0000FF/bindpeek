@@ -1,12 +1,15 @@
-<!--
+| `src/watch/` | The service. It reads the event devices under `/dev/input` and never grabs them, so every key still goes where it was going. Its own program, without Qt |<!--
 SPDX-FileCopyrightText: 2026 Maik-0000FF
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
 # Architecture
 
-Three programs, one static library, one QML panel drawn from one set of tokens.
-This is what lives where and why it lives there rather than somewhere else.
+Three programs, two static libraries, one QML panel drawn from one set of
+tokens, and one library that carries nothing but a header: the shape of the
+record the service and the panel agree on. That last one is what keeps the
+panel from reaching the code that opens devices. This is what lives where and
+why it lives there rather than somewhere else.
 
 ## The three programs
 
@@ -46,7 +49,7 @@ which makes the line a property of the build rather than a habit.
 | `src/Compositor.*` | Whether this session can show a layer surface at all, and what to say when it cannot |
 | `src/AppInfo.*` | The one sentence that describes the program, and the two paths in the runtime directory both programs agree on |
 | `src/SystemScheme.*` | The desktop's light/dark setting, asked of the portal. What `followSystemScheme` follows, and what picks the ink of the tray icon |
-| `src/watch/` | The service that reads the event devices under `/dev/input`, read and never grabbed. Its own program, without Qt |
+| `src/watch/` | The service. It reads the event devices under `/dev/input` and never grabs them, so every key still goes where it was going. Its own program, without Qt |
 | `src/watch/Protocol.h` | The eight bytes the service and the panel agree on, and the only file both of them read |
 | `src/WatchClient.*` | The panel's end of that socket: connect, read a record, pass it on. Opens no device, and links nothing that could |
 | `src/OverlayController.*` | When the panel is on screen: the delay, what is held, what to show |

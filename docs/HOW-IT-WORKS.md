@@ -111,9 +111,10 @@ that exists only for it.
   second start of the settings window raises the window that is already open.
 - It writes nowhere but `~/.config/bindpeek`, plus a lock file and that socket
   in the runtime directory.
-- It reads no key but the modifiers. What the service hands out is which of the
-  four are held and the bare fact that some other key went down, never which
-  one, and nothing on the panel's side of that socket could ask for more.
+- It hands out no key but the modifiers. The service has to see every key, or
+  it could not say that a shortcut was taken at all; what leaves it is which of
+  the four are held and the bare fact that some other key went down, never
+  which one, and nothing on the panel's side of that socket could ask for more.
 - It runs no shortcut. The panel shows what a combination is bound to and has no
   way to carry it out; the key goes to the compositor and the compositor does
   what it was told. Two things it does start: the panel, which the settings
