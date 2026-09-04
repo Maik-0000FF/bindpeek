@@ -1,4 +1,4 @@
-| `src/watch/` | The service. It reads the event devices under `/dev/input` and never grabs them, so every key still goes where it was going. Its own program, without Qt |<!--
+<!--
 SPDX-FileCopyrightText: 2026 Maik-0000FF
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
