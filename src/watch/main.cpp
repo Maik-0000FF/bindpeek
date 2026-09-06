@@ -22,21 +22,20 @@
 #include <sys/timerfd.h>
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <vector>
 
 #include "Devices.h"
-#include "Modifiers.h"
-#include "Protocol.h"
+#include "Seats.h"
 #include "Server.h"
 
 namespace {
 
 using bindpeek::watch::Devices;
-using bindpeek::watch::Modifiers;
-using bindpeek::watch::Report;
+using bindpeek::watch::Seats;
 using bindpeek::watch::Server;
 
 // How often the real state of the modifier keys is fetched from the devices.
@@ -117,16 +116,18 @@ int main() {
         return 1;
     }
 
-    Modifiers state;
+    Seats state;
     Server server;
     if (!server.start()) {
         return 1;
     }
 
+    // Made, not started. The socket is open to everyone and the decision about
+    // who is served is taken here, so anybody local can have this process
+    // begun; opening the keyboards at that point would open them for somebody
+    // who is about to be turned away. They are opened further down, once a
+    // client has passed the check.
     Devices devices(state);
-    if (!devices.start()) {
-        return 1;
-    }
 
     arm(resyncTimer, kResyncIntervalMs, true);
     // Armed from the start: the socket unit begins this process when somebody
@@ -169,33 +170,51 @@ int main() {
             }
         }
 
-        bool changed = false;
-        bool keyTaken = false;
         bool onTheBeat = false;
 
         if ((fds[1].revents & POLLIN) != 0) {
             drain(resyncTimer);
-            changed = devices.resync();
+            devices.resync();
             onTheBeat = true;
         }
 
-        changed |= devices.dispatch(fds, devicesAt, &keyTaken);
+        devices.dispatch(fds, devicesAt);
 
         // The last reader of the poll answers, and therefore the last moment
         // at which the client list still has the length those answers were
         // counted from. Everything below shortens it, so everything below
         // comes after this line: broadcast drops whoever it cannot reach, and
         // dropStrangers drops whoever left their seat.
-        server.dispatch(fds, serverAt, state.report(false));
+        server.dispatch(fds, serverAt);
 
-        if (changed || keyTaken) {
-            server.broadcast(state.report(keyTaken));
+        // The first client has passed the check, so now there is somebody to
+        // read the keyboards for. Nothing above this line has opened one, and
+        // a caller who is refused starts a process that opens nothing and goes
+        // away when the idle timer fires.
+        //
+        // Whoever is waiting has not joined yet, so there is nobody in the
+        // list to miss what this finds; the state it leaves behind is what
+        // they are sent a few lines below.
+        if (!devices.watching() && server.waiting() > 0 && !devices.start()) {
+            return 1;
         }
 
-        // Only now do the ones accepted a moment ago join, so that a panel
+        // Seat by seat, because what is held at one of them is nothing to do
+        // with the person at the other. Which seats have anything to say is
+        // the state's own answer: it keeps the record that last went out and
+        // compares, so nothing has to be threaded back from the reading.
+        for (std::size_t at = 0; at < state.count(); ++at) {
+            if (state.hasNews(at)) {
+                server.broadcast(state.nameAt(at), state.report(at));
+            }
+        }
+        state.settle();
+
+        // Only now do the ones accepted a moment ago join, each given the
+        // state of their own seat as it stands on the way in, so that a panel
         // which connected during this very round is not told a key was taken
-        // before it existed. It has its snapshot already.
-        server.admit();
+        // before it existed.
+        server.admit(state);
 
         // On the correction beat rather than at every keystroke: somebody
         // whose session was switched away from is no longer at a screen of

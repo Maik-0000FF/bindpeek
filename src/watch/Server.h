@@ -7,9 +7,11 @@
 #include <sys/types.h>
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "Protocol.h"
+#include "Seats.h"
 
 namespace bindpeek::watch {
 
@@ -18,6 +20,10 @@ namespace bindpeek::watch {
 // Nothing is ever read from a client. There is no request, no command and no
 // setting to send, so this half of the program holds no parser at all, and the
 // half that holds the keyboards cannot be talked into anything.
+//
+// Everybody is served the seat they are sitting at and no other. The seat is
+// read when they are let in, and read again while they stay: a session can be
+// switched away from long after it connected.
 class Server {
 public:
     Server() = default;
@@ -36,30 +42,43 @@ public:
 
     void appendPollFds(std::vector<pollfd> &out) const;
 
-    // Accepts what is new and drops what has gone. A client that has just
-    // connected is sent the record at once: it connected because the panel was
-    // started, and by then a modifier may well already be down.
+    // Accepts what is new and drops what has gone. Nothing is sent from here:
+    // whoever passes the check waits in the list below until admit, which is
+    // after the keyboards have been opened for them and therefore the first
+    // moment at which there is a true record to send.
     //
     // This is the only place the poll answers are read, and they are read at
     // the places appendPollFds put them. So it is also the last moment at
     // which the list of clients still has the length those places were counted
     // from: everything below that shortens it belongs after this call.
-    void dispatch(const std::vector<pollfd> &ready, std::size_t offset,
-                  const Report &current);
+    void dispatch(const std::vector<pollfd> &ready, std::size_t offset);
 
-    // Drops whoever the record could not be given to.
-    void broadcast(const Report &report);
+    // Gives the record to everybody sitting at that seat, and drops whoever it
+    // could not be given to.
+    void broadcast(const std::string &seat, const Report &report);
 
-    // Takes whoever was accepted this round into the list proper. Held back
-    // until here so that a panel which connected during this very round is
-    // not sent a report saying a key was taken before it existed, which would
-    // take it off the screen for a keystroke that was not its business.
-    void admit();
+    // Takes whoever was accepted this round into the list proper, each sent
+    // the record of their own seat as it stands on the way in: they connected
+    // because a panel has just started, and by then a modifier may well
+    // already be down.
+    //
+    // Held back until here for two reasons. A panel which connected during
+    // this very round must not be sent a report saying a key was taken before
+    // it existed, which would take it off the screen for a keystroke that was
+    // not its business. And the keyboards are opened between the accept and
+    // this call, so before it there is nothing to tell anybody.
+    void admit(const Seats &state);
 
-    // Drops whoever is no longer at an active seat. Checked again rather than
-    // only at the door: a session can be switched away from long after it
-    // connected, and the records would otherwise keep going to a screen
-    // nobody is looking at.
+    // How many have passed the check this round and are waiting to be let in.
+    // Read by the caller as the signal to open the keyboards, which happens
+    // for the first client and not before.
+    std::size_t waiting() const;
+
+    // Drops whoever is no longer at the seat they were let in on: they have
+    // left it, or they are at another one now and the records of this one are
+    // no longer theirs to have. Checked again rather than only at the door,
+    // because a session can be switched away from long after it connected and
+    // the records would otherwise keep going to a screen nobody is looking at.
     void dropStrangers();
 
     std::size_t clients() const;
@@ -71,6 +90,9 @@ private:
         // descriptor a second time, and so the limit can be counted per
         // person rather than over everybody at once.
         uid_t uid;
+        // The seat they were let in on, which is the one they are served and
+        // the one they have to still be at when they are looked at again.
+        std::string seat;
     };
 
     void drop(std::size_t at);

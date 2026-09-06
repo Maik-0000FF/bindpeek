@@ -284,6 +284,7 @@ private slots:
     void swayReadsTheSample();
     void swaySplitsALineTheWaySwayDoes();
     void swayReadsAKeywordWithoutRegardToCase();
+    void swayFoldsEveryBindingWord();
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAnIncludeIsNotFollowed();
@@ -1576,6 +1577,57 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     // test, which loads no catalogue.
     QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
     QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
+}
+
+// The two binding words that leave no trace, asked directly.
+//
+// sway looks a command up without regard to case, and all four binding words
+// are read that way. This parser asks after seven keywords, and five of them
+// are pinned down by what they produce: bindsym through the sample, set
+// through a bind written with the variable it defines, mode through the group
+// a bind lands in, include and bindcode through the sentence they add. Two are
+// not. A switch and a gesture are passed over on purpose and are not even
+// counted as left out, so a configuration writing them as "BindSwitch" and
+// "BindGesture" parses to exactly what one writing them in lower case parses
+// to, and to what one misspelling them entirely parses to. Turning those two
+// comparisons into exact ones leaves every other case in this suite passing,
+// which is what makes this one worth having.
+//
+// Since no configuration can show it, the question is put to the function that
+// answers it, which the backend hands out for exactly this reason. Reading the
+// parser as text was tried first and given up on: every pattern that forbade
+// one spelling of an exact comparison left another one open, and a pattern
+// tight enough to catch them refused changes that were right. A behaviour
+// asked in one line has no such edges.
+//
+// One thing was lost with the text and is not coming back here. Reading the
+// source could say "these four words and no others", by comparing the list of
+// constants the function names; asking it can only say "yes to these four, no
+// to the ones asked about". A fifth word added and folded correctly passes
+// every line below, and nothing in this suite would mention it. That is not a
+// correctness gap, since such a word binding something is right, but the nudge
+// to write it down in both places is gone, and it is gone on purpose.
+void TestSources::swayFoldsEveryBindingWord() {
+    // Written the way sway takes them, which is any way at all.
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindsym")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindSym")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindcode")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BINDCODE")));
+
+    // The two this case exists for. Nothing in a parsed configuration tells
+    // these apart from a word the parser never heard of.
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindswitch")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindSwitch")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindgesture")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindGesture")));
+
+    // And a word that binds nothing is refused, which is what keeps a function
+    // saying yes to anything from passing every line above. It does not say
+    // that the four are the only four; see the note over this case.
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("bindpointer")));
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("BindSwitcher")));
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("exec")));
+    QVERIFY(!SourceSway::bindsSomething(QString()));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
