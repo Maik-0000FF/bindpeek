@@ -32,18 +32,20 @@ public:
     // lives. The same physical key held on two keyboards is two entries here,
     // and the modifier only lifts when the last of them is up.
     //
-    // Both return true when the held modifiers changed, which is when there is
-    // anything to send.
-    bool press(int device, int code);
-    bool release(int device, int code);
+    // Nothing is handed back by any of these. Whether there is anything to
+    // send is not a fact about one press but about the whole of what is held,
+    // and it is answered by comparing the list below with the one that last
+    // went out, which is where that comparison lives.
+    void press(int device, int code);
+    void release(int device, int code);
 
     // A device is gone. Everything it held goes with it, because a key on a
     // keyboard that has been unplugged can never be released.
-    bool forget(int device);
+    void forget(int device);
 
     // What one device really reports right now, replacing what it was thought
     // to hold. This is the correction after a key-up that never arrived.
-    bool reconcile(int device, const std::vector<int> &down);
+    void reconcile(int device, const std::vector<int> &down);
 
     // The modifiers that are down, in the order they went down, each named
     // once however many keys are producing it.
@@ -62,9 +64,8 @@ private:
     // What the keys that are down produce, in the order they were pressed.
     std::vector<std::uint8_t> produced() const;
 
-    // Brings the held list into line with that. Returns true when it changed,
-    // which is the only thing any of the callers report.
-    bool refresh();
+    // Brings the held list into line with that.
+    void refresh();
 
     // Every modifier key that is physically down. What is held follows from
     // it, and the two-keyboard case needs no special handling anywhere.

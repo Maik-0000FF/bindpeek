@@ -32,11 +32,24 @@ account exists. So a service of its own does the reading:
 - It runs under an account the service manager makes when it starts and unmakes
   when it stops. No login on the machine gains anything by it being there.
 - It is started by a socket when a panel connects, and it ends itself once the
-  last panel has gone. Nothing holds a keyboard while nothing is showing.
+  last panel has gone. The keyboards are opened after the connection has been
+  allowed and not before, so somebody who is turned away has started a process
+  that opens nothing. Nothing holds a keyboard while nothing is showing.
 - What leaves it is which modifiers are held and the bare fact that some other
   key went down. No key codes, no characters.
 - It reads nothing from whoever connects, and it answers only somebody who is
-  logged in at a screen of this machine.
+  logged in at a screen of this machine. On a machine with several seats, each
+  one is told about its own keyboards and about no others: the seat a keyboard
+  belongs to is read when it is opened, and the seat somebody is sitting at is
+  read when they connect and again while they stay. A keyboard plugged in while
+  the service runs can be opened before udev has said which seat it is on; it
+  is asked again a moment later, and until there is an answer the keyboard is
+  read and what it says is thrown away, so that none of it reaches the wrong
+  seat. Where udev answers nothing at all, which is a machine that has no
+  second seat either, the first seat is taken between one and a half and three
+  seconds in, and the service writes a line to its journal saying which
+  keyboard it did that for. A keyboard moved to another seat afterwards keeps
+  the seat this service placed it at until it is opened again.
 
 The panel therefore holds no keyboard descriptor at all, and cannot: it is not
 even linked against the library that would open one.
