@@ -53,7 +53,9 @@ public:
     // Whether a word is one of the four sway binds something with, read the
     // way sway reads it, which is without regard to case.
     //
-    // Visible for the same reason as the function above, one step further in.
+    // Visible for the same kind of reason as the function above, one step
+    // further in, though the obstacle is a different one: there the compositor
+    // is missing, here the effect.
     // Two of the four, bindswitch and bindgesture, bind nothing a keyboard can
     // hold: they are passed over and are not even counted as left out, so a
     // parsed configuration answers the same whether they were recognised or

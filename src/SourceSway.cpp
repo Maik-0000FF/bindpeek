@@ -497,13 +497,6 @@ QStringList configLines(const QString &text) {
 // A switch and a gesture are in neither group. Neither was ever going to
 // appear on a keyboard cheat sheet, and a note about them would say something
 // is missing where nothing is.
-bool SourceSway::bindsSomething(const QString &keyword) {
-    return isKeyword(keyword, kKeywordBindsym) ||
-           isKeyword(keyword, kKeywordBindcode) ||
-           isKeyword(keyword, kKeywordBindswitch) ||
-           isKeyword(keyword, kKeywordBindgesture);
-}
-
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
@@ -761,6 +754,16 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         *note = notes.join(QLatin1String(kNoteSeparator));
     }
     return binds;
+}
+
+// Whether a line binds something, whatever it binds it to. Below the function
+// that asks it rather than above, so that the block over that one documents it
+// and nothing else.
+bool SourceSway::bindsSomething(const QString &keyword) {
+    return isKeyword(keyword, kKeywordBindsym) ||
+           isKeyword(keyword, kKeywordBindcode) ||
+           isKeyword(keyword, kKeywordBindswitch) ||
+           isKeyword(keyword, kKeywordBindgesture);
 }
 
 SourceSway::SourceSway(QString path) : m_configPath(std::move(path)) {}
