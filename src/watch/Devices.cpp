@@ -244,17 +244,22 @@ void Devices::scan() {
     }
     ::closedir(dir);
 
-    // Everything still provisional is asked again, here rather than at the
-    // next correction beat. udev writes its database within microseconds of
-    // granting the permissions a device is opened on, so by the end of the
-    // scan the answer has almost always arrived, while the beat is up to a
-    // second and a half away and the device is deaf until it comes.
+    // Everything still provisional is asked again, here rather than only at
+    // the next correction beat. What that is worth depends on which scan this
+    // is. The one at the start walks every node, so a device opened early is
+    // asked again once the rest have been opened, which is a real second
+    // chance. A scan that a hotplug set off opens the one node and reaches it
+    // again microseconds later, which is the same width as the window itself:
+    // it may catch the answer and it may not, and the beat is what settles it
+    // when it does not. Either way this can only shorten the wait, and it
+    // costs one question per device that has not answered yet.
     //
-    // Deaf costs more than a late modifier. The bare fact that some other key
-    // went down is what takes the panel off the screen, and dropping it leaves
-    // the panel standing over a shortcut that has fired: hold SUPER on the
-    // keyboard that was already open, press a letter on the one just plugged
-    // in, and the panel would sit there.
+    // Worth shortening, because the wait is not a late modifier but a deaf
+    // keyboard. The bare fact that some other key went down is what takes the
+    // panel off the screen, and dropping it leaves the panel standing over a
+    // shortcut that has fired: hold SUPER on the keyboard that was already
+    // open, press a letter on the one just plugged in, and the panel would sit
+    // there.
     for (Device &device : m_devices) {
         if (!device.seatSettled && askSeat(device)) {
             takeWhatIsHeld(device);

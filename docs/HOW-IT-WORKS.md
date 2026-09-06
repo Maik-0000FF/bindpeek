@@ -46,9 +46,10 @@ account exists. So a service of its own does the reading:
   is asked again a moment later, and until there is an answer the keyboard is
   read and what it says is thrown away, so that none of it reaches the wrong
   seat. Where udev answers nothing at all, which is a machine that has no
-  second seat either, the first seat is taken after a second or two and the
-  service says so. A keyboard moved to another seat afterwards keeps the seat
-  this service placed it at until it is opened again.
+  second seat either, the first seat is taken between one and a half and three
+  seconds in, and the service writes a line to its journal saying which
+  keyboard it did that for. A keyboard moved to another seat afterwards keeps
+  the seat this service placed it at until it is opened again.
 
 The panel therefore holds no keyboard descriptor at all, and cannot: it is not
 even linked against the library that would open one.
