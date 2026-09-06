@@ -1596,8 +1596,9 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
 //
 // So it reads the parser rather than running it, the way the QML contract
 // test reads the QML: what cannot be seen in the output can still be seen in
-// the source. It asks that the four words are the four the function knows,
-// and that each is reached through the folding comparison and not otherwise.
+// the source. It asks two things of that one function: that the words it knows
+// are those four, and that the word it is handed is nowhere weighed as it was
+// written.
 void TestSources::swayFoldsEveryBindingWord() {
     QFile file(QStringLiteral(BINDPEEK_SRC "/SourceSway.cpp"));
     QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text),
@@ -1611,9 +1612,12 @@ void TestSources::swayFoldsEveryBindingWord() {
     // Found by its whole signature rather than by its name, so that a forward
     // declaration written above it one day is stepped over rather than taken
     // for the definition, which would hand the lines below somebody else's
-    // function and fail on code that is right.
+    // function and fail on code that is right. A declaration ends in a
+    // semicolon and a definition in a brace, which is the whole difference
+    // asked for here. Not anchored to the start of a line, so that a
+    // [[nodiscard]] or a static in front of it changes nothing.
     const QRegularExpression definition(
-        QStringLiteral("\\nbool bindsSomething\\([^)]*\\)\\s*\\{"));
+        QStringLiteral("bool bindsSomething\\(([^)]*)\\)\\s*\\{"));
     const QRegularExpressionMatch where = definition.match(source);
     QVERIFY2(where.hasMatch(),
              "bindsSomething is gone, renamed, or no longer written as one "
@@ -1625,11 +1629,40 @@ void TestSources::swayFoldsEveryBindingWord() {
              "column");
     const QString body = source.mid(begins, ends - begins);
 
-    // Every keyword it reaches through the folding comparison, however those
-    // are ordered and whatever the word it is handed is called.
+    // What the function calls the word it is handed, read off the signature
+    // just matched rather than written out here. It is the last name in the
+    // parameter list, whatever the type in front of it is.
+    const QRegularExpression parameter(QStringLiteral("(\\w+)\\s*$"));
+    const QRegularExpressionMatch named = parameter.match(where.captured(1));
+    QVERIFY2(named.hasMatch(), "bindsSomething takes no named parameter");
+    const QString word = named.captured(1);
+
+    // The one thing that must not be in there: the bare word beside an equals
+    // or an unequals, on either side of it. That is what every way of weighing
+    // a word as written has in common, and the three that matter all show up
+    // as it: an exact comparison against one of the constants, a guard that
+    // refuses a word not already lower case, and a fifth binding word
+    // compared against a literal.
+    //
+    // The bare word, not merely an equals anywhere, because a guard that
+    // compares something else about it, a length say, is nobody's mistake and
+    // would be called one. What stands beside the equals there is a bracket.
+    //
+    // Unequals as well as equals, because refusing what is not already lower
+    // case reads the word exactly as closely as accepting what is.
+    const QRegularExpression asWritten(
+        QStringLiteral("\\b%1\\s*[!=]=|[!=]=\\s*%1\\b").arg(word));
+    QVERIFY2(!asWritten.match(body).hasMatch(),
+             "a binding word is weighed as it was written, and sway weighs "
+             "none of them that way");
+
+    // And these are the words it knows, however they are ordered in there and
+    // whatever each call is handed to compare. The argument is taken as
+    // anything but a comma, so that asking about a word pulled out of a list
+    // rather than a plain parameter is no business of this case.
     QStringList asked;
     const QRegularExpression call(
-        QStringLiteral("isKeyword\\(\\s*\\w+\\s*,\\s*(kKeyword\\w+)\\s*\\)"));
+        QStringLiteral("isKeyword\\(\\s*[^,]+,\\s*(kKeyword\\w+)\\s*\\)"));
     QRegularExpressionMatchIterator at = call.globalMatch(body);
     while (at.hasNext()) {
         asked.append(at.next().captured(1));
@@ -1644,20 +1677,6 @@ void TestSources::swayFoldsEveryBindingWord() {
     // A fifth binding word is welcome; it belongs in the list above as well,
     // and this case failing is how that gets said rather than forgotten.
     QCOMPARE(asked, expected);
-
-    // And no keyword is named in there except through that comparison, which
-    // is what an exact one would look like: the constant is still there, the
-    // fold around it is gone. Counted rather than forbidding "==" outright,
-    // because a guard that compares something else, a length say, is nobody's
-    // mistake and would be called one.
-    const QRegularExpression named(QStringLiteral("kKeyword\\w+"));
-    qsizetype mentions = 0;
-    QRegularExpressionMatchIterator every = named.globalMatch(body);
-    while (every.hasNext()) {
-        every.next();
-        ++mentions;
-    }
-    QCOMPARE(mentions, asked.size());
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {

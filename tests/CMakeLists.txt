@@ -3,10 +3,9 @@
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
-# The source tree. Named once here and read everywhere below, as the define
-# handed to the tests that read the sources as text and as the path to the
-# files a test compiles into itself. Every spelling of it would be another
-# thing to keep right on the day the directory moves.
+# The source tree. Named once here and read everywhere below, whatever a target
+# wants it for. Every spelling of it would be another thing to keep right on
+# the day the directory moves.
 set(BINDPEEK_SRC_DIR "${CMAKE_SOURCE_DIR}/src")
 
 add_executable(test_sources test_sources.cpp)
