@@ -123,10 +123,12 @@ int main() {
         return 1;
     }
 
+    // Made, not started. The socket is open to everyone and the decision about
+    // who is served is taken here, so anybody local can have this process
+    // begun; opening the keyboards at that point would open them for somebody
+    // who is about to be turned away. They are opened further down, once a
+    // client has passed the check.
     Devices devices(state);
-    if (!devices.start()) {
-        return 1;
-    }
 
     arm(resyncTimer, kResyncIntervalMs, true);
     // Armed from the start: the socket unit begins this process when somebody
@@ -186,16 +188,29 @@ int main() {
         // counted from. Everything below shortens it, so everything below
         // comes after this line: broadcast drops whoever it cannot reach, and
         // dropStrangers drops whoever left their seat.
-        server.dispatch(fds, serverAt, state.report(false));
+        server.dispatch(fds, serverAt);
+
+        // The first client has passed the check, so now there is somebody to
+        // read the keyboards for. Nothing above this line has opened one, and
+        // a caller who is refused starts a process that opens nothing and goes
+        // away when the idle timer fires.
+        //
+        // Whoever is waiting has not joined yet, so there is nobody in the
+        // list to miss what this finds; the state it leaves behind is what
+        // they are sent a few lines below.
+        if (!devices.watching() && server.waiting() > 0 && !devices.start()) {
+            return 1;
+        }
 
         if (changed || keyTaken) {
             server.broadcast(state.report(keyTaken));
         }
 
-        // Only now do the ones accepted a moment ago join, so that a panel
-        // which connected during this very round is not told a key was taken
-        // before it existed. It has its snapshot already.
-        server.admit();
+        // Only now do the ones accepted a moment ago join, each given the
+        // state as it stands on the way in, so that a panel which connected
+        // during this very round is not told a key was taken before it
+        // existed.
+        server.admit(state.report(false));
 
         // On the correction beat rather than at every keystroke: somebody
         // whose session was switched away from is no longer at a screen of

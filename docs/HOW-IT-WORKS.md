@@ -32,7 +32,9 @@ account exists. So a service of its own does the reading:
 - It runs under an account the service manager makes when it starts and unmakes
   when it stops. No login on the machine gains anything by it being there.
 - It is started by a socket when a panel connects, and it ends itself once the
-  last panel has gone. Nothing holds a keyboard while nothing is showing.
+  last panel has gone. The keyboards are opened after the connection has been
+  allowed and not before, so somebody who is turned away has started a process
+  that opens nothing. Nothing holds a keyboard while nothing is showing.
 - What leaves it is which modifiers are held and the bare fact that some other
   key went down. No key codes, no characters.
 - It reads nothing from whoever connects, and it answers only somebody who is

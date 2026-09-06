@@ -171,12 +171,18 @@ void Server::broadcast(const Report &report) {
     }
 }
 
-void Server::admit() {
+void Server::admit(const Report &current) {
     for (const Client &client : m_pending) {
-        m_clients.push_back(client);
+        if (sendTo(client.fd, current)) {
+            m_clients.push_back(client);
+        } else {
+            ::close(client.fd);
+        }
     }
     m_pending.clear();
 }
+
+std::size_t Server::waiting() const { return m_pending.size(); }
 
 void Server::dropStrangers() {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
@@ -187,8 +193,7 @@ void Server::dropStrangers() {
     }
 }
 
-void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
-                      const Report &current) {
+void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
     // The clients first and from the back, so that dropping one does not move
     // the ones still to be looked at, and so that what is accepted below is
     // not immediately walked over again.
@@ -235,13 +240,9 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
             continue;
         }
 
-        // Sent at once rather than at the next change: this client connected
-        // because the panel has just started, and by then a modifier may well
-        // already be down.
-        if (!sendTo(fd, current)) {
-            ::close(fd);
-            continue;
-        }
+        // Nothing is sent from here. This peer has passed the check, and that
+        // is what opens the keyboards; until they are open there is no record
+        // worth sending, and admit does it once there is.
         m_pending.push_back(Client{fd, uid});
     }
 }

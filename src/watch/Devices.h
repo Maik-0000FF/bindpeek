@@ -39,7 +39,17 @@ public:
     // a Bluetooth keyboard usually is. A directory that cannot be watched is,
     // because such a keyboard would then stay invisible for as long as this
     // runs.
+    //
+    // Called when the first client has passed the check at the socket, not at
+    // the start of the process. Anybody can connect, so anybody could
+    // otherwise have every keyboard on the machine opened and only then be
+    // turned away.
     bool start();
+
+    // Whether the keyboards are open. False from the start of the process
+    // until the first client is let in, and in that state this holds no
+    // descriptor and has nothing to be polled.
+    bool watching() const;
 
     // Adds what has to be waited on. Between this and dispatch the list does
     // not change, which is what lets the caller pass a plain offset back.

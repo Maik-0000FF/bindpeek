@@ -164,11 +164,20 @@ bool Devices::start() {
                             IN_CREATE | IN_ATTRIB | IN_DELETE) < 0) {
         std::fprintf(stderr, "bindpeek-watch: cannot watch %s: %s\n", kInputDir,
                      std::strerror(errno));
+        // Given back rather than left lying about, so that a failed start
+        // leaves this exactly as it was before it and says so.
+        ::close(m_inotify);
+        m_inotify = -1;
         return false;
     }
     scan();
     return true;
 }
+
+// The directory watch stands for the whole: it is made first and lives as long
+// as the process, so there is no moment at which it is gone and a keyboard is
+// still open.
+bool Devices::watching() const { return m_inotify >= 0; }
 
 void Devices::retire(std::size_t at) {
     Device &device = m_devices[at];
@@ -184,7 +193,13 @@ void Devices::retire(std::size_t at) {
 // The devices first and in their own order, the directory watch last. dispatch
 // reads the answers back at exactly those places, so the order here is not a
 // matter of taste.
+//
+// Nothing at all before the keyboards are opened, and dispatch reads nothing
+// back in that state either.
 void Devices::appendPollFds(std::vector<pollfd> &out) const {
+    if (!watching()) {
+        return;
+    }
     for (const Device &device : m_devices) {
         out.push_back(pollfd{device.fd, POLLIN, 0});
     }
@@ -254,6 +269,11 @@ bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
 bool Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
                        bool *keyTaken) {
     bool changed = false;
+
+    // Nothing was put into the array, so nothing is taken back out of it.
+    if (!watching()) {
+        return changed;
+    }
 
     // Taken before anything below can retire a device. The directory watch was
     // put after the devices when the array was filled, so its place in the
