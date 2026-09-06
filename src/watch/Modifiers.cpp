@@ -64,9 +64,8 @@ std::vector<std::uint8_t> Modifiers::produced() const {
     return out;
 }
 
-bool Modifiers::refresh() {
+void Modifiers::refresh() {
     const std::vector<std::uint8_t> now = produced();
-    const std::vector<std::uint8_t> before = m_held;
 
     // What is no longer produced goes, and everything else stays exactly where
     // it is. That is the whole point of keeping the list: a modifier that never
@@ -84,51 +83,44 @@ bool Modifiers::refresh() {
             m_held.push_back(id);
         }
     }
-
-    return m_held != before;
 }
 
 std::vector<std::uint8_t> Modifiers::held() const { return m_held; }
 
-bool Modifiers::press(int device, int code) {
+void Modifiers::press(int device, int code) {
     if (idOf(code) == kNoModifier) {
-        return false;
+        return;
     }
     for (const Key &key : m_down) {
         if (key.device == device && key.code == code) {
             // Already down. Auto-repeat is not a new press, and neither is a
-            // state replay that only repeats what is known.
-            return false;
+            // state replay that only repeats what is known. Taken again, one
+            // release would leave the key standing here.
+            return;
         }
     }
     m_down.push_back(Key{device, code});
-    return refresh();
+    refresh();
 }
 
-bool Modifiers::release(int device, int code) {
+void Modifiers::release(int device, int code) {
     const auto gone =
         std::remove_if(m_down.begin(), m_down.end(), [&](const Key &key) {
             return key.device == device && key.code == code;
         });
-    if (gone == m_down.end()) {
-        return false;
-    }
     m_down.erase(gone, m_down.end());
-    return refresh();
+    refresh();
 }
 
-bool Modifiers::forget(int device) {
+void Modifiers::forget(int device) {
     const auto gone =
         std::remove_if(m_down.begin(), m_down.end(),
                        [&](const Key &key) { return key.device == device; });
-    if (gone == m_down.end()) {
-        return false;
-    }
     m_down.erase(gone, m_down.end());
-    return refresh();
+    refresh();
 }
 
-bool Modifiers::reconcile(int device, const std::vector<int> &down) {
+void Modifiers::reconcile(int device, const std::vector<int> &down) {
     // What this device is no longer holding goes.
     const auto gone =
         std::remove_if(m_down.begin(), m_down.end(), [&](const Key &key) {
@@ -153,7 +145,7 @@ bool Modifiers::reconcile(int device, const std::vector<int> &down) {
         }
     }
 
-    return refresh();
+    refresh();
 }
 
 Report Modifiers::report(bool keyTaken) const {

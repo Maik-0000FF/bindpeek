@@ -191,7 +191,7 @@ target_include_directories(bindpeek_watch_protocol
   INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/watch
 )
 
-add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp)
+add_library(bindpeek_watch_core STATIC watch/Modifiers.cpp watch/Seats.cpp)
 target_link_libraries(bindpeek_watch_core PUBLIC bindpeek_watch_protocol)
 
 add_executable(bindpeek-watch
@@ -203,8 +203,9 @@ target_link_libraries(bindpeek-watch PRIVATE
   bindpeek_watch_core
   # Reads the keyboards under /dev/input without grabbing them.
   PkgConfig::Libevdev
-  # Takes the listening socket from the service manager and asks it who is on
-  # the other end of a connection.
+  # Takes the listening socket from the service manager, asks it who is on the
+  # other end of a connection and at which seat, and asks udev which seat a
+  # keyboard belongs to.
   PkgConfig::Libsystemd
 )
 

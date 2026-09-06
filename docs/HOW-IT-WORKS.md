@@ -38,7 +38,12 @@ account exists. So a service of its own does the reading:
 - What leaves it is which modifiers are held and the bare fact that some other
   key went down. No key codes, no characters.
 - It reads nothing from whoever connects, and it answers only somebody who is
-  logged in at a screen of this machine.
+  logged in at a screen of this machine. On a machine with several seats, each
+  one is told about its own keyboards and about no others: the seat a keyboard
+  belongs to is read when it is opened, and the seat somebody is sitting at is
+  read when they connect and again while they stay. A keyboard moved to another
+  seat while the service runs keeps the seat it was opened with until it is
+  opened again.
 
 The panel therefore holds no keyboard descriptor at all, and cannot: it is not
 even linked against the library that would open one.

@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-login.h>
@@ -24,7 +25,9 @@ namespace {
 // up the room another one needs.
 constexpr std::size_t kMaxClientsPerUser = 4;
 
-// Whether a user is at a seat right now, with a session in the foreground.
+// Which seat a user is at right now, with a session in the foreground. False
+// when that is none of them, which is everybody who is not sitting at this
+// machine.
 //
 // A positive test rather than a list of states to refuse. sd_uid_get_state
 // would answer "lingering" for an account that is not logged in at all but has
@@ -41,12 +44,9 @@ constexpr std::size_t kMaxClientsPerUser = 4;
 // It reads /run/systemd/seats, not /proc, so ProtectProc in the unit does not
 // blind it.
 //
-// What this does not say: which keyboard the records came from. One service
-// reads every keyboard on the machine, so on a machine with two seats the
-// person at one of them learns when the person at the other pressed a
-// modifier. Everybody served here is at a screen of this machine, which is the
-// line that can be drawn from here.
-bool atAnActiveSeat(uid_t uid) {
+// The name is the answer and not only the yes: it says which keyboards this
+// person may be told about, and the ones of the other seat are not among them.
+bool seatOf(uid_t uid, std::string *seat) {
     char **seats = nullptr;
     const int count = sd_get_seats(&seats);
     if (count < 0) {
@@ -57,6 +57,7 @@ bool atAnActiveSeat(uid_t uid) {
     for (int at = 0; at < count; ++at) {
         if (!found && sd_uid_is_on_seat(uid, 1, seats[at]) > 0) {
             found = true;
+            *seat = seats[at];
         }
         std::free(seats[at]);
     }
@@ -162,18 +163,21 @@ bool Server::sendTo(int fd, const Report &report) {
     return wrote == static_cast<ssize_t>(sizeof report);
 }
 
-void Server::broadcast(const Report &report) {
+void Server::broadcast(const std::string &seat, const Report &report) {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
         const std::size_t index = at - 1;
+        if (m_clients[index].seat != seat) {
+            continue;
+        }
         if (!sendTo(m_clients[index].fd, report)) {
             drop(index);
         }
     }
 }
 
-void Server::admit(const Report &current) {
+void Server::admit(const Seats &state) {
     for (const Client &client : m_pending) {
-        if (sendTo(client.fd, current)) {
+        if (sendTo(client.fd, state.snapshot(client.seat))) {
             m_clients.push_back(client);
         } else {
             ::close(client.fd);
@@ -187,7 +191,9 @@ std::size_t Server::waiting() const { return m_pending.size(); }
 void Server::dropStrangers() {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
         const std::size_t index = at - 1;
-        if (!atAnActiveSeat(m_clients[index].uid)) {
+        std::string seat;
+        if (!seatOf(m_clients[index].uid, &seat) ||
+            seat != m_clients[index].seat) {
             drop(index);
         }
     }
@@ -216,7 +222,8 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
         }
 
         uid_t uid = 0;
-        if (!peerUid(fd, &uid) || !atAnActiveSeat(uid)) {
+        std::string seat;
+        if (!peerUid(fd, &uid) || !seatOf(uid, &seat)) {
             ::close(fd);
             continue;
         }
@@ -243,7 +250,7 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
         // Nothing is sent from here. This peer has passed the check, and that
         // is what opens the keyboards; until they are open there is no record
         // worth sending, and admit does it once there is.
-        m_pending.push_back(Client{fd, uid});
+        m_pending.push_back(Client{fd, uid, seat});
     }
 }
 

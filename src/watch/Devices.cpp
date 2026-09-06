@@ -4,6 +4,7 @@
 #include "Devices.h"
 
 #include "Modifiers.h"
+#include "Seats.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -19,6 +20,7 @@
 #include <cstring>
 
 #include <libevdev/libevdev.h>
+#include <systemd/sd-device.h>
 
 namespace bindpeek::watch {
 namespace {
@@ -27,6 +29,9 @@ namespace {
 // nodes below it.
 constexpr char kInputDir[] = "/dev/input";
 constexpr char kEventPrefix[] = "event";
+
+// The property udev writes on a device that has been moved to another seat.
+constexpr char kSeatProperty[] = "ID_SEAT";
 
 // The two states of a key that are state changes. Auto-repeat is the third and
 // is not one: a held SUPER must not look like a new press.
@@ -63,6 +68,36 @@ bool setEventMask(int fd) {
 // A device counts as a keyboard when it can report the letter range and space.
 // Mice, touchpads and volume rockers also carry EV_KEY, so the event type
 // alone is not enough to tell them apart.
+// Which seat a device belongs to. The property when it carries one, the first
+// seat when it does not: udev writes it only on a device that has been moved
+// with `loginctl attach`. Measured on a single-seat machine, where no node
+// under /dev/input carries it at all and the answer is the fallback every
+// time.
+//
+// It reads the udev database under /run, not /proc, so ProtectProc in the unit
+// does not blind it.
+//
+// Asked once, when the device is opened. `loginctl attach` can move a device
+// while this is running, and the directory watch sees a node appear or go
+// rather than a property change, so a device moved at runtime keeps the seat
+// it was opened with until it is opened again. Closing that needs a udev
+// monitor, which is a larger thing than this.
+std::string seatOf(const std::string &path) {
+    sd_device *device = nullptr;
+    if (sd_device_new_from_devname(&device, path.c_str()) < 0) {
+        return kDefaultSeat;
+    }
+
+    std::string name = kDefaultSeat;
+    const char *seat = nullptr;
+    if (sd_device_get_property_value(device, kSeatProperty, &seat) >= 0 &&
+        seat != nullptr && *seat != '\0') {
+        name = seat;
+    }
+    sd_device_unref(device);
+    return name;
+}
+
 bool looksLikeKeyboard(libevdev *dev) {
     if (libevdev_has_event_type(dev, EV_KEY) == 0) {
         return false;
@@ -74,7 +109,7 @@ bool looksLikeKeyboard(libevdev *dev) {
 
 } // namespace
 
-Devices::Devices(Modifiers &state) : m_state(state) {}
+Devices::Devices(Seats &state) : m_state(state) {}
 
 Devices::~Devices() {
     while (!m_devices.empty()) {
@@ -85,10 +120,10 @@ Devices::~Devices() {
     }
 }
 
-bool Devices::openDevice(const std::string &path) {
+void Devices::openDevice(const std::string &path) {
     for (const Device &device : m_devices) {
         if (device.path == path) {
-            return false;
+            return;
         }
     }
 
@@ -96,7 +131,7 @@ bool Devices::openDevice(const std::string &path) {
     // libevdev then drains what is there.
     const int fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
-        return false;
+        return;
     }
 
     // Before anything is read, so that nothing of the masked kinds is ever in
@@ -105,21 +140,21 @@ bool Devices::openDevice(const std::string &path) {
         std::fprintf(stderr, "bindpeek-watch: cannot mask %s: %s\n",
                      path.c_str(), std::strerror(errno));
         ::close(fd);
-        return false;
+        return;
     }
 
     libevdev *dev = nullptr;
     if (libevdev_new_from_fd(fd, &dev) < 0) {
         ::close(fd);
-        return false;
+        return;
     }
     if (!looksLikeKeyboard(dev)) {
         libevdev_free(dev);
         ::close(fd);
-        return false;
+        return;
     }
 
-    m_devices.push_back(Device{m_nextId++, path, fd, dev});
+    m_devices.push_back(Device{m_nextId++, path, seatOf(path), fd, dev});
 
     // libevdev asked the device what is down while it was opening, so the
     // answer is already here. Taken now rather than at the first resync: the
@@ -130,24 +165,23 @@ bool Devices::openDevice(const std::string &path) {
             down.push_back(code);
         }
     }
-    return m_state.reconcile(m_devices.back().id, down);
+    const Device &opened = m_devices.back();
+    m_state.reconcile(opened.seat, opened.id, down);
 }
 
-bool Devices::scan() {
-    bool changed = false;
+void Devices::scan() {
     DIR *dir = ::opendir(kInputDir);
     if (dir == nullptr) {
-        return changed;
+        return;
     }
     while (const dirent *entry = ::readdir(dir)) {
         if (std::strncmp(entry->d_name, kEventPrefix,
                          sizeof kEventPrefix - 1) != 0) {
             continue;
         }
-        changed |= openDevice(std::string{kInputDir} + "/" + entry->d_name);
+        openDevice(std::string{kInputDir} + "/" + entry->d_name);
     }
     ::closedir(dir);
-    return changed;
 }
 
 bool Devices::start() {
@@ -206,7 +240,7 @@ void Devices::appendPollFds(std::vector<pollfd> &out) const {
     out.push_back(pollfd{m_inotify, POLLIN, 0});
 }
 
-bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
+bool Devices::readFrom(Device &device) {
     input_event event{};
     int rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_NORMAL, &event);
     while (rc == LIBEVDEV_READ_STATUS_SUCCESS ||
@@ -224,9 +258,9 @@ bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
                 if (event.type == EV_KEY &&
                     Modifiers::idOf(event.code) != kNoModifier) {
                     if (event.value == kKeyPress) {
-                        *changed |= m_state.press(device.id, event.code);
+                        m_state.press(device.seat, device.id, event.code);
                     } else if (event.value == kKeyRelease) {
-                        *changed |= m_state.release(device.id, event.code);
+                        m_state.release(device.seat, device.id, event.code);
                     }
                 }
                 rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_SYNC,
@@ -248,12 +282,12 @@ bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
                 // about it: that one went down. A release is the tail of that
                 // and carries nothing new.
                 if (event.value == kKeyPress) {
-                    *keyTaken = true;
+                    m_state.takeKey(device.seat);
                 }
             } else if (event.value == kKeyPress) {
-                *changed |= m_state.press(device.id, event.code);
+                m_state.press(device.seat, device.id, event.code);
             } else if (event.value == kKeyRelease) {
-                *changed |= m_state.release(device.id, event.code);
+                m_state.release(device.seat, device.id, event.code);
             }
         }
         rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_NORMAL, &event);
@@ -266,13 +300,10 @@ bool Devices::readFrom(Device &device, bool *changed, bool *keyTaken) {
     return rc == -EAGAIN;
 }
 
-bool Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
-                       bool *keyTaken) {
-    bool changed = false;
-
+void Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
     // Nothing was put into the array, so nothing is taken back out of it.
     if (!watching()) {
-        return changed;
+        return;
     }
 
     // Taken before anything below can retire a device. The directory watch was
@@ -288,10 +319,10 @@ bool Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
         if (entry.revents == 0) {
             continue;
         }
-        if (!readFrom(m_devices[index], &changed, keyTaken)) {
+        if (!readFrom(m_devices[index])) {
             // A key held on the device that just vanished can never be
             // released, so what it was holding is dropped here.
-            changed |= m_state.forget(m_devices[index].id);
+            m_state.forget(m_devices[index].seat, m_devices[index].id);
             retire(index);
         }
     }
@@ -303,14 +334,11 @@ bool Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset,
         char buffer[4096];
         while (::read(m_inotify, buffer, sizeof buffer) > 0) {
         }
-        changed |= scan();
+        scan();
     }
-
-    return changed;
 }
 
-bool Devices::resync() {
-    bool changed = false;
+void Devices::resync() {
     for (std::size_t at = m_devices.size(); at > 0; --at) {
         Device &device = m_devices[at - 1];
 
@@ -332,9 +360,8 @@ bool Devices::resync() {
                 down.push_back(code);
             }
         }
-        changed |= m_state.reconcile(device.id, down);
+        m_state.reconcile(device.seat, device.id, down);
     }
-    return changed;
 }
 
 } // namespace bindpeek::watch
