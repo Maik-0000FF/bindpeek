@@ -21,6 +21,7 @@
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QRegularExpression>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
@@ -284,6 +285,7 @@ private slots:
     void swayReadsTheSample();
     void swaySplitsALineTheWaySwayDoes();
     void swayReadsAKeywordWithoutRegardToCase();
+    void swayFoldsEveryBindingWord();
     void swayResolvesAVariableBuiltFromAnother();
     void swaySkipsWhatItCannotName();
     void swaySaysWhenAnIncludeIsNotFollowed();
@@ -1576,6 +1578,63 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     // test, which loads no catalogue.
     QVERIFY2(note.contains(QStringLiteral("include line")), qPrintable(note));
     QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
+}
+
+// The two binding words that leave no trace, measured where they do leave one.
+//
+// sway looks a command up without regard to case, and all four binding words
+// are read that way. Six of this parser's keyword comparisons are pinned down
+// by what they produce: bindsym, set and mode through the sample, include and
+// bindcode through the sentence they add, and a block heading through the
+// group a bind lands in. Two are not. A switch and a gesture are passed over
+// on purpose and are not even counted as left out, so a configuration writing
+// them as "BindSwitch" and "BindGesture" parses to exactly what one writing
+// them in lower case parses to, and to what one misspelling them entirely
+// parses to. Turning those two comparisons into exact ones leaves every other
+// case in this suite passing, which is what makes this one worth having.
+//
+// So it reads the parser rather than running it, the way the QML contract
+// test reads the QML: what cannot be seen in the output can still be seen in
+// the source. It asks that all four words go through the folding comparison,
+// and that nothing in there weighs a word as written.
+void TestSources::swayFoldsEveryBindingWord() {
+    QFile file(QStringLiteral(BINDPEEK_SRC "/SourceSway.cpp"));
+    QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text),
+             qPrintable(file.fileName()));
+    const QString source = QString::fromUtf8(file.readAll());
+
+    // The one function that answers whether a line binds something, from its
+    // first line to the brace that closes it in the first column.
+    const qsizetype begins =
+        source.indexOf(QLatin1String("bool bindsSomething("));
+    QVERIFY2(begins >= 0, "bindsSomething is gone or has been renamed");
+    const qsizetype ends = source.indexOf(QLatin1String("\n}"), begins);
+    QVERIFY(ends > begins);
+    const QString body = source.mid(begins, ends - begins);
+
+    // Asked before the list below, because this is the mistake worth naming in
+    // words: a list of the wrong length says only that something moved.
+    QVERIFY2(!body.contains(QLatin1String("==")),
+             "a binding word is compared as written, which sway does not do");
+
+    // Every keyword it asks about, however they are ordered in there.
+    QStringList asked;
+    const QRegularExpression call(QStringLiteral(
+        "isKeyword\\(\\s*keyword\\s*,\\s*(kKeyword\\w+)\\s*\\)"));
+    QRegularExpressionMatchIterator at = call.globalMatch(body);
+    while (at.hasNext()) {
+        asked.append(at.next().captured(1));
+    }
+    asked.sort();
+
+    QStringList expected{QStringLiteral("kKeywordBindcode"),
+                         QStringLiteral("kKeywordBindgesture"),
+                         QStringLiteral("kKeywordBindswitch"),
+                         QStringLiteral("kKeywordBindsym")};
+    expected.sort();
+    // A fifth binding word is welcome; it belongs in the list above as well,
+    // and this case failing is how that gets said rather than forgotten.
+    QCOMPARE(asked, expected);
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {

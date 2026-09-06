@@ -3,15 +3,22 @@
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
+# The sources, for the tests that read them as text rather than call them.
+# Named once here, because two targets are handed it and a second spelling
+# would be a second thing to keep right.
+set(BINDPEEK_SRC_DIR "${CMAKE_SOURCE_DIR}/src")
+
 add_executable(test_sources test_sources.cpp)
 # Qt6::Network for the fake compositor the Hyprland backend is asked through.
 target_link_libraries(test_sources PRIVATE bindpeek_sources Qt6::Network
                                            Qt6::Test)
 
 # The sample files live in the source tree; the path is handed to the test so
-# that it runs from any build directory.
+# that it runs from any build directory. The sources themselves for the one
+# case that reads the parser as text, there being nothing it can call.
 target_compile_definitions(test_sources
   PRIVATE BINDPEEK_SAMPLES="${CMAKE_CURRENT_SOURCE_DIR}/samples"
+          BINDPEEK_SRC="${BINDPEEK_SRC_DIR}"
 )
 
 add_test(NAME sources COMMAND test_sources)
@@ -21,7 +28,7 @@ add_test(NAME sources COMMAND test_sources)
 add_executable(test_qml_contract test_qml_contract.cpp)
 target_link_libraries(test_qml_contract PRIVATE bindpeek_sources Qt6::Test)
 target_compile_definitions(test_qml_contract
-  PRIVATE BINDPEEK_SRC="${CMAKE_SOURCE_DIR}/src"
+  PRIVATE BINDPEEK_SRC="${BINDPEEK_SRC_DIR}"
 )
 
 add_test(NAME qml_contract COMMAND test_qml_contract)
