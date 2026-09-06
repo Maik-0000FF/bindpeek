@@ -381,14 +381,6 @@ bool isKeyword(const QString &word, const char *keyword) {
     return folded(word) == QLatin1String(keyword);
 }
 
-// Whether a line binds something, whatever it binds it to.
-bool bindsSomething(const QString &keyword) {
-    return isKeyword(keyword, kKeywordBindsym) ||
-           isKeyword(keyword, kKeywordBindcode) ||
-           isKeyword(keyword, kKeywordBindswitch) ||
-           isKeyword(keyword, kKeywordBindgesture);
-}
-
 // The heading in force right now, empty while no mode is open.
 //
 // One spelling for both places that ask: what a bind is filed under, which
@@ -762,6 +754,16 @@ QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
         *note = notes.join(QLatin1String(kNoteSeparator));
     }
     return binds;
+}
+
+// Whether a line binds something, whatever it binds it to. Below the function
+// that asks it rather than above, so that the block over that one documents it
+// and nothing else.
+bool SourceSway::bindsSomething(const QString &keyword) {
+    return isKeyword(keyword, kKeywordBindsym) ||
+           isKeyword(keyword, kKeywordBindcode) ||
+           isKeyword(keyword, kKeywordBindswitch) ||
+           isKeyword(keyword, kKeywordBindgesture);
 }
 
 SourceSway::SourceSway(QString path) : m_configPath(std::move(path)) {}

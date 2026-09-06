@@ -3,6 +3,11 @@
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
+# The source tree. Named once here and read everywhere below, whatever a target
+# wants it for. Every spelling of it would be another thing to keep right on
+# the day the directory moves.
+set(BINDPEEK_SRC_DIR "${CMAKE_SOURCE_DIR}/src")
+
 add_executable(test_sources test_sources.cpp)
 # Qt6::Network for the fake compositor the Hyprland backend is asked through.
 target_link_libraries(test_sources PRIVATE bindpeek_sources Qt6::Network
@@ -21,7 +26,7 @@ add_test(NAME sources COMMAND test_sources)
 add_executable(test_qml_contract test_qml_contract.cpp)
 target_link_libraries(test_qml_contract PRIVATE bindpeek_sources Qt6::Test)
 target_compile_definitions(test_qml_contract
-  PRIVATE BINDPEEK_SRC="${CMAKE_SOURCE_DIR}/src"
+  PRIVATE BINDPEEK_SRC="${BINDPEEK_SRC_DIR}"
 )
 
 add_test(NAME qml_contract COMMAND test_qml_contract)
@@ -43,8 +48,8 @@ add_test(NAME compositor COMMAND test_compositor)
 # the client is only constructed and used to deliver a signal.
 add_executable(test_overlay
   test_overlay.cpp
-  ${CMAKE_SOURCE_DIR}/src/OverlayController.cpp
-  ${CMAKE_SOURCE_DIR}/src/WatchClient.cpp
+  ${BINDPEEK_SRC_DIR}/OverlayController.cpp
+  ${BINDPEEK_SRC_DIR}/WatchClient.cpp
 )
 target_link_libraries(test_overlay PRIVATE bindpeek_sources
                                            bindpeek_watch_protocol Qt6::Test)
@@ -89,8 +94,8 @@ add_test(NAME list_groups_once COMMAND bash -c
 # rule under test takes plain sizes.
 add_executable(test_appearance
   test_appearance.cpp
-  ${CMAKE_SOURCE_DIR}/src/Appearance.cpp
-  ${CMAKE_SOURCE_DIR}/src/SystemScheme.cpp
+  ${BINDPEEK_SRC_DIR}/Appearance.cpp
+  ${BINDPEEK_SRC_DIR}/SystemScheme.cpp
 )
 target_link_libraries(test_appearance PRIVATE bindpeek_sources Qt6::Gui
                                               Qt6::DBus Qt6::Test)
@@ -103,10 +108,10 @@ add_test(NAME appearance COMMAND test_appearance)
 # was pulled out of main.cpp in the first place.
 add_executable(test_tray_wait
   test_tray_wait.cpp
-  ${CMAKE_SOURCE_DIR}/src/editor/TrayWait.cpp
+  ${BINDPEEK_SRC_DIR}/editor/TrayWait.cpp
 )
 target_include_directories(test_tray_wait
-  PRIVATE ${CMAKE_SOURCE_DIR}/src/editor
+  PRIVATE ${BINDPEEK_SRC_DIR}/editor
 )
 target_link_libraries(test_tray_wait PRIVATE Qt6::Test)
 
@@ -119,16 +124,16 @@ add_test(NAME tray_wait COMMAND test_tray_wait)
 # where there is no display, and asking for one would fail the whole suite.
 add_executable(test_panel_layout
   test_panel_layout.cpp
-  ${CMAKE_SOURCE_DIR}/src/Appearance.cpp
-  ${CMAKE_SOURCE_DIR}/src/SystemScheme.cpp
+  ${BINDPEEK_SRC_DIR}/Appearance.cpp
+  ${BINDPEEK_SRC_DIR}/SystemScheme.cpp
 )
 target_link_libraries(test_panel_layout PRIVATE bindpeek_sources Qt6::Gui
                                                 Qt6::DBus Qt6::Qml Qt6::Quick
                                                 Qt6::Test)
 # The QML is read from the source tree, so the test runs from any build
-# directory. Same path the contract test is handed.
+# directory.
 target_compile_definitions(test_panel_layout
-  PRIVATE BINDPEEK_SRC="${CMAKE_SOURCE_DIR}/src"
+  PRIVATE BINDPEEK_SRC="${BINDPEEK_SRC_DIR}"
 )
 
 add_test(NAME panel_layout COMMAND test_panel_layout)
@@ -167,9 +172,9 @@ set_tests_properties(panel_layout PROPERTIES
 # Nothing here creates either object; the rule under test takes plain values.
 add_executable(test_layer_placement
   test_layer_placement.cpp
-  ${CMAKE_SOURCE_DIR}/src/LayerPlacement.cpp
-  ${CMAKE_SOURCE_DIR}/src/Appearance.cpp
-  ${CMAKE_SOURCE_DIR}/src/SystemScheme.cpp
+  ${BINDPEEK_SRC_DIR}/LayerPlacement.cpp
+  ${BINDPEEK_SRC_DIR}/Appearance.cpp
+  ${BINDPEEK_SRC_DIR}/SystemScheme.cpp
 )
 target_link_libraries(test_layer_placement PRIVATE bindpeek_sources
                                                    LayerShellQt::Interface
@@ -186,7 +191,7 @@ add_test(NAME layer_placement COMMAND test_layer_placement)
 # the only checking code on the panel side of the socket.
 add_executable(test_watch
   test_watch.cpp
-  ${CMAKE_SOURCE_DIR}/src/WatchClient.cpp
+  ${BINDPEEK_SRC_DIR}/WatchClient.cpp
 )
 target_link_libraries(test_watch PRIVATE bindpeek_watch_core bindpeek_sources
                                          Qt6::Test)
