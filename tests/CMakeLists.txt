@@ -14,11 +14,9 @@ target_link_libraries(test_sources PRIVATE bindpeek_sources Qt6::Network
                                            Qt6::Test)
 
 # The sample files live in the source tree; the path is handed to the test so
-# that it runs from any build directory. The sources themselves for the one
-# case that reads the parser as text, there being nothing it can call.
+# that it runs from any build directory.
 target_compile_definitions(test_sources
   PRIVATE BINDPEEK_SAMPLES="${CMAKE_CURRENT_SOURCE_DIR}/samples"
-          BINDPEEK_SRC="${BINDPEEK_SRC_DIR}"
 )
 
 add_test(NAME sources COMMAND test_sources)

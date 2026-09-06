@@ -50,6 +50,17 @@ public:
     // *note collects what had to be skipped, one sentence per reason.
     static QList<Bind> parseConfig(const QString &text, QString *note);
 
+    // Whether a word is one of the four sway binds something with, read the
+    // way sway reads it, which is without regard to case.
+    //
+    // Visible for the same reason as the function above, one step further in.
+    // Two of the four, bindswitch and bindgesture, bind nothing a keyboard can
+    // hold: they are passed over and are not even counted as left out, so a
+    // parsed configuration answers the same whether they were recognised or
+    // not. There is no way in from the outside to tell those two comparisons
+    // are made at all, and this is it.
+    static bool bindsSomething(const QString &keyword);
+
 private:
     // The configuration to read instead of asking. Empty in normal operation.
     QString m_configPath;

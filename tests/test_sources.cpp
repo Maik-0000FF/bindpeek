@@ -21,7 +21,6 @@
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QRegularExpression>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
@@ -1580,7 +1579,7 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
     QVERIFY2(note.contains(QStringLiteral("keycode")), qPrintable(note));
 }
 
-// The two binding words that leave no trace, measured where they do leave one.
+// The two binding words that leave no trace, asked directly.
 //
 // sway looks a command up without regard to case, and all four binding words
 // are read that way. This parser asks after seven keywords, and five of them
@@ -1594,89 +1593,32 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
 // comparisons into exact ones leaves every other case in this suite passing,
 // which is what makes this one worth having.
 //
-// So it reads the parser rather than running it, the way the QML contract
-// test reads the QML: what cannot be seen in the output can still be seen in
-// the source. It asks two things of that one function: that the words it knows
-// are those four, and that the word it is handed is nowhere weighed as it was
-// written.
+// Since no configuration can show it, the question is put to the function that
+// answers it, which the backend hands out for exactly this reason. Reading the
+// parser as text was tried first and given up on: every pattern that forbade
+// one spelling of an exact comparison left another one open, and a pattern
+// tight enough to catch them refused changes that were right. A behaviour
+// asked in one line has no such edges.
 void TestSources::swayFoldsEveryBindingWord() {
-    QFile file(QStringLiteral(BINDPEEK_SRC "/SourceSway.cpp"));
-    QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text),
-             qPrintable(file.fileName()));
-    const QString source = QString::fromUtf8(file.readAll());
+    // Written the way sway takes them, which is any way at all.
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindsym")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindSym")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindcode")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BINDCODE")));
 
-    // The body of the one function that answers whether a line binds
-    // something: from the brace that opens it to the one that closes it in the
-    // first column.
-    //
-    // Found by its whole signature rather than by its name, so that a forward
-    // declaration written above it one day is stepped over rather than taken
-    // for the definition, which would hand the lines below somebody else's
-    // function and fail on code that is right. A declaration ends in a
-    // semicolon and a definition in a brace, which is the whole difference
-    // asked for here. Not anchored to the start of a line, so that a
-    // [[nodiscard]] or a static in front of it changes nothing.
-    const QRegularExpression definition(
-        QStringLiteral("bool bindsSomething\\(([^)]*)\\)\\s*\\{"));
-    const QRegularExpressionMatch where = definition.match(source);
-    QVERIFY2(where.hasMatch(),
-             "bindsSomething is gone, renamed, or no longer written as one "
-             "definition this case can find");
-    const qsizetype begins = where.capturedEnd();
-    const qsizetype ends = source.indexOf(QLatin1String("\n}"), begins);
-    QVERIFY2(ends > begins,
-             "the body of bindsSomething does not end at a brace in the first "
-             "column");
-    const QString body = source.mid(begins, ends - begins);
+    // The two this case exists for. Nothing in a parsed configuration tells
+    // these apart from a word the parser never heard of.
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindswitch")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindSwitch")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("bindgesture")));
+    QVERIFY(SourceSway::bindsSomething(QStringLiteral("BindGesture")));
 
-    // What the function calls the word it is handed, read off the signature
-    // just matched rather than written out here. It is the last name in the
-    // parameter list, whatever the type in front of it is.
-    const QRegularExpression parameter(QStringLiteral("(\\w+)\\s*$"));
-    const QRegularExpressionMatch named = parameter.match(where.captured(1));
-    QVERIFY2(named.hasMatch(), "bindsSomething takes no named parameter");
-    const QString word = named.captured(1);
-
-    // The one thing that must not be in there: the bare word beside an equals
-    // or an unequals, on either side of it. That is what every way of weighing
-    // a word as written has in common, and the three that matter all show up
-    // as it: an exact comparison against one of the constants, a guard that
-    // refuses a word not already lower case, and a fifth binding word
-    // compared against a literal.
-    //
-    // The bare word, not merely an equals anywhere, because a guard that
-    // compares something else about it, a length say, is nobody's mistake and
-    // would be called one. What stands beside the equals there is a bracket.
-    //
-    // Unequals as well as equals, because refusing what is not already lower
-    // case reads the word exactly as closely as accepting what is.
-    const QRegularExpression asWritten(
-        QStringLiteral("\\b%1\\s*[!=]=|[!=]=\\s*%1\\b").arg(word));
-    QVERIFY2(!asWritten.match(body).hasMatch(),
-             "a binding word is weighed as it was written, and sway weighs "
-             "none of them that way");
-
-    // And these are the words it knows, however they are ordered in there and
-    // whatever each call is handed to compare. The argument is taken as
-    // anything but a comma, so that asking about a word pulled out of a list
-    // rather than a plain parameter is no business of this case.
-    QStringList asked;
-    const QRegularExpression call(
-        QStringLiteral("isKeyword\\(\\s*[^,]+,\\s*(kKeyword\\w+)\\s*\\)"));
-    QRegularExpressionMatchIterator at = call.globalMatch(body);
-    while (at.hasNext()) {
-        asked.append(at.next().captured(1));
-    }
-    asked.sort();
-
-    QStringList expected{QStringLiteral("kKeywordBindcode"),
-                         QStringLiteral("kKeywordBindgesture"),
-                         QStringLiteral("kKeywordBindswitch"),
-                         QStringLiteral("kKeywordBindsym")};
-    expected.sort();
-    // A fifth binding word is welcome; it belongs in the list above as well,
-    // and this case failing is how that gets said rather than forgotten.
-    QCOMPARE(asked, expected);
+    // And it is four words rather than everything: a function that said yes to
+    // anything would pass every line above.
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("bindpointer")));
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("BindSwitcher")));
+    QVERIFY(!SourceSway::bindsSomething(QStringLiteral("exec")));
+    QVERIFY(!SourceSway::bindsSomething(QString()));
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {

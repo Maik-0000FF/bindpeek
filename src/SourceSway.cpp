@@ -381,14 +381,6 @@ bool isKeyword(const QString &word, const char *keyword) {
     return folded(word) == QLatin1String(keyword);
 }
 
-// Whether a line binds something, whatever it binds it to.
-bool bindsSomething(const QString &keyword) {
-    return isKeyword(keyword, kKeywordBindsym) ||
-           isKeyword(keyword, kKeywordBindcode) ||
-           isKeyword(keyword, kKeywordBindswitch) ||
-           isKeyword(keyword, kKeywordBindgesture);
-}
-
 // The heading in force right now, empty while no mode is open.
 //
 // One spelling for both places that ask: what a bind is filed under, which
@@ -505,6 +497,13 @@ QStringList configLines(const QString &text) {
 // A switch and a gesture are in neither group. Neither was ever going to
 // appear on a keyboard cheat sheet, and a note about them would say something
 // is missing where nothing is.
+bool SourceSway::bindsSomething(const QString &keyword) {
+    return isKeyword(keyword, kKeywordBindsym) ||
+           isKeyword(keyword, kKeywordBindcode) ||
+           isKeyword(keyword, kKeywordBindswitch) ||
+           isKeyword(keyword, kKeywordBindgesture);
+}
+
 QList<Bind> SourceSway::parseConfig(const QString &text, QString *note) {
     QList<Bind> binds;
     QHash<QString, QString> variables;
