@@ -41,9 +41,11 @@ account exists. So a service of its own does the reading:
   logged in at a screen of this machine. On a machine with several seats, each
   one is told about its own keyboards and about no others: the seat a keyboard
   belongs to is read when it is opened, and the seat somebody is sitting at is
-  read when they connect and again while they stay. A keyboard moved to another
-  seat while the service runs keeps the seat it was opened with until it is
-  opened again.
+  read when they connect and again while they stay. A keyboard plugged in while
+  the service runs can be opened before udev has said which seat it is on, and
+  until that answer arrives the keyboard is read and what it says is thrown
+  away, so that none of it reaches the wrong seat. A keyboard moved to another
+  seat afterwards keeps the seat it was placed at until it is opened again.
 
 The panel therefore holds no keyboard descriptor at all, and cannot: it is not
 even linked against the library that would open one.

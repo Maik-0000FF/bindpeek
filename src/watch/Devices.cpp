@@ -77,17 +77,22 @@ bool setEventMask(int fd) {
 //
 // *settled says whether that database has been written for this device at all,
 // which is what tells "udev says no seat" apart from "udev has not spoken
-// yet". The difference matters for a keyboard plugged in while this runs: it
-// is opened on the permissions udev grants it, and those are granted before
-// the database is written. Asked in that window, a keyboard of the second seat
-// answers with the first, and without the flag that answer would stand for as
-// long as the device is plugged in, which is the very leak this reading is
-// here to close. So an unsettled answer is provisional and asked again on the
-// correction beat.
+// yet". A keyboard plugged in while this runs is opened on the permissions
+// udev grants it, and udev grants those before it writes the database. Asked
+// in that window, a keyboard of the second seat would answer with the first,
+// and the answer would stand for as long as the device is plugged in, which is
+// the very leak this reading exists to close.
 //
-// Waiting instead of answering is not the way out. Writing the database does
-// not touch the node under /dev/input, so there is no second directory event
-// to wait for, and a keyboard held shut until one arrived would stay shut.
+// Read from the order udev does its work in, not measured: in 21 openings of a
+// freshly plugged keyboard, 8 of them under twice the load the machine has
+// cores for, the database had always been written by the time it was asked.
+// Small enough never to be met, not small enough to leave open.
+//
+// What is done about it is not to wait. Writing the database does not touch
+// the node under /dev/input, so there is no second directory event to wait
+// for, and a keyboard held shut until one arrived would stay shut. The device
+// is opened and read, and nothing it reports goes anywhere until the seat has
+// settled, which the correction beat asks about again.
 //
 // `loginctl attach` can still move a device after it has settled, and the
 // directory watch sees a node appear or go rather than a property change, so a
@@ -176,6 +181,13 @@ void Devices::openDevice(const std::string &path) {
     m_devices.push_back(
         Device{m_nextId++, path, std::move(seat), settled, fd, dev});
 
+    // A device whose seat is still provisional says nothing to anybody. What
+    // it holds is taken at the beat that settles it, at the seat it turns out
+    // to belong to.
+    if (!settled) {
+        return;
+    }
+
     // libevdev asked the device what is down while it was opening, so the
     // answer is already here. Taken now rather than at the first resync: the
     // panel connects when it starts, and by then SUPER may well be held.
@@ -261,6 +273,15 @@ void Devices::appendPollFds(std::vector<pollfd> &out) const {
 }
 
 bool Devices::readFrom(Device &device) {
+    // Read and dropped while the seat is provisional, rather than left unread.
+    // The descriptor has to be drained or the poll would return on it forever,
+    // and a device that has gone away has to be noticed here or nowhere.
+    //
+    // Dropped rather than put at the seat it will probably turn out to be:
+    // a modifier put at the wrong one could be moved when the answer arrives,
+    // but the bare fact that some other key went down could not. That is a
+    // fact about one round, it goes out and is forgotten in the same round,
+    // and there is nothing left to take back.
     input_event event{};
     int rc = libevdev_next_event(device.dev, LIBEVDEV_READ_FLAG_NORMAL, &event);
     while (rc == LIBEVDEV_READ_STATUS_SUCCESS ||
@@ -275,7 +296,7 @@ bool Devices::readFrom(Device &device) {
             // and reporting that as a taken shortcut would hide the panel for
             // a keystroke that never happened.
             while (rc == LIBEVDEV_READ_STATUS_SYNC) {
-                if (event.type == EV_KEY &&
+                if (device.seatSettled && event.type == EV_KEY &&
                     Modifiers::idOf(event.code) != kNoModifier) {
                     if (event.value == kKeyPress) {
                         m_state.press(device.seat, device.id, event.code);
@@ -296,7 +317,7 @@ bool Devices::readFrom(Device &device) {
             continue;
         }
 
-        if (event.type == EV_KEY) {
+        if (device.seatSettled && event.type == EV_KEY) {
             if (Modifiers::idOf(event.code) == kNoModifier) {
                 // Not a modifier, and this is the whole of what is learned
                 // about it: that one went down. A release is the tail of that
@@ -341,8 +362,13 @@ void Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
         }
         if (!readFrom(m_devices[index])) {
             // A key held on the device that just vanished can never be
-            // released, so what it was holding is dropped here.
-            m_state.forget(m_devices[index].seat, m_devices[index].id);
+            // released, so what it was holding is dropped here. A device that
+            // never settled held nothing anybody was told about, and asking
+            // for it would bring a seat into being that no keyboard was ever
+            // opened for.
+            if (m_devices[index].seatSettled) {
+                m_state.forget(m_devices[index].seat, m_devices[index].id);
+            }
             retire(index);
         }
     }
@@ -363,20 +389,17 @@ void Devices::resync() {
         Device &device = m_devices[at - 1];
 
         // udev had not written its database when this was opened, so the seat
-        // it answered with was a guess at the commonest case rather than an
-        // answer. Asked again until it is one.
+        // this device answered with was the commonest case rather than an
+        // answer, and nothing it has reported since has gone anywhere. Asked
+        // again until there is an answer; the correction below then takes
+        // everything it holds, at the seat it turns out to belong to.
         if (!device.seatSettled) {
             bool settled = false;
-            const std::string now = seatOf(device.path, &settled);
-            if (now != device.seat) {
-                // What this device was thought to be holding goes with it, or
-                // a modifier nobody is pressing would stand at the seat it was
-                // never at. What it really holds is put at the new seat by the
-                // correction below.
-                m_state.forget(device.seat, device.id);
-                device.seat = now;
-            }
+            device.seat = seatOf(device.path, &settled);
             device.seatSettled = settled;
+            if (!settled) {
+                continue;
+            }
         }
 
         // FORCE_SYNC makes libevdev compare its own picture with the device

@@ -91,10 +91,11 @@ pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
 # belongs to. All three are systemd's own business, and the service is started
 # by systemd or not at all.
 #
-# The floor is where the third of those came from: the sd-device family is
-# public from 251. Without it a distribution one version older gets through
-# configuring and fails in the middle of the compile on a header that is not
-# there, which says nothing about what is missing.
+# The floor is set by one call of the third: sd_device_new_from_devname is
+# public from 251. The header itself is older and so is the rest of what is
+# asked through it, so a distribution one version behind gets through
+# configuring, finds the header, and fails in the middle of the compile on that
+# one name, which says nothing about which version would carry it.
 pkg_check_modules(Libsystemd REQUIRED IMPORTED_TARGET libsystemd>=251)
 
 # KDE's own configuration library. It reads kglobalshortcutsrc exactly the way
