@@ -22,7 +22,9 @@ class Seats;
 // reports goes to that seat alone. One plugged in while this runs can be
 // opened before udev has written what it knows about it; until that answer
 // arrives the device is read and what it says is dropped, so that nothing of
-// it can reach the wrong seat.
+// it can reach the wrong seat. Where the answer never comes at all, which is a
+// machine with no udev database, the first seat is taken after a couple of
+// correction beats rather than dropping what the keyboard says for good.
 //
 // Nothing is grabbed. EVIOCGRAB would make this an interceptor and break every
 // other consumer of the keyboard; the whole point is to stay passive.
@@ -89,19 +91,24 @@ private:
         std::string seat;
         // Whether the seat above is an answer or a guess at the commonest
         // case. While it is a guess nothing this device reports is passed on,
-        // and it is asked about again.
+        // and it is asked about again. It also becomes true without an answer,
+        // once the beats below have given up and the guess is taken as one.
         bool seatSettled = false;
         // How many correction beats have asked udev about this device and been
         // told nothing. Counted so that a machine where udev has nothing to
-        // say at all does not go on dropping every key for good.
+        // say at all does not go on dropping every key for good: at
+        // kSeatBeatsBeforeFallback the first seat is taken and said aloud.
         int seatBeats = 0;
         int fd = -1;
         libevdev *dev = nullptr;
     };
 
     // What a keyboard already holds is taken the moment it is opened rather
-    // than at the next correction a second and a half later: one can be
-    // plugged in with a modifier already down.
+    // than at the next correction a second and a half later, because one can
+    // be plugged in with a modifier already down. Unless its seat is still a
+    // guess, and then nothing of it is taken until there is an answer: a
+    // modifier reported at the wrong seat is the thing this is all here to
+    // prevent, and it is worth the wait it costs.
     void openDevice(const std::string &path);
     void scan();
     void retire(std::size_t at);

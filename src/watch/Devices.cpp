@@ -106,12 +106,13 @@ bool setEventMask(int fd) {
 // settled: asked again at the end of the scan that opened it, and after that
 // on the correction beat.
 //
-// A false answer here is never a permanent one. On a machine with no udev
-// database at all, which a container can be, this would say no forever and the
-// service would drop every key in silence; the beats that ask give up after
-// kSeatBeatsBeforeFallback and take the first seat instead. That crosses no
-// line: a second seat exists only where udev has written ID_SEAT, so where
-// there is nothing to read there is nothing but the first seat to be at.
+// A no here is never left standing for good. On a machine with no udev
+// database at all, which a container with /dev/input passed into it can be,
+// this says no every time it is asked, and the service would drop every key in
+// silence; the beats that ask give up after kSeatBeatsBeforeFallback and take
+// the first seat instead. That crosses no line, because a second seat is made
+// by writing ID_SEAT into this very database: where there is nothing to read,
+// nobody has been attached to a second seat and there is none to be at.
 //
 // `loginctl attach` can still move a device after it has settled, and the
 // directory watch sees a node appear or go rather than a property change, so a
@@ -451,10 +452,11 @@ void Devices::resync() {
 
             // Asked this often and told nothing this late, udev is not going
             // to answer at all: its own window is microseconds wide, and this
-            // is whole beats past it. A machine like that is one where udev
-            // has written nothing about any device, so it has no second seat
-            // to be careless with, and going on dropping every key in silence
-            // would be the worse answer.
+            // is whole beats past it. So the guess is taken as the answer,
+            // which loses nothing that could have been kept: a second seat is
+            // made by writing ID_SEAT into the database that is not there, so
+            // a machine which has none of it has no second seat either. Going
+            // on dropping every key in silence would be the worse answer.
             std::fprintf(stderr,
                          "bindpeek-watch: udev says nothing about %s, reading "
                          "it as %s\n",
