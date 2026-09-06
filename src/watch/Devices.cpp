@@ -33,6 +33,16 @@ constexpr char kEventPrefix[] = "event";
 // The property udev writes on a device that has been moved to another seat.
 constexpr char kSeatProperty[] = "ID_SEAT";
 
+// How many correction beats may ask udev about one device and be told nothing
+// before the first seat is taken as the answer.
+//
+// Two rather than one because the beat is a single timer for every device: a
+// keyboard opened a moment before a beat would otherwise be asked again a
+// moment later and fall back inside the very window this is here to sit out.
+// Two beats are at least one whole interval, and udev's own window is measured
+// in microseconds.
+constexpr int kSeatBeatsBeforeFallback = 2;
+
 // The two states of a key that are state changes. Auto-repeat is the third and
 // is not one: a held SUPER must not look like a new press.
 constexpr int kKeyRelease = 0;
@@ -83,16 +93,25 @@ bool setEventMask(int fd) {
 // and the answer would stand for as long as the device is plugged in, which is
 // the very leak this reading exists to close.
 //
-// Read from the order udev does its work in, not measured: in 21 openings of a
-// freshly plugged keyboard, 8 of them under twice the load the machine has
-// cores for, the database had always been written by the time it was asked.
-// Small enough never to be met, not small enough to leave open.
+// That window is read from the order udev does its work in and has never been
+// caught: in 21 openings of a freshly plugged keyboard, 8 of them under twice
+// the load the machine has cores for, the database had always been written by
+// the time it was asked. Small enough never to be met, not small enough to
+// leave open.
 //
 // What is done about it is not to wait. Writing the database does not touch
 // the node under /dev/input, so there is no second directory event to wait
 // for, and a keyboard held shut until one arrived would stay shut. The device
 // is opened and read, and nothing it reports goes anywhere until the seat has
-// settled, which the correction beat asks about again.
+// settled: asked again at the end of the scan that opened it, and after that
+// on the correction beat.
+//
+// A false answer here is never a permanent one. On a machine with no udev
+// database at all, which a container can be, this would say no forever and the
+// service would drop every key in silence; the beats that ask give up after
+// kSeatBeatsBeforeFallback and take the first seat instead. That crosses no
+// line: a second seat exists only where udev has written ID_SEAT, so where
+// there is nothing to read there is nothing but the first seat to be at.
 //
 // `loginctl attach` can still move a device after it has settled, and the
 // directory watch sees a node appear or go rather than a property change, so a
@@ -179,11 +198,11 @@ void Devices::openDevice(const std::string &path) {
     bool settled = false;
     std::string seat = seatOf(path, &settled);
     m_devices.push_back(
-        Device{m_nextId++, path, std::move(seat), settled, fd, dev});
+        Device{m_nextId++, path, std::move(seat), settled, 0, fd, dev});
 
     // A device whose seat is still provisional says nothing to anybody. What
-    // it holds is taken at the beat that settles it, at the seat it turns out
-    // to belong to.
+    // it holds is taken at the moment its seat becomes one, which the end of
+    // this scan asks about again.
     if (!settled) {
         return;
     }
@@ -191,14 +210,24 @@ void Devices::openDevice(const std::string &path) {
     // libevdev asked the device what is down while it was opening, so the
     // answer is already here. Taken now rather than at the first resync: the
     // panel connects when it starts, and by then SUPER may well be held.
+    takeWhatIsHeld(m_devices.back());
+}
+
+bool Devices::askSeat(Device &device) {
+    bool settled = false;
+    device.seat = seatOf(device.path, &settled);
+    device.seatSettled = settled;
+    return settled;
+}
+
+void Devices::takeWhatIsHeld(Device &device) {
     std::vector<int> down;
     for (const int code : Modifiers::codes()) {
-        if (libevdev_get_event_value(dev, EV_KEY, code) != 0) {
+        if (libevdev_get_event_value(device.dev, EV_KEY, code) != 0) {
             down.push_back(code);
         }
     }
-    const Device &opened = m_devices.back();
-    m_state.reconcile(opened.seat, opened.id, down);
+    m_state.reconcile(device.seat, device.id, down);
 }
 
 void Devices::scan() {
@@ -214,6 +243,23 @@ void Devices::scan() {
         openDevice(std::string{kInputDir} + "/" + entry->d_name);
     }
     ::closedir(dir);
+
+    // Everything still provisional is asked again, here rather than at the
+    // next correction beat. udev writes its database within microseconds of
+    // granting the permissions a device is opened on, so by the end of the
+    // scan the answer has almost always arrived, while the beat is up to a
+    // second and a half away and the device is deaf until it comes.
+    //
+    // Deaf costs more than a late modifier. The bare fact that some other key
+    // went down is what takes the panel off the screen, and dropping it leaves
+    // the panel standing over a shortcut that has fired: hold SUPER on the
+    // keyboard that was already open, press a letter on the one just plugged
+    // in, and the panel would sit there.
+    for (Device &device : m_devices) {
+        if (!device.seatSettled && askSeat(device)) {
+            takeWhatIsHeld(device);
+        }
+    }
 }
 
 bool Devices::start() {
@@ -388,18 +434,28 @@ void Devices::resync() {
     for (std::size_t at = m_devices.size(); at > 0; --at) {
         Device &device = m_devices[at - 1];
 
-        // udev had not written its database when this was opened, so the seat
-        // this device answered with was the commonest case rather than an
-        // answer, and nothing it has reported since has gone anywhere. Asked
-        // again until there is an answer; the correction below then takes
+        // Still no answer from udev when this device was opened, and none at
+        // the end of that scan either, so nothing it has reported has gone
+        // anywhere. Asked once more here; the correction below then takes
         // everything it holds, at the seat it turns out to belong to.
-        if (!device.seatSettled) {
-            bool settled = false;
-            device.seat = seatOf(device.path, &settled);
-            device.seatSettled = settled;
-            if (!settled) {
+        if (!device.seatSettled && !askSeat(device)) {
+            ++device.seatBeats;
+            if (device.seatBeats < kSeatBeatsBeforeFallback) {
                 continue;
             }
+
+            // Asked this often and told nothing this late, udev is not going
+            // to answer at all: its own window is microseconds wide, and this
+            // is whole beats past it. A machine like that is one where udev
+            // has written nothing about any device, so it has no second seat
+            // to be careless with, and going on dropping every key in silence
+            // would be the worse answer.
+            std::fprintf(stderr,
+                         "bindpeek-watch: udev says nothing about %s, reading "
+                         "it as %s\n",
+                         device.path.c_str(), kDefaultSeat);
+            device.seat = kDefaultSeat;
+            device.seatSettled = true;
         }
 
         // FORCE_SYNC makes libevdev compare its own picture with the device
@@ -414,13 +470,7 @@ void Devices::resync() {
                                      &event);
         }
 
-        std::vector<int> down;
-        for (const int code : Modifiers::codes()) {
-            if (libevdev_get_event_value(device.dev, EV_KEY, code) != 0) {
-                down.push_back(code);
-            }
-        }
-        m_state.reconcile(device.seat, device.id, down);
+        takeWhatIsHeld(device);
     }
 }
 

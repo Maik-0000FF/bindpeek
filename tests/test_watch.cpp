@@ -8,6 +8,12 @@
 // No device is opened and none is needed. That is the point of the split: the
 // part of the service worth measuring is handed key codes and hands back a
 // record, and the part that touches descriptors holds no state to measure.
+//
+// One thing is deliberately not measured here. Which seat a keyboard belongs
+// to, and what the service does while udev has not said, is decided where the
+// descriptors are: it needs a real device node and a udev database in a state
+// that 21 attempts failed to produce. It is reasoned in the comments there
+// rather than pretended to be covered by a case here.
 
 #include "Modifiers.h"
 #include "Protocol.h"

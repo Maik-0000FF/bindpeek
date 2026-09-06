@@ -87,11 +87,14 @@ private:
         // when the device is opened and kept for as long as it is open, unless
         // udev had not spoken by then: see below.
         std::string seat;
-        // Whether udev had written what it knows about this device when the
-        // seat above was read. While this is false the seat is the commonest
-        // case rather than an answer: the correction beat asks again, and
-        // nothing this device reports is passed on in the meantime.
+        // Whether the seat above is an answer or a guess at the commonest
+        // case. While it is a guess nothing this device reports is passed on,
+        // and it is asked about again.
         bool seatSettled = false;
+        // How many correction beats have asked udev about this device and been
+        // told nothing. Counted so that a machine where udev has nothing to
+        // say at all does not go on dropping every key for good.
+        int seatBeats = 0;
         int fd = -1;
         libevdev *dev = nullptr;
     };
@@ -104,6 +107,15 @@ private:
     void retire(std::size_t at);
     // Reads what one device has to say. Returns false when it has gone away.
     bool readFrom(Device &device);
+
+    // Asks udev again which seat a device belongs to and takes the answer.
+    // Says whether there is one now.
+    bool askSeat(Device &device);
+
+    // Takes what one device is holding at this moment and puts it at its seat.
+    // Both the moment a seat becomes known and every correction beat need it,
+    // and a keyboard is asked directly rather than remembered.
+    void takeWhatIsHeld(Device &device);
 
     Seats &m_state;
     std::vector<Device> m_devices;
