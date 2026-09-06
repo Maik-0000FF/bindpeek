@@ -1583,44 +1583,53 @@ void TestSources::swayReadsAKeywordWithoutRegardToCase() {
 // The two binding words that leave no trace, measured where they do leave one.
 //
 // sway looks a command up without regard to case, and all four binding words
-// are read that way. Six of this parser's keyword comparisons are pinned down
-// by what they produce: bindsym, set and mode through the sample, include and
-// bindcode through the sentence they add, and a block heading through the
-// group a bind lands in. Two are not. A switch and a gesture are passed over
-// on purpose and are not even counted as left out, so a configuration writing
-// them as "BindSwitch" and "BindGesture" parses to exactly what one writing
-// them in lower case parses to, and to what one misspelling them entirely
-// parses to. Turning those two comparisons into exact ones leaves every other
-// case in this suite passing, which is what makes this one worth having.
+// are read that way. This parser asks after seven keywords, and five of them
+// are pinned down by what they produce: bindsym through the sample, set
+// through a bind written with the variable it defines, mode through the group
+// a bind lands in, include and bindcode through the sentence they add. Two are
+// not. A switch and a gesture are passed over on purpose and are not even
+// counted as left out, so a configuration writing them as "BindSwitch" and
+// "BindGesture" parses to exactly what one writing them in lower case parses
+// to, and to what one misspelling them entirely parses to. Turning those two
+// comparisons into exact ones leaves every other case in this suite passing,
+// which is what makes this one worth having.
 //
 // So it reads the parser rather than running it, the way the QML contract
 // test reads the QML: what cannot be seen in the output can still be seen in
-// the source. It asks that all four words go through the folding comparison,
-// and that nothing in there weighs a word as written.
+// the source. It asks that the four words are the four the function knows,
+// and that each is reached through the folding comparison and not otherwise.
 void TestSources::swayFoldsEveryBindingWord() {
     QFile file(QStringLiteral(BINDPEEK_SRC "/SourceSway.cpp"));
     QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text),
              qPrintable(file.fileName()));
     const QString source = QString::fromUtf8(file.readAll());
 
-    // The one function that answers whether a line binds something, from its
-    // first line to the brace that closes it in the first column.
-    const qsizetype begins =
-        source.indexOf(QLatin1String("bool bindsSomething("));
-    QVERIFY2(begins >= 0, "bindsSomething is gone or has been renamed");
+    // The body of the one function that answers whether a line binds
+    // something: from the brace that opens it to the one that closes it in the
+    // first column.
+    //
+    // Found by its whole signature rather than by its name, so that a forward
+    // declaration written above it one day is stepped over rather than taken
+    // for the definition, which would hand the lines below somebody else's
+    // function and fail on code that is right.
+    const QRegularExpression definition(
+        QStringLiteral("\\nbool bindsSomething\\([^)]*\\)\\s*\\{"));
+    const QRegularExpressionMatch where = definition.match(source);
+    QVERIFY2(where.hasMatch(),
+             "bindsSomething is gone, renamed, or no longer written as one "
+             "definition this case can find");
+    const qsizetype begins = where.capturedEnd();
     const qsizetype ends = source.indexOf(QLatin1String("\n}"), begins);
-    QVERIFY(ends > begins);
+    QVERIFY2(ends > begins,
+             "the body of bindsSomething does not end at a brace in the first "
+             "column");
     const QString body = source.mid(begins, ends - begins);
 
-    // Asked before the list below, because this is the mistake worth naming in
-    // words: a list of the wrong length says only that something moved.
-    QVERIFY2(!body.contains(QLatin1String("==")),
-             "a binding word is compared as written, which sway does not do");
-
-    // Every keyword it asks about, however they are ordered in there.
+    // Every keyword it reaches through the folding comparison, however those
+    // are ordered and whatever the word it is handed is called.
     QStringList asked;
-    const QRegularExpression call(QStringLiteral(
-        "isKeyword\\(\\s*keyword\\s*,\\s*(kKeyword\\w+)\\s*\\)"));
+    const QRegularExpression call(
+        QStringLiteral("isKeyword\\(\\s*\\w+\\s*,\\s*(kKeyword\\w+)\\s*\\)"));
     QRegularExpressionMatchIterator at = call.globalMatch(body);
     while (at.hasNext()) {
         asked.append(at.next().captured(1));
@@ -1635,6 +1644,20 @@ void TestSources::swayFoldsEveryBindingWord() {
     // A fifth binding word is welcome; it belongs in the list above as well,
     // and this case failing is how that gets said rather than forgotten.
     QCOMPARE(asked, expected);
+
+    // And no keyword is named in there except through that comparison, which
+    // is what an exact one would look like: the constant is still there, the
+    // fold around it is gone. Counted rather than forbidding "==" outright,
+    // because a guard that compares something else, a length say, is nobody's
+    // mistake and would be called one.
+    const QRegularExpression named(QStringLiteral("kKeyword\\w+"));
+    qsizetype mentions = 0;
+    QRegularExpressionMatchIterator every = named.globalMatch(body);
+    while (every.hasNext()) {
+        every.next();
+        ++mentions;
+    }
+    QCOMPARE(mentions, asked.size());
 }
 
 void TestSources::swayResolvesAVariableBuiltFromAnother() {
