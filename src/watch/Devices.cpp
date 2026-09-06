@@ -65,30 +65,44 @@ bool setEventMask(int fd) {
     return ioctl(fd, EVIOCSMASK, &mask) == 0;
 }
 
-// A device counts as a keyboard when it can report the letter range and space.
-// Mice, touchpads and volume rockers also carry EV_KEY, so the event type
-// alone is not enough to tell them apart.
-// Which seat a device belongs to. The property when it carries one, the first
-// seat when it does not: udev writes it only on a device that has been moved
-// with `loginctl attach`. Measured on a single-seat machine, where no node
-// under /dev/input carries it at all and the answer is the fallback every
-// time.
+// Which seat a device belongs to, and whether that answer is a final one.
+//
+// The property when it carries one, the first seat when it does not: udev
+// writes it only on a device that has been moved with `loginctl attach`.
+// Measured on a single-seat machine, where no node under /dev/input carries it
+// at all and the answer is the fallback every time.
 //
 // It reads the udev database under /run, not /proc, so ProtectProc in the unit
 // does not blind it.
 //
-// Asked once, when the device is opened. `loginctl attach` can move a device
-// while this is running, and the directory watch sees a node appear or go
-// rather than a property change, so a device moved at runtime keeps the seat
-// it was opened with until it is opened again. Closing that needs a udev
-// monitor, which is a larger thing than this.
-std::string seatOf(const std::string &path) {
+// *settled says whether that database has been written for this device at all,
+// which is what tells "udev says no seat" apart from "udev has not spoken
+// yet". The difference matters for a keyboard plugged in while this runs: it
+// is opened on the permissions udev grants it, and those are granted before
+// the database is written. Asked in that window, a keyboard of the second seat
+// answers with the first, and without the flag that answer would stand for as
+// long as the device is plugged in, which is the very leak this reading is
+// here to close. So an unsettled answer is provisional and asked again on the
+// correction beat.
+//
+// Waiting instead of answering is not the way out. Writing the database does
+// not touch the node under /dev/input, so there is no second directory event
+// to wait for, and a keyboard held shut until one arrived would stay shut.
+//
+// `loginctl attach` can still move a device after it has settled, and the
+// directory watch sees a node appear or go rather than a property change, so a
+// device moved at that point keeps the seat it settled on until it is opened
+// again. Closing that needs a udev monitor, which is a larger thing than this.
+std::string seatOf(const std::string &path, bool *settled) {
+    *settled = false;
+
     sd_device *device = nullptr;
     if (sd_device_new_from_devname(&device, path.c_str()) < 0) {
         return kDefaultSeat;
     }
 
     std::string name = kDefaultSeat;
+    *settled = sd_device_get_is_initialized(device) > 0;
     const char *seat = nullptr;
     if (sd_device_get_property_value(device, kSeatProperty, &seat) >= 0 &&
         seat != nullptr && *seat != '\0') {
@@ -98,6 +112,9 @@ std::string seatOf(const std::string &path) {
     return name;
 }
 
+// A device counts as a keyboard when it can report the letter range and space.
+// Mice, touchpads and volume rockers also carry EV_KEY, so the event type
+// alone is not enough to tell them apart.
 bool looksLikeKeyboard(libevdev *dev) {
     if (libevdev_has_event_type(dev, EV_KEY) == 0) {
         return false;
@@ -154,7 +171,10 @@ void Devices::openDevice(const std::string &path) {
         return;
     }
 
-    m_devices.push_back(Device{m_nextId++, path, seatOf(path), fd, dev});
+    bool settled = false;
+    std::string seat = seatOf(path, &settled);
+    m_devices.push_back(
+        Device{m_nextId++, path, std::move(seat), settled, fd, dev});
 
     // libevdev asked the device what is down while it was opening, so the
     // answer is already here. Taken now rather than at the first resync: the
@@ -341,6 +361,23 @@ void Devices::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
 void Devices::resync() {
     for (std::size_t at = m_devices.size(); at > 0; --at) {
         Device &device = m_devices[at - 1];
+
+        // udev had not written its database when this was opened, so the seat
+        // it answered with was a guess at the commonest case rather than an
+        // answer. Asked again until it is one.
+        if (!device.seatSettled) {
+            bool settled = false;
+            const std::string now = seatOf(device.path, &settled);
+            if (now != device.seat) {
+                // What this device was thought to be holding goes with it, or
+                // a modifier nobody is pressing would stand at the seat it was
+                // never at. What it really holds is put at the new seat by the
+                // correction below.
+                m_state.forget(device.seat, device.id);
+                device.seat = now;
+            }
+            device.seatSettled = settled;
+        }
 
         // FORCE_SYNC makes libevdev compare its own picture with the device
         // and hand back the difference as events, which is exactly what is

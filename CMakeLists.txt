@@ -85,11 +85,17 @@ find_package(LayerShellQt REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Libevdev REQUIRED IMPORTED_TARGET libevdev)
 
-# libsystemd, for the two things the service cannot do without it: take the
-# listening socket from the service manager, and ask whether the user on the
-# other end of a connection is logged in at all. Both are systemd's own
-# business, and the service is started by systemd or not at all.
-pkg_check_modules(Libsystemd REQUIRED IMPORTED_TARGET libsystemd)
+# libsystemd, for the three things the service cannot do without it: take the
+# listening socket from the service manager, ask which seat the user on the
+# other end of a connection is logged in at, and ask udev which seat a keyboard
+# belongs to. All three are systemd's own business, and the service is started
+# by systemd or not at all.
+#
+# The floor is where the third of those came from: the sd-device family is
+# public from 251. Without it a distribution one version older gets through
+# configuring and fails in the middle of the compile on a header that is not
+# there, which says nothing about what is missing.
+pkg_check_modules(Libsystemd REQUIRED IMPORTED_TARGET libsystemd>=251)
 
 # KDE's own configuration library. It reads kglobalshortcutsrc exactly the way
 # KDE writes it (double escaping of list commas and tabs); a hand-written

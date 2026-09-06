@@ -19,7 +19,9 @@ class Seats;
 // given up when they go away.
 //
 // Each one is asked which seat it belongs to when it is opened, and what it
-// reports goes to that seat alone.
+// reports goes to that seat alone. One plugged in while this runs is opened
+// before udev has written what it knows about it, so that first answer is
+// provisional and asked again on the correction beat until it is not.
 //
 // Nothing is grabbed. EVIOCGRAB would make this an interceptor and break every
 // other consumer of the keyboard; the whole point is to stay passive.
@@ -80,9 +82,14 @@ private:
         // keyboards.
         int id = 0;
         std::string path;
-        // Read once, when the device is opened, and kept for as long as it is.
-        // What this device reports goes to this seat and to no other.
+        // What this device reports goes to this seat and to no other. Read
+        // when the device is opened and kept for as long as it is open, unless
+        // udev had not spoken by then: see below.
         std::string seat;
+        // Whether udev had written what it knows about this device when the
+        // seat above was read. While this is false the seat is the commonest
+        // case rather than an answer, and the correction beat asks again.
+        bool seatSettled = false;
         int fd = -1;
         libevdev *dev = nullptr;
     };
