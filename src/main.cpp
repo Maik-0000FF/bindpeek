@@ -3,6 +3,7 @@
 
 #include "AppInfo.h"
 #include "Appearance.h"
+#include "CommandLine.h"
 #include "Compositor.h"
 #include "LayerPlacement.h"
 #include "OverlayController.h"
@@ -409,26 +410,6 @@ void installTranslators() {
     }
 }
 
-// True when the invocation needs no display: the text list and the two
-// informational options. Deciding this before the application object exists
-// keeps `--list` usable over SSH, where creating a QGuiApplication would abort
-// for want of a display.
-bool wantsTextOnly(int argc, char **argv) {
-    for (int i = 1; i < argc; ++i) {
-        const QLatin1String argument(argv[i]);
-        if (argument == QLatin1String("--list") ||
-            argument == QLatin1String("--keys") ||
-            argument == QLatin1String("--help") ||
-            argument == QLatin1String("-h") ||
-            argument == QLatin1String("--help-all") ||
-            argument == QLatin1String("--version") ||
-            argument == QLatin1String("-v")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 } // namespace
 
 int main(int argc, char **argv) {
@@ -440,7 +421,12 @@ int main(int argc, char **argv) {
     // Recompiling two small files on every start costs nothing next to that.
     qputenv("QML_DISABLE_DISK_CACHE", "1");
 
-    const bool textOnly = wantsTextOnly(argc, argv);
+    // The two options of this program that print and stop, beside the
+    // informational ones the check knows by itself. Asked here so that the
+    // list and the key report stay usable over SSH: a QGuiApplication aborts
+    // where there is no display, and neither of them needs one.
+    const bool textOnly = wantsTextOnly(
+        argc, argv, {QLatin1String(kOptionList), QLatin1String(kOptionKeys)});
 
     std::unique_ptr<QCoreApplication> app;
     if (textOnly) {
@@ -449,14 +435,11 @@ int main(int argc, char **argv) {
         app = std::make_unique<QGuiApplication>(argc, argv);
     }
 
-    QCoreApplication::setApplicationName(QStringLiteral("bindpeek"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(BINDPEEK_VERSION));
+    setApplicationIdentity();
     installTranslators();
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(applicationDescription());
-    parser.addHelpOption();
-    parser.addVersionOption();
+    prepareParser(parser, applicationDescription());
 
     const QCommandLineOption optionList(
         QLatin1String(kOptionList),

@@ -87,4 +87,11 @@ private:
 // that copy against this one.
 QString applicationDescription();
 
+// The sentence the settings window heads its own --help with.
+//
+// A second one rather than the sentence above: that one describes the panel,
+// which is what the desktop entry carries and what the about dialog shows, and
+// a program that opens no panel would be describing something it does not do.
+QString settingsDescription();
+
 } // namespace bindpeek

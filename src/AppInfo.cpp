@@ -69,6 +69,11 @@ QString applicationDescription() {
 
 QString AppInfo::description() const { return applicationDescription(); }
 
+QString settingsDescription() {
+    return QCoreApplication::translate(
+        "AppInfo", "Settings and tray icon for the shortcut overlay.");
+}
+
 QString AppInfo::repositoryUrl() const { return QLatin1String(kRepository); }
 QString AppInfo::issuesUrl() const { return QLatin1String(kIssues); }
 QString AppInfo::licenseName() const { return QLatin1String(kLicenseName); }
