@@ -31,23 +31,39 @@ namespace bindpeek {
 // the application class, and with what else stands on the line, and none of
 // the outcomes is one anybody asked for.
 //
-// The union of what the two classes take, because the two programs share this
-// list: stylesheet and widgetcount belong to the settings window, the rest to
-// both. A name is refused here for either of them.
+// Not only the object with a screen, either. Measured: a bare QCoreApplication
+// takes -qmljsdebugger and its value as well, so that name is swallowed even
+// on a run that was answered as text and built no window.
+//
+// The union of what the classes take, because the programs share this list:
+// stylesheet, widgetcount, qdevel and qdebug belong to the settings window,
+// which builds the class that takes the widest set, and geometry, title and
+// icon are taken under X11. A name is refused here for all of them.
+//
+// This is a list of names to refuse, not one to act on, and that is what
+// settles what belongs on it. A name too many costs nobody anything: no option
+// of this package is going to be called "geometry". A name too few is a gap.
+// So a name goes on as soon as there is reason to think Qt uses it, rather
+// than once somebody has measured that it does; three of these would need an X
+// display to measure and are on the list all the same.
+//
+// It follows that the list is allowed to age. It decides nothing, so falling
+// behind Qt costs an assurance, never a working option.
 //
 // Held against a program's own options while that program is built, which is
 // what src/main.cpp does with it, and read by the test rather than copied
-// there. A list of somebody else's names ages, and this one is allowed to: it
-// decides nothing and only refuses a name, so falling behind Qt costs an
-// assurance, never a working option.
+// there.
 inline constexpr const char *kOptionsQtTakes[] = {
+    "geometry",      "icon",
     "platform",      "platformpluginpath",
     "platformtheme", "plugin",
+    "qdebug",        "qdevel",
     "qmljsdebugger", "qwindowgeometry",
     "qwindowicon",   "qwindowtitle",
     "reverse",       "session",
     "style",         "stylesheet",
-    "testability",   "widgetcount",
+    "testability",   "title",
+    "widgetcount",
 };
 
 // Whether two option names are the same, usable while the program is built.
@@ -118,9 +134,11 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // And one of Qt's own standing beside an informational one is refused rather
 // than acted on: "-style Fusion --version" answers "Unknown options: s, t, y,
 // l, e." because the version wins, the plain application object is built, and
-// that one cuts nothing out. Closing this would mean carrying Qt's list of
-// options here, which ages, for a line nobody writes: a stylesheet is not set
-// in order to ask a program its version.
+// that one cuts out almost nothing. Almost, because -qmljsdebugger goes even
+// there, so that one name is swallowed on this path rather than refused.
+// Closing either would mean acting on Qt's list of names rather than only
+// refusing them, for a line nobody writes: a stylesheet is not set in order to
+// ask a program its version.
 //
 // Which leaves one rule for whoever adds an option to a program: it must not
 // be given a name Qt already uses. Those are listed at the top of this file,
