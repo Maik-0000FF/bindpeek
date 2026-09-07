@@ -160,9 +160,18 @@ struct ProgramOption {
 //
 // A name Qt already uses is not available here: style, session, reverse,
 // platform and the rest are cut out of the command line by the GUI application
-// object, and an option of this program carrying one of those names would take
-// it away from Qt. Nothing catches that automatically, because by then the two
-// are the same word.
+// object. Which of the two options loses depends on the entry, and the quiet
+// way round is the likelier one.
+//
+// An entry that carries on to a window is the quiet one. Qt has taken the
+// argument out of the line long before the parser looks, so the option is
+// never set, no value arrives, nothing is said, and --help goes on offering
+// it. An entry that prints and stops loses the other way: the plain
+// application object cuts nothing out, the parser sees the argument and
+// answers it, and Qt's own option is refused instead of acted on.
+//
+// Nothing catches either automatically, because by then the two are the same
+// word. The place to see it is this table.
 //
 // One table because it is read from three sides: the parser is built from it,
 // the check that runs before the application object asks which options are
