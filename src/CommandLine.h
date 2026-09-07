@@ -39,52 +39,64 @@ void setApplicationIdentity();
 // neither be copied nor moved.
 void prepareParser(QCommandLineParser &parser, const QString &description);
 
-// True when this invocation ends in a printed line and needs no display.
+// True when this invocation is answered as text and needs no display: the
+// informational options, plus any option the caller names in alsoText (each
+// without its dashes).
 //
 // Asked before the application object exists, because a GUI one aborts where
 // there is no display, and asking a program its version over SSH is fair.
 //
-// Read the other way round from what it sounds like. It does not carry a list
-// of what is informational: such a list only ever holds what somebody thought
-// to write down, and Qt takes more spellings than that. -vh is -v and -h, and
-// an option that is none is refused in a printed line as well. So the caller
-// names the opposite, the few options of its own that carry on to a window,
-// and everything else written like an option ends in text.
+// takingValue names the options of the caller that are followed by a value, so
+// that a value spelled like an option is read as the value it is. Without it a
+// file called "-v" handed to --source would answer yes here, and the program
+// would build a plain application object and then go on to put a window on the
+// screen with it.
 //
-// needingDisplay names those options, without their dashes. An option that is
-// not in the list either prints and stops or is refused by the parser, and
-// both are lines rather than windows.
+// Only what is certainly text is answered yes. An argument that is written
+// like an option and stands on neither list is left to the GUI application
+// object, because Qt cuts its own options out of the line before the parser
+// ever sees them, in both spellings: -platform and --platform, -style,
+// -session, -reverse and the rest are gone by then. Measured, and it is what
+// keeps those working. Reading an unknown option as text instead would answer
+// a mistyped one over SSH and break every one of Qt's.
 //
-// takingValue names the options that are followed by a value, so that a value
-// spelled like an option is read as the value it is. Without it a file called
-// "-v" handed to --source would answer yes here, and the program would build a
-// plain application object and then go on to put a window on the screen.
+// What it costs is that a mistyped option without any display at all ends the
+// run without a word, because Qt cannot build the application object that
+// would have printed the line. That is Qt's behaviour and every program built
+// on it has it; the alternative is guessing which unknown options are Qt's.
+//
+// And one of Qt's own standing beside an informational one is refused rather
+// than acted on: "-style Fusion --version" answers "Unknown options: s, t, y,
+// l, e." because the version wins, the plain application object is built, and
+// that one cuts nothing out. Closing this would mean carrying Qt's list of
+// options here, which ages, for a line nobody writes: a stylesheet is not set
+// in order to ask a program its version.
 //
 // What arrives here, and what it answers. The lists are written as the panel
-// names them, so "source" both needs a display and takes a value:
+// names them, so "list" is text and "source" takes a value:
 //
-//   argv                      display   value    answer  why
-//   (none)                    -         -        false   nothing to show
-//   --version                 -         -        true    not on the list
-//   -v / -vh / -hv            -         -        true    nor is a run of them
-//   --help / --help-all       -         -        true    nor these
-//   -xyz / --Version          -         -        true    refused, still a line
-//   --list                    -         -        true    prints and stops
-//   --environment hyprland    environ.  environ. false   carries on to a window
-//   --source /x --version     source    source   true    stands on its own
-//   --source --version        source    source   false   the value of --source
-//   --environment -h          environ.  environ. false   the value again
-//   --source=--version        source    source   false   joined, so a value
-//   --source /x -v            source    source   true    one value, not the
-//   rest
-//   --source                  source    source   false   a value never came
-//   -- --version              -         -        false   behind the end
-//   --version --              -         -        true    the end comes after
-//   --source -- --version     source    source   true    the end taken as value
-//   -                         -         -        false   no option, a lone dash
-//   ""                        -         -        false   an empty argument
-bool wantsTextOnly(int argc, char **argv,
-                   const QStringList &needingDisplay = {},
+//   argv                      text   value    answer  why
+//   (none)                    -      -        false   nothing to show
+//   --version / --help        -      -        true    informational
+//   --help-all                -      -        true    informational
+//   -v / -h / -vh / -hv       -      -        true    a run of those letters
+//   -xyz / -5v                -      -        false   a run of others
+//   -platform / --platform    -      -        false   Qt's own, left to Qt
+//   --list                    list   -        true    named by the caller
+//   --Version / --nope        -      -        false   unknown, so left to Qt
+//   -source                   -      -        false   one dash, so a run
+//   ---source                 -      -        false   three dashes, neither
+//   --source /x --version     -      source   true    stands on its own
+//   --source --version        -      source   false   the value of --source
+//   --source=--version        -      source   false   joined, so a value
+//   --source /x -v            -      source   true    one value, not the rest
+//   --source                  -      source   false   the value never came
+//   -- --version              -      -        false   behind the end
+//   --version --              -      -        true    the end comes after
+//   --source -- --version     -      source   true    the end taken as value
+//   -                         -      -        false   no option, a lone dash
+//   ""                        -      -        false   an empty argument
+bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText = {},
                    const QStringList &takingValue = {});
 
 } // namespace bindpeek
