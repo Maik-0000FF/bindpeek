@@ -150,6 +150,9 @@ Other options:
 
 <!-- environments:end -->
 
+`bindpeek-editor` and `bindpeek-watch` take no options of their own, and answer
+`--help` and `--version` the same way.
+
 Everything else is set in the settings window, or by editing
 `~/.config/bindpeek/bindpeek.conf`, which the program writes on first start with
 a comment above every line. Both are read live. See
