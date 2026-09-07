@@ -5,75 +5,41 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QLatin1Char>
 #include <QLatin1String>
 #include <QString>
 
-#include <cctype>
-#include <iterator>
-
 namespace bindpeek {
 namespace {
-
-// The informational options as Qt's parser takes them, in two halves because
-// they are written in two ways.
-//
-// Written out here because the check below runs before the parser exists and
-// therefore cannot ask it. A spelling missing from here is one that reaches a
-// GUI application object which may have no display to be built in, so the long
-// half is measured against the parser in the tests rather than trusted.
-//
-// addHelpOption() takes --help and --help-all, addVersionOption() takes
-// --version.
-constexpr const char *kInformationalLong[] = {
-    "--help",
-    "--help-all",
-    "--version",
-};
-
-// The single letters of the same two options. Qt reads a run of short options
-// as the options in it, so -vh is -v and -h, and each letter of such a run is
-// looked at on its own.
-constexpr char kInformationalShort[] = {'h', 'v'};
-
-// The dashes an option is written with, once, so the caller names its own
-// options the way the rest of the program does: without them.
-constexpr char kOptionPrefix[] = "--";
 
 // The end of the options. Qt takes everything behind it as a value, however it
 // is spelled, so an option standing there is not one.
 constexpr char kEndOfOptions[] = "--";
 
-// True when the argument is a run of short options that holds an informational
-// one. A single -v is the shortest run of the same kind.
-//
-// Letters only, which is what a short option is made of, so that a negative
-// number and a lone dash are not read as a run of them. Qt is looser here and
-// reads -5v as a run as well, and the difference costs nothing: a run holding
-// a character no option goes by is refused by the parser, which is a printed
-// line either way and never a window.
-//
-// Measured rather than assumed, because the answers are not obvious:
-//
-//   bindpeek -version  ->  Unknown options: e, r, s, i, o, n.
-//   bindpeek -xyz      ->  Unknown options: x, y, z.
-//   bindpeek -5v       ->  Unknown option '5'.
-bool holdsShortOption(const char *argument) {
-    if (argument[0] != '-' || argument[1] == '\0' || argument[1] == '-') {
-        return false;
-    }
+// True when the argument is written like an option: a dash with something
+// behind it. A lone dash is not one, and neither is a value or a name that
+// happens to stand on the line.
+bool looksLikeOption(QLatin1String argument) {
+    return argument.size() >= 2 && argument.startsWith(QLatin1Char('-'));
+}
 
-    bool informational = false;
-    for (const char *letter = argument + 1; *letter != '\0'; ++letter) {
-        if (std::isalpha(static_cast<unsigned char>(*letter)) == 0) {
-            return false;
-        }
-        for (const char known : kInformationalShort) {
-            if (*letter == known) {
-                informational = true;
-            }
-        }
+// The name an option goes by, without its dashes and without a value joined to
+// it: "--source" and "--source=/x" both give "source".
+//
+// A run of short options gives the run, "vh" for -vh, which is on no caller's
+// list: neither program has a short option of its own, so a run is never one
+// of theirs and always ends in a printed line, whether Qt answers it or
+// refuses it.
+QString optionName(QLatin1String argument) {
+    QString name(argument);
+    while (name.startsWith(QLatin1Char('-'))) {
+        name.remove(0, 1);
     }
-    return informational;
+    const qsizetype joined = name.indexOf(QLatin1Char('='));
+    if (joined >= 0) {
+        name.truncate(joined);
+    }
+    return name;
 }
 
 } // namespace
@@ -89,40 +55,31 @@ void prepareParser(QCommandLineParser &parser, const QString &description) {
     parser.addVersionOption();
 }
 
-bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText,
+bool wantsTextOnly(int argc, char **argv, const QStringList &needingDisplay,
                    const QStringList &takingValue) {
-    QStringList text;
-    text.reserve(static_cast<qsizetype>(std::size(kInformationalLong)) +
-                 alsoText.size());
-    for (const char *option : kInformationalLong) {
-        text.append(QLatin1String(option));
-    }
-    for (const QString &option : alsoText) {
-        text.append(QLatin1String(kOptionPrefix) + option);
-    }
-
-    QStringList valued;
-    valued.reserve(takingValue.size());
-    for (const QString &option : takingValue) {
-        valued.append(QLatin1String(kOptionPrefix) + option);
-    }
-
-    // Compared whole, so an option joined to its value by an equals sign is
-    // read as the one argument it is and never as the option it contains.
     for (int i = 1; i < argc; ++i) {
         const QLatin1String argument(argv[i]);
+
         // Nothing behind this is an option any more, so nothing behind it can
-        // be one of these.
+        // end the run in a line of its own.
         if (argument == QLatin1String(kEndOfOptions)) {
             return false;
         }
-        if (text.contains(argument) || holdsShortOption(argv[i])) {
+        if (!looksLikeOption(argument)) {
+            continue;
+        }
+
+        const QString name = optionName(argument);
+        if (!needingDisplay.contains(name)) {
             return true;
         }
+
         // The next argument belongs to this option, whatever it is spelled
         // like. Stepping over it is what keeps a file called "-v" from being
-        // read as a request for the version.
-        if (valued.contains(argument)) {
+        // read as a request for the version. A value joined by an equals sign
+        // is already inside this argument and takes no second one.
+        if (takingValue.contains(name) &&
+            !argument.contains(QLatin1Char('='))) {
             ++i;
         }
     }

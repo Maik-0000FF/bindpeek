@@ -39,46 +39,52 @@ void setApplicationIdentity();
 // neither be copied nor moved.
 void prepareParser(QCommandLineParser &parser, const QString &description);
 
-// True when this invocation is answered as text and needs no display: the
-// informational options, plus any option the caller names in alsoText (each
-// without its dashes).
+// True when this invocation ends in a printed line and needs no display.
 //
 // Asked before the application object exists, because a GUI one aborts where
-// there is no display and asking a program its version over SSH is fair.
+// there is no display, and asking a program its version over SSH is fair.
 //
-// takingValue names the options of the caller that are followed by a value, so
-// that a value which happens to be spelled like an option is read as the value
-// it is. Without it a file called "-v" handed to --source would answer yes
-// here, the program would build a plain application object and then go on to
-// put a window on the screen with it.
+// Read the other way round from what it sounds like. It does not carry a list
+// of what is informational: such a list only ever holds what somebody thought
+// to write down, and Qt takes more spellings than that. -vh is -v and -h, and
+// an option that is none is refused in a printed line as well. So the caller
+// names the opposite, the few options of its own that carry on to a window,
+// and everything else written like an option ends in text.
 //
-// What arrives here, and what it answers. The two lists are written as the
-// caller names them, so "list" is alsoText and "source" takes a value:
+// needingDisplay names those options, without their dashes. An option that is
+// not in the list either prints and stops or is refused by the parser, and
+// both are lines rather than windows.
 //
-//   argv                      also   value    answer  why
-//   (none)                    -      -        false   nothing to show
-//   --version                 -      -        true    informational
-//   -v                        -      -        true    the short spelling
-//   --help / -h / --help-all  -      -        true    informational
-//   -vh / -hv                 -      -        true    a run of short options
-//   -version                  -      -        true    a run holding -v
-//   -xyz                      -      -        false   a run holding neither
-//   --list                    -      -        false   not named
-//   --list                    list   -        true    named by the caller
-//   --source /x --version     -      source   true    stands on its own
-//   --source --version        -      source   false   the value of --source
-//   --environment -h          -      env.     false   the value again
-//   --source=--version        -      source   false   joined, so a value
-//   --source --version        -      -        true    unnamed, so an option
-//   --source /x -v            -      source   true    one value, not the rest
-//   --source                  -      source   false   a value never came
-//   -- --version              -      -        false   behind the end
-//   --version --              -      -        true    the end comes after
-//   --source -- --version     -      source   true    the end taken as a value
-//   -5v                       -      -        false   a digit, so not a run
-//   --Version                 -      -        false   options are lowercase
-//   ""                        -      -        false   an empty argument
-bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText = {},
+// takingValue names the options that are followed by a value, so that a value
+// spelled like an option is read as the value it is. Without it a file called
+// "-v" handed to --source would answer yes here, and the program would build a
+// plain application object and then go on to put a window on the screen.
+//
+// What arrives here, and what it answers. The lists are written as the panel
+// names them, so "source" both needs a display and takes a value:
+//
+//   argv                      display   value    answer  why
+//   (none)                    -         -        false   nothing to show
+//   --version                 -         -        true    not on the list
+//   -v / -vh / -hv            -         -        true    nor is a run of them
+//   --help / --help-all       -         -        true    nor these
+//   -xyz / --Version          -         -        true    refused, still a line
+//   --list                    -         -        true    prints and stops
+//   --environment hyprland    environ.  environ. false   carries on to a window
+//   --source /x --version     source    source   true    stands on its own
+//   --source --version        source    source   false   the value of --source
+//   --environment -h          environ.  environ. false   the value again
+//   --source=--version        source    source   false   joined, so a value
+//   --source /x -v            source    source   true    one value, not the
+//   rest
+//   --source                  source    source   false   a value never came
+//   -- --version              -         -        false   behind the end
+//   --version --              -         -        true    the end comes after
+//   --source -- --version     source    source   true    the end taken as value
+//   -                         -         -        false   no option, a lone dash
+//   ""                        -         -        false   an empty argument
+bool wantsTextOnly(int argc, char **argv,
+                   const QStringList &needingDisplay = {},
                    const QStringList &takingValue = {});
 
 } // namespace bindpeek

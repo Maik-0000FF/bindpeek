@@ -221,7 +221,7 @@ add_executable(test_command_line
 target_include_directories(test_command_line PRIVATE ${BINDPEEK_SRC_DIR})
 target_link_libraries(test_command_line PRIVATE Qt6::Test)
 target_compile_definitions(test_command_line
-  PRIVATE BINDPEEK_PROGRAM_NAME="test_command_line"
+  PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:test_command_line>"
 )
 
 add_test(NAME command_line COMMAND test_command_line)

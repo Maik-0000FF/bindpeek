@@ -263,7 +263,11 @@ install(FILES
 #
 # Not the name of the product. That one is the same for all three, is what the
 # about dialog shows, and lives in AppInfo.
+# Read off the file the target builds rather than off the target's own name,
+# which is what the tests do as well: the two agree today because no target
+# renames its output, and reading the same thing everywhere is what keeps them
+# agreeing if one ever does.
 foreach(program bindpeek bindpeek-editor bindpeek-watch)
   target_compile_definitions(${program}
-    PRIVATE BINDPEEK_PROGRAM_NAME="${program}")
+    PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:${program}>")
 endforeach()

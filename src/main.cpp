@@ -171,12 +171,17 @@ constexpr ProgramOption kOptions[] = {
     {kOptionSource, sourceValueName, sourceDescription, false},
 };
 
-// The names of the options that print and stop, and of those that are followed
-// by a value. Both read out of the table, so neither can fall behind it.
-QStringList textOnlyOptions() {
+// The names of the options that carry on to a window, and of those that are
+// followed by a value. Both read out of the table, so neither can fall behind
+// it.
+//
+// The first list is the short one on purpose: an option that prints and stops
+// is not named, and neither is anything else written like an option, because
+// the parser refuses what it does not know and a refusal is a printed line.
+QStringList optionsNeedingDisplay() {
     QStringList names;
     for (const ProgramOption &option : kOptions) {
-        if (option.answeredAsText) {
+        if (!option.answeredAsText) {
             names.append(QLatin1String(option.name));
         }
     }
@@ -519,20 +524,20 @@ int main(int argc, char **argv) {
     // Recompiling two small files on every start costs nothing next to that.
     qputenv("QML_DISABLE_DISK_CACHE", "1");
 
-    // The two options of this program that print and stop, beside the
-    // informational ones the check knows by itself. Asked here so that the
-    // list and the key report stay usable over SSH: a QGuiApplication aborts
-    // where there is no display, and neither of them needs one.
+    // Asked here so that --list, --keys, the two informational options and
+    // every mistyped one stay usable over SSH: a QGuiApplication aborts where
+    // there is no display, and none of them needs one.
     //
-    // The ones followed by a value are named as well, because the check has to
-    // step over what follows them: a file called "-v" handed to --source is a
-    // file, and reading it as a request for the version would build a plain
-    // application object and then go on to put the panel on the screen with it.
+    // What is named are the options that carry on to a window, and those
+    // followed by a value the check has to step over: a file called "-v"
+    // handed to --source is a file, and reading it as a request for the
+    // version would build a plain application object and then go on to put the
+    // panel on the screen with it.
     //
     // Both lists come out of the one table the parser is built from, so an
     // option cannot reach the parser without reaching this line as well.
-    const bool textOnly =
-        wantsTextOnly(argc, argv, textOnlyOptions(), optionsTakingValue());
+    const bool textOnly = wantsTextOnly(argc, argv, optionsNeedingDisplay(),
+                                        optionsTakingValue());
 
     std::unique_ptr<QCoreApplication> app;
     if (textOnly) {
