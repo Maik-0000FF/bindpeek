@@ -425,8 +425,16 @@ int main(int argc, char **argv) {
     // informational ones the check knows by itself. Asked here so that the
     // list and the key report stay usable over SSH: a QGuiApplication aborts
     // where there is no display, and neither of them needs one.
+    //
+    // The other two are named as well, because each is followed by a value the
+    // check has to step over: a file called "-v" handed to --source is a file,
+    // and reading it as a request for the version would build a plain
+    // application object and then go on to put the panel on the screen with
+    // it. All four are named here and added to the parser below, so the two
+    // places are read together.
     const bool textOnly = wantsTextOnly(
-        argc, argv, {QLatin1String(kOptionList), QLatin1String(kOptionKeys)});
+        argc, argv, {QLatin1String(kOptionList), QLatin1String(kOptionKeys)},
+        {QLatin1String(kOptionEnvironment), QLatin1String(kOptionSource)});
 
     std::unique_ptr<QCoreApplication> app;
     if (textOnly) {

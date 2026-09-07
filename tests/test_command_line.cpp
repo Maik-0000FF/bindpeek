@@ -33,8 +33,9 @@ constexpr char kProgram[] = "bindpeek";
 // bytes alive for as long as the pointers are looked at.
 class Line {
 public:
-    explicit Line(const QList<QByteArray> &arguments) {
-        m_bytes.append(QByteArray(kProgram));
+    explicit Line(const QList<QByteArray> &arguments,
+                  const QByteArray &program = QByteArray(kProgram)) {
+        m_bytes.append(program);
         m_bytes.append(arguments);
         m_argv.reserve(m_bytes.size());
         for (QByteArray &argument : m_bytes) {
@@ -58,6 +59,7 @@ class TestCommandLine : public QObject {
 private slots:
     void readsTheLine_data();
     void readsTheLine();
+    void theProgramsOwnNameIsNotAnArgument();
     void knowsEverySpellingTheParserAnswers_data();
     void knowsEverySpellingTheParserAnswers();
     void identityComesFromTheBuild();
@@ -67,46 +69,78 @@ private slots:
 void TestCommandLine::readsTheLine_data() {
     QTest::addColumn<QList<QByteArray>>("arguments");
     QTest::addColumn<QStringList>("alsoText");
+    QTest::addColumn<QStringList>("takingValue");
     QTest::addColumn<bool>("expected");
 
     const QStringList none;
     const QStringList list{QStringLiteral("list")};
+    const QStringList source{QStringLiteral("source")};
+    const QStringList environment{QStringLiteral("environment")};
 
-    QTest::newRow("nothing to show") << QList<QByteArray>{} << none << false;
+    QTest::newRow("nothing to show")
+        << QList<QByteArray>{} << none << none << false;
     QTest::newRow("--version")
-        << QList<QByteArray>{"--version"} << none << true;
-    QTest::newRow("-v") << QList<QByteArray>{"-v"} << none << true;
-    QTest::newRow("--help") << QList<QByteArray>{"--help"} << none << true;
-    QTest::newRow("-h") << QList<QByteArray>{"-h"} << none << true;
+        << QList<QByteArray>{"--version"} << none << none << true;
+    QTest::newRow("-v") << QList<QByteArray>{"-v"} << none << none << true;
+    QTest::newRow("--help")
+        << QList<QByteArray>{"--help"} << none << none << true;
+    QTest::newRow("-h") << QList<QByteArray>{"-h"} << none << none << true;
     QTest::newRow("--help-all")
-        << QList<QByteArray>{"--help-all"} << none << true;
-    QTest::newRow("not named") << QList<QByteArray>{"--list"} << none << false;
+        << QList<QByteArray>{"--help-all"} << none << none << true;
+    QTest::newRow("not named")
+        << QList<QByteArray>{"--list"} << none << none << false;
     QTest::newRow("named by the caller")
-        << QList<QByteArray>{"--list"} << list << true;
-    QTest::newRow("seen anywhere in the line")
-        << QList<QByteArray>{"--source", "/x", "--version"} << none << true;
-    // A value that reads like an option is a value: neither informational
-    // option takes one, so nothing here can be a value of theirs.
-    QTest::newRow("a value, not an option")
-        << QList<QByteArray>{"--source=--version"} << none << false;
+        << QList<QByteArray>{"--list"} << list << none << true;
+    QTest::newRow("stands on its own")
+        << QList<QByteArray>{"--source", "/x", "--version"} << none << source
+        << true;
+    // The one the check exists for: a file named like an option is a file, and
+    // reading it as a request for the version would build a plain application
+    // object for a run that goes on to put a window on the screen.
+    QTest::newRow("the value of --source")
+        << QList<QByteArray>{"--source", "--version"} << none << source
+        << false;
+    QTest::newRow("the value of --environment")
+        << QList<QByteArray>{"--environment", "-h"} << none << environment
+        << false;
+    QTest::newRow("joined, so a value")
+        << QList<QByteArray>{"--source=--version"} << none << source << false;
+    // A caller that names no such option has none, and the same line then says
+    // what it plainly says.
+    QTest::newRow("unnamed, so read as an option")
+        << QList<QByteArray>{"--source", "--version"} << none << none << true;
+    // The step over a value is one argument, not everything after it.
+    QTest::newRow("only the one value is stepped over")
+        << QList<QByteArray>{"--source", "/x", "-v"} << none << source << true;
     QTest::newRow("one dash short")
-        << QList<QByteArray>{"-version"} << none << false;
+        << QList<QByteArray>{"-version"} << none << none << false;
     QTest::newRow("options are lower case")
-        << QList<QByteArray>{"--Version"} << none << false;
+        << QList<QByteArray>{"--Version"} << none << none << false;
     QTest::newRow("an empty argument")
-        << QList<QByteArray>{""} << none << false;
-    // The program's own name is not an argument, whatever it is called.
-    QTest::newRow("the program's own name")
-        << QList<QByteArray>{} << none << false;
+        << QList<QByteArray>{""} << none << none << false;
+    // A value option with nothing behind it steps past the end of the line
+    // rather than off it.
+    QTest::newRow("a value that never came")
+        << QList<QByteArray>{"--source"} << none << source << false;
 }
 
 void TestCommandLine::readsTheLine() {
     QFETCH(QList<QByteArray>, arguments);
     QFETCH(QStringList, alsoText);
+    QFETCH(QStringList, takingValue);
     QFETCH(bool, expected);
 
     Line line(arguments);
-    QCOMPARE(wantsTextOnly(line.argc(), line.argv(), alsoText), expected);
+    QCOMPARE(wantsTextOnly(line.argc(), line.argv(), alsoText, takingValue),
+             expected);
+}
+
+// The first entry of a command line is what the program was called, and a
+// program can be called anything. Reading it as an argument would answer a
+// question nobody asked.
+void TestCommandLine::theProgramsOwnNameIsNotAnArgument() {
+    Line line({}, QByteArray("--version"));
+    QVERIFY(!wantsTextOnly(line.argc(), line.argv()));
 }
 
 // Every spelling that ends a run with a printed answer, asked of a parser

@@ -42,7 +42,8 @@ void prepareParser(QCommandLineParser &parser, const QString &description) {
     parser.addVersionOption();
 }
 
-bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText) {
+bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText,
+                   const QStringList &takingValue) {
     QStringList text;
     text.reserve(static_cast<qsizetype>(std::size(kInformationalOptions)) +
                  alsoText.size());
@@ -53,13 +54,24 @@ bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText) {
         text.append(QLatin1String(kOptionPrefix) + option);
     }
 
-    // Compared whole. An option that carries a value arrives either as two
-    // arguments or joined by an equals sign, and neither of these takes one,
-    // so a --source whose value happens to read like one of them is a value
-    // and stays one.
+    QStringList valued;
+    valued.reserve(takingValue.size());
+    for (const QString &option : takingValue) {
+        valued.append(QLatin1String(kOptionPrefix) + option);
+    }
+
+    // Compared whole, so an option joined to its value by an equals sign is
+    // read as the one argument it is and never as the option it contains.
     for (int i = 1; i < argc; ++i) {
-        if (text.contains(QLatin1String(argv[i]))) {
+        const QLatin1String argument(argv[i]);
+        if (text.contains(argument)) {
             return true;
+        }
+        // The next argument belongs to this option, whatever it is spelled
+        // like. Stepping over it is what keeps a file called "-v" from being
+        // read as a request for the version.
+        if (valued.contains(argument)) {
+            ++i;
         }
     }
     return false;
