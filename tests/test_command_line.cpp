@@ -280,9 +280,14 @@ void TestCommandLine::saysTextWhereverTheParserAnswers() {
     // recognise even in a line it refused. -5xv is such a line, and Qt prints
     // the refusal rather than the version.
     const bool read = parser.parse(line.asStrings());
+    // help-all is asked for separately: addHelpOption() registers it as an
+    // option of its own, and isSet("help") is false for it. Left out, the six
+    // lines carrying it never reached the check below, which is exactly the
+    // kind of gap this test is here to close.
     const bool answered =
         read && (parser.isSet(QStringLiteral("version")) ||
                  parser.isSet(QStringLiteral("help")) ||
+                 parser.isSet(QStringLiteral("help-all")) ||
                  (withOptions && parser.isSet(QLatin1String(kTextOption))));
     if (!answered) {
         return;

@@ -72,6 +72,13 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // options here, which ages, for a line nobody writes: a stylesheet is not set
 // in order to ask a program its version.
 //
+// Which leaves one rule for whoever adds an option to a program: it must not
+// be given a name Qt already uses, style, session, reverse, platform and the
+// rest of them. Named in alsoText, such an option would answer yes here, the
+// plain application object would be built, and Qt's own would be refused
+// instead of acted on. Nothing here can catch that, because the two are the
+// same word by then; the place to see it is the table the option is added to.
+//
 // What arrives here, and what it answers. The lists are written as the panel
 // names them, so "list" is text and "source" takes a value:
 //

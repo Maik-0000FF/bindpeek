@@ -158,6 +158,12 @@ struct ProgramOption {
 
 // The options this program has, in the order --help lists them.
 //
+// A name Qt already uses is not available here: style, session, reverse,
+// platform and the rest are cut out of the command line by the GUI application
+// object, and an option of this program carrying one of those names would take
+// it away from Qt. Nothing catches that automatically, because by then the two
+// are the same word.
+//
 // One table because it is read from three sides: the parser is built from it,
 // the check that runs before the application object asks which options are
 // answered without a display, and the same check asks which are followed by a

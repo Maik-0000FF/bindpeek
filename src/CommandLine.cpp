@@ -61,6 +61,7 @@ bool isInformationalRun(QLatin1String argument) {
         for (const char letter : kInformationalShort) {
             if (argument.at(at) == QLatin1Char(letter)) {
                 known = true;
+                break;
             }
         }
         if (!known) {
