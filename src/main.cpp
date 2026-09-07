@@ -3,6 +3,7 @@
 
 #include "AppInfo.h"
 #include "Appearance.h"
+#include "CommandLine.h"
 #include "Compositor.h"
 #include "LayerPlacement.h"
 #include "OverlayController.h"
@@ -105,6 +106,120 @@ const QStringList &knownEnvironments() {
         QLatin1String(kEnvironmentKde),
     };
     return names;
+}
+
+// The sentences the options are described by, and the words their values go
+// by, each as a function rather than a string: a string built where the table
+// below stands would be built before the translators are installed, and would
+// stay English for the rest of the run.
+QString listDescription() {
+    return QCoreApplication::translate(
+        "main", "Print the shortcuts as text instead of showing the overlay.");
+}
+
+QString keysDescription() {
+    return QCoreApplication::translate(
+        "main", "Print the held modifiers as they change, for checking that "
+                "the keyboard service is reachable.");
+}
+
+QString environmentDescription() {
+    return QCoreApplication::translate("main", "Force the environment: %1.")
+        .arg(knownEnvironments().join(QStringLiteral(", ")));
+}
+
+QString environmentValueName() {
+    return QCoreApplication::translate("main", "name");
+}
+
+QString sourceDescription() {
+    return QCoreApplication::translate(
+        "main",
+        "Read the shortcuts from this file instead of the one the session "
+        "uses.");
+}
+
+QString sourceValueName() {
+    return QCoreApplication::translate("main", "path");
+}
+
+// One option of this program.
+struct ProgramOption {
+    const char *name;
+    // What the value goes by in --help, or nullptr when the option takes none.
+    // Which of the two it is answers both questions there are about a value:
+    // whether --help shows one, and whether the next argument belongs to this
+    // option rather than standing on its own.
+    QString (*valueName)();
+    QString (*description)();
+    // True when the option prints and stops, and therefore needs no display.
+    bool answeredAsText;
+};
+
+// The options this program has, in the order --help lists them.
+//
+// One table because it is read from three sides: the parser is built from it,
+// the check that runs before the application object asks which options are
+// answered without a display, and the same check asks which are followed by a
+// value it has to step over. An option added to the parser alone would be a
+// value nobody knows about, and a line carrying it would build a plain
+// application object for a run that goes on to put the panel on the screen.
+constexpr ProgramOption kOptions[] = {
+    {kOptionList, nullptr, listDescription, true},
+    {kOptionKeys, nullptr, keysDescription, true},
+    {kOptionEnvironment, environmentValueName, environmentDescription, false},
+    {kOptionSource, sourceValueName, sourceDescription, false},
+};
+
+// No option of this program may carry a name Qt takes for itself, which is
+// asked here rather than left to whoever adds the next one: the list and the
+// reason for it are in CommandLine.h, and a table that breaks the rule does
+// not compile.
+constexpr bool noOptionIsQtsOwn() {
+    for (const ProgramOption &option : kOptions) {
+        if (isOptionQtTakes(option.name)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(noOptionIsQtsOwn(),
+              "an option of this program carries a name Qt takes for itself");
+
+// The names of the options that print and stop, and of those that are followed
+// by a value. Both read out of the table, so neither can fall behind it.
+QStringList textOnlyOptions() {
+    QStringList names;
+    for (const ProgramOption &option : kOptions) {
+        if (option.answeredAsText) {
+            names.append(QLatin1String(option.name));
+        }
+    }
+    return names;
+}
+
+QStringList optionsTakingValue() {
+    QStringList names;
+    for (const ProgramOption &option : kOptions) {
+        if (option.valueName != nullptr) {
+            names.append(QLatin1String(option.name));
+        }
+    }
+    return names;
+}
+
+// Called once the translators are in, so every sentence arrives in the
+// language of the session.
+void addOptions(QCommandLineParser &parser) {
+    for (const ProgramOption &option : kOptions) {
+        QCommandLineOption added(QLatin1String(option.name),
+                                 option.description());
+        if (option.valueName != nullptr) {
+            added.setValueName(option.valueName());
+        }
+        parser.addOption(added);
+    }
 }
 
 // Detects the running environment. Empty string when nothing matches: then it
@@ -409,26 +524,6 @@ void installTranslators() {
     }
 }
 
-// True when the invocation needs no display: the text list and the two
-// informational options. Deciding this before the application object exists
-// keeps `--list` usable over SSH, where creating a QGuiApplication would abort
-// for want of a display.
-bool wantsTextOnly(int argc, char **argv) {
-    for (int i = 1; i < argc; ++i) {
-        const QLatin1String argument(argv[i]);
-        if (argument == QLatin1String("--list") ||
-            argument == QLatin1String("--keys") ||
-            argument == QLatin1String("--help") ||
-            argument == QLatin1String("-h") ||
-            argument == QLatin1String("--help-all") ||
-            argument == QLatin1String("--version") ||
-            argument == QLatin1String("-v")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 } // namespace
 
 int main(int argc, char **argv) {
@@ -440,7 +535,19 @@ int main(int argc, char **argv) {
     // Recompiling two small files on every start costs nothing next to that.
     qputenv("QML_DISABLE_DISK_CACHE", "1");
 
-    const bool textOnly = wantsTextOnly(argc, argv);
+    // Asked here so that --list, --keys and the two informational options stay
+    // usable over SSH: a QGuiApplication aborts where there is no display, and
+    // none of the four needs one.
+    //
+    // The options followed by a value are named as well, because the check has
+    // to step over what follows them: a file called "-v" handed to --source is
+    // a file, and reading it as a request for the version would build a plain
+    // application object and then go on to put the panel on the screen with it.
+    //
+    // Both lists come out of the one table the parser is built from, so an
+    // option cannot reach the parser without reaching this line as well.
+    const bool textOnly =
+        wantsTextOnly(argc, argv, textOnlyOptions(), optionsTakingValue());
 
     std::unique_ptr<QCoreApplication> app;
     if (textOnly) {
@@ -449,53 +556,25 @@ int main(int argc, char **argv) {
         app = std::make_unique<QGuiApplication>(argc, argv);
     }
 
-    QCoreApplication::setApplicationName(QStringLiteral("bindpeek"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(BINDPEEK_VERSION));
+    setApplicationIdentity();
     installTranslators();
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(applicationDescription());
-    parser.addHelpOption();
-    parser.addVersionOption();
+    prepareParser(parser, applicationDescription());
 
-    const QCommandLineOption optionList(
-        QLatin1String(kOptionList),
-        QCoreApplication::translate(
-            "main",
-            "Print the shortcuts as text instead of showing the overlay."));
-    const QCommandLineOption optionEnvironment(
-        QLatin1String(kOptionEnvironment),
-        QCoreApplication::translate("main", "Force the environment: %1.")
-            .arg(knownEnvironments().join(QStringLiteral(", "))),
-        QCoreApplication::translate("main", "name"));
-    const QCommandLineOption optionSource(
-        QLatin1String(kOptionSource),
-        QCoreApplication::translate(
-            "main", "Read the shortcuts from this file instead of the one the "
-                    "session uses."),
-        QCoreApplication::translate("main", "path"));
-    const QCommandLineOption optionKeys(
-        QLatin1String(kOptionKeys),
-        QCoreApplication::translate(
-            "main",
-            "Print the held modifiers as they change, for checking that "
-            "the keyboard service is reachable."));
-
-    parser.addOption(optionList);
-    parser.addOption(optionKeys);
-    parser.addOption(optionEnvironment);
-    parser.addOption(optionSource);
+    addOptions(parser);
     parser.process(*app);
 
     QTextStream out(stdout);
     QTextStream err(stderr);
 
-    if (parser.isSet(optionKeys)) {
+    if (parser.isSet(QLatin1String(kOptionKeys))) {
         return runKeyWatch(out, err);
     }
 
-    const QString environment = parser.isSet(optionEnvironment)
-                                    ? parser.value(optionEnvironment).toLower()
+    const QLatin1String environmentOption(kOptionEnvironment);
+    const QString environment = parser.isSet(environmentOption)
+                                    ? parser.value(environmentOption).toLower()
                                     : detectEnvironment();
     if (environment.isEmpty()) {
         err << QCoreApplication::translate(
@@ -515,7 +594,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    auto source = makeSource(environment, parser.value(optionSource));
+    auto source =
+        makeSource(environment, parser.value(QLatin1String(kOptionSource)));
     if (!source) {
 #ifndef BINDPEEK_WITH_KDE
         // Said apart from the sentence below, which would be a lie here: the
@@ -538,7 +618,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (!parser.isSet(optionList)) {
+    if (!parser.isSet(QLatin1String(kOptionList))) {
         return runOverlay(std::move(source), err);
     }
 

@@ -180,9 +180,9 @@ void WatchClient::onReadable() {
                 // knocks every two seconds for the rest of the session with
                 // nothing to show for it.
                 m_saidWrongVersion = true;
-                std::fprintf(stderr,
-                             "bindpeek: the keyboard service speaks a version "
-                             "this panel does not know. Restart the panel.\n");
+                std::fprintf(stderr, BINDPEEK_PROGRAM_NAME
+                             ": the keyboard service speaks a version this "
+                             "panel does not know. Restart the panel.\n");
             }
             break;
         }

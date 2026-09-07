@@ -34,6 +34,10 @@
         <source>Shows the shortcuts assigned in the running session.</source>
         <translation>Zeigt die belegten Tastenkürzel der laufenden Sitzung.</translation>
     </message>
+    <message>
+        <source>Settings and tray icon for the shortcut overlay.</source>
+        <translation>Einstellungen und Symbol im Systemabschnitt für die Kürzelanzeige.</translation>
+    </message>
 </context>
 <context>
     <name>Compositor</name>

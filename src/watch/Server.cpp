@@ -100,17 +100,19 @@ bool Server::start() {
     const int passed = sd_listen_fds(0);
     if (passed != 1) {
         std::fprintf(stderr,
-                     "bindpeek-watch: expected one socket from the service "
-                     "manager, got %d. This service is started by "
-                     "bindpeek-watch.socket, not by hand.\n",
+                     BINDPEEK_PROGRAM_NAME
+                     ": expected one socket from the service manager, got %d. "
+                     "This service is started by " BINDPEEK_WATCH_SOCKET_UNIT
+                     ", not by hand.\n",
                      passed);
         return false;
     }
 
     m_listen = SD_LISTEN_FDS_START;
     if (sd_is_socket(m_listen, AF_UNIX, SOCK_SEQPACKET, 1) <= 0) {
-        std::fprintf(stderr, "bindpeek-watch: the socket handed over is not a "
-                             "listening AF_UNIX SOCK_SEQPACKET socket\n");
+        std::fprintf(stderr, BINDPEEK_PROGRAM_NAME
+                     ": the socket handed over is not a listening AF_UNIX "
+                     "SOCK_SEQPACKET socket\n");
         return false;
     }
 
@@ -125,7 +127,8 @@ bool Server::start() {
     // connection that comes out, not on the socket being accepted from.
     if (::fcntl(m_listen, F_SETFL, O_NONBLOCK) < 0) {
         std::fprintf(stderr,
-                     "bindpeek-watch: cannot set the socket non-blocking: %s\n",
+                     BINDPEEK_PROGRAM_NAME
+                     ": cannot set the socket non-blocking: %s\n",
                      std::strerror(errno));
         return false;
     }

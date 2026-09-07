@@ -3,6 +3,7 @@
 
 #include "AppInfo.h"
 #include "Appearance.h"
+#include "CommandLine.h"
 #include "OverlayProcess.h"
 #include "Settings.h"
 #include "SettingsModel.h"
@@ -11,6 +12,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCommandLineParser>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QLibraryInfo>
@@ -24,6 +26,8 @@
 #include <QSystemTrayIcon>
 #include <QTextStream>
 #include <QTranslator>
+
+#include <memory>
 
 using namespace bindpeek;
 
@@ -118,15 +122,51 @@ int main(int argc, char **argv) {
     // Same reason as in the overlay: the Nix store stamps every file with the
     // epoch, so Qt's on-disk QML cache never notices a rebuild.
     qputenv("QML_DISABLE_DISK_CACHE", "1");
-    QApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("bindpeek-editor"));
+
+    // This program takes no option of its own, but it answers the
+    // informational ones like the panel does, and answering them needs no
+    // display: a plain application object is built for them, because a
+    // QApplication aborts where there is none and asking a program its version
+    // over SSH is fair.
+    const bool textOnly = wantsTextOnly(argc, argv);
+
+    std::unique_ptr<QCoreApplication> app;
+    if (textOnly) {
+        app = std::make_unique<QCoreApplication>(argc, argv);
+    } else {
+        app = std::make_unique<QApplication>(argc, argv);
+    }
+
+    setApplicationIdentity();
     // The application id a compositor sees. Without it the id would follow the
-    // name above, and "bindpeek-editor" matches no installed entry: the
+    // application name, and "bindpeek-editor" matches no installed entry: the
     // settings window would show a placeholder icon in the task bar and never
     // group under the launcher it was started from. The overlay needs no such
     // line, its name already is the id.
     QGuiApplication::setDesktopFileName(QStringLiteral(BINDPEEK_DESKTOP_ID));
-    QCoreApplication::setApplicationVersion(QStringLiteral(BINDPEEK_VERSION));
+    // Before the parser rather than after the handover, which is where this
+    // stood while nothing here was ever printed: --help is a sentence and is
+    // read in the language of the session.
+    installTranslators();
+
+    // Read before the handover below, which looks at no argument at all. A
+    // question put to this invocation is answered by this one, not by whatever
+    // window happens to be open already.
+    //
+    // process() prints the answer to --help and --version and ends the program
+    // there, so nothing below runs for either. What it also does is refuse an
+    // argument that is no option of this program, which without a parser would
+    // have opened the window as though it had been understood.
+    //
+    // This program has none of its own. A first one added here must not carry
+    // a name Qt takes for itself, kOptionsQtTakes in CommandLine.h: this one
+    // builds a QApplication, which takes the widest set of them, and would
+    // swallow such an option before the parser ever saw it. The panel holds
+    // its table against that list while it is built; there is nothing to hold
+    // here until an option exists to hold.
+    QCommandLineParser parser;
+    prepareParser(parser, settingsDescription());
+    parser.process(*app);
 
     // A settings window that is already running takes this request over and
     // this start is done. Two tray icons and two windows for one program are
@@ -138,13 +178,15 @@ int main(int argc, char **argv) {
     // dispatcher and there is none before the application exists; the earlier
     // place would be leaning on something Qt does not promise. What it costs
     // is one application object for a start that ends a line later.
+    //
+    // And after the parser, so that a start which only asks something is not
+    // handed to a window that would answer it by raising itself.
     if (handOverToRunningEditor()) {
         return 0;
     }
     // Closing the window leaves the tray icon behind, which is the point of
     // having one; without this the process would end with the last window.
     QApplication::setQuitOnLastWindowClosed(false);
-    installTranslators();
     SettingsModel model;
     OverlayProcess overlay;
     // The panel comes up with the program. It is what bindpeek is for, and a
@@ -274,7 +316,7 @@ int main(int argc, char **argv) {
     // The setting is left alone. Whether the panel is wanted is answered by
     // the switch above it, and ending the program is not an answer to that
     // question; the next start brings the panel back with it.
-    QObject::connect(quitAction, &QAction::triggered, &app, [&overlay]() {
+    QObject::connect(quitAction, &QAction::triggered, app.get(), [&overlay]() {
         overlay.stop();
         QApplication::quit();
     });

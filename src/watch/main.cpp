@@ -60,7 +60,8 @@ int makeTimer() {
     const int fd =
         ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (fd < 0) {
-        std::fprintf(stderr, "bindpeek-watch: cannot make a timer: %s\n",
+        std::fprintf(stderr,
+                     BINDPEEK_PROGRAM_NAME ": cannot make a timer: %s\n",
                      std::strerror(errno));
     }
     return fd;
@@ -88,6 +89,80 @@ void drain(int fd) {
     }
 }
 
+// What a start from a shell is answered with, before anything is opened.
+//
+// The socket unit starts this service with no argument at all, so an argument
+// only ever comes from somebody typing the program's name, and what they are
+// asking is which program and which build they have in front of them. The
+// panel and the settings window answer the same two options through Qt's
+// parser; this program carries no Qt and says the same two values from the
+// build itself.
+//
+// Nothing here is translated. A catalogue is a Qt one, and what this program
+// is made of is the argument for trusting it with the keyboards.
+//
+// The whole line is read before anything is answered, and in the order Qt's
+// parser keeps for the other two programs: an argument that is no option is
+// refused first, and only a line that holds nothing else is answered.
+//
+//   argv                   answer
+//   (none)                 false, the service runs as it always has
+//   --version, -v          the name and the version, and done
+//   --help, -h             what starts this service, and done
+//   --version --help       the version: it is asked first, as it is there
+//   --foo --version        refused, and the version is not printed
+//   --version --foo        refused as well, wherever the unknown one stands
+//
+// True when the command line was answered here and the service is not to run.
+// What to leave with is written to status.
+bool answerArguments(int argc, char **argv, int &status) {
+    bool version = false;
+    bool help = false;
+
+    for (int i = 1; i < argc; ++i) {
+        const char *const argument = argv[i];
+        if (std::strcmp(argument, "--version") == 0 ||
+            std::strcmp(argument, "-v") == 0) {
+            version = true;
+            continue;
+        }
+        if (std::strcmp(argument, "--help") == 0 ||
+            std::strcmp(argument, "-h") == 0) {
+            help = true;
+            continue;
+        }
+        // No option of this program takes a value, so there is nothing here
+        // that could be one: whatever stands there was meant as an option and
+        // is not one.
+        std::fprintf(stderr,
+                     BINDPEEK_PROGRAM_NAME ": unknown option %s. Try --help.\n",
+                     argument);
+        status = 1;
+        return true;
+    }
+
+    if (version) {
+        std::printf("%s %s\n", BINDPEEK_PROGRAM_NAME, BINDPEEK_VERSION);
+        status = 0;
+        return true;
+    }
+    if (help) {
+        std::printf("Usage: %s\n"
+                    "Reads which modifier keys are held, for the bindpeek "
+                    "overlay.\n"
+                    "\n"
+                    "Started by %s, not by hand.\n"
+                    "\n"
+                    "Options:\n"
+                    "  -h, --help     Displays this help.\n"
+                    "  -v, --version  Displays version information.\n",
+                    BINDPEEK_PROGRAM_NAME, BINDPEEK_WATCH_SOCKET_UNIT);
+        status = 0;
+        return true;
+    }
+    return false;
+}
+
 // The two signals a service manager uses to end a service, taken as a
 // descriptor so that the wait below has one thing to wait on and no handler
 // runs in the middle of anything.
@@ -104,7 +179,14 @@ int makeSignalFd() {
 
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
+    // First of all, so that a question about this program is answered by a
+    // process that has opened nothing.
+    int answer = 0;
+    if (answerArguments(argc, argv, answer)) {
+        return answer;
+    }
+
     // Belt and braces beside MSG_NOSIGNAL: a client that goes away must not be
     // able to end the process that is holding the keyboards.
     ::signal(SIGPIPE, SIG_IGN);
@@ -151,7 +233,7 @@ int main() {
             if (errno == EINTR) {
                 continue;
             }
-            std::fprintf(stderr, "bindpeek-watch: poll failed: %s\n",
+            std::fprintf(stderr, BINDPEEK_PROGRAM_NAME ": poll failed: %s\n",
                          std::strerror(errno));
             return 1;
         }

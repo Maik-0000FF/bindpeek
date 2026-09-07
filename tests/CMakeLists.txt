@@ -53,6 +53,13 @@ add_executable(test_overlay
 )
 target_link_libraries(test_overlay PRIVATE bindpeek_sources
                                            bindpeek_watch_protocol Qt6::Test)
+# The client names the program it belongs to in the one line it writes, and
+# takes that name from the build the way the programs do. A target that
+# compiles it in has to say which name that is, and reads it off the panel
+# rather than writing it out: the name lives with the target it belongs to.
+target_compile_definitions(test_overlay
+  PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:bindpeek>"
+)
 
 add_test(NAME overlay COMMAND test_overlay)
 
@@ -195,5 +202,26 @@ add_executable(test_watch
 )
 target_link_libraries(test_watch PRIVATE bindpeek_watch_core bindpeek_sources
                                          Qt6::Test)
+# The client is compiled in here as well, and names the panel for the same
+# reason as above.
+target_compile_definitions(test_watch
+  PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:bindpeek>"
+)
 
 add_test(NAME watch COMMAND test_watch)
+
+# The command line the two Qt programs share. Its source is compiled in here
+# because it lives in the executables rather than in the shared library: it
+# reads the name of the binary from the build, and this target is a binary of
+# its own, so it is given a name the same way the programs are.
+add_executable(test_command_line
+  test_command_line.cpp
+  ${BINDPEEK_SRC_DIR}/CommandLine.cpp
+)
+target_include_directories(test_command_line PRIVATE ${BINDPEEK_SRC_DIR})
+target_link_libraries(test_command_line PRIVATE Qt6::Test)
+target_compile_definitions(test_command_line
+  PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:test_command_line>"
+)
+
+add_test(NAME command_line COMMAND test_command_line)
