@@ -87,6 +87,24 @@ void TestCommandLine::readsTheLine_data() {
     QTest::newRow("-h") << QList<QByteArray>{"-h"} << none << none << true;
     QTest::newRow("--help-all")
         << QList<QByteArray>{"--help-all"} << none << none << true;
+    // Qt reads a run of short options as the options in it, so a run holding
+    // one of these is one of these.
+    QTest::newRow("a run of short options")
+        << QList<QByteArray>{"-vh"} << none << none << true;
+    QTest::newRow("the same run the other way round")
+        << QList<QByteArray>{"-hv"} << none << none << true;
+    QTest::newRow("a run of others")
+        << QList<QByteArray>{"-xyz"} << none << none << false;
+    // Measured: Qt answers this with "Unknown options: e, r, s, i, o, n.", so
+    // it reads the -v in it and the line ends in a printed one either way.
+    QTest::newRow("a run holding -v")
+        << QList<QByteArray>{"-version"} << none << none << true;
+    // A digit is no short option, so this is not a run of them here. Qt is
+    // looser and refuses the digit, which is a printed line as well.
+    QTest::newRow("a digit, so not a run")
+        << QList<QByteArray>{"-5v"} << none << none << false;
+    QTest::newRow("a lone dash")
+        << QList<QByteArray>{"-"} << none << none << false;
     QTest::newRow("not named")
         << QList<QByteArray>{"--list"} << none << none << false;
     QTest::newRow("named by the caller")
@@ -112,8 +130,17 @@ void TestCommandLine::readsTheLine_data() {
     // The step over a value is one argument, not everything after it.
     QTest::newRow("only the one value is stepped over")
         << QList<QByteArray>{"--source", "/x", "-v"} << none << source << true;
-    QTest::newRow("one dash short")
-        << QList<QByteArray>{"-version"} << none << none << false;
+    // Everything behind the end of the options is a value to Qt, so an option
+    // standing there is not answered and must not be read as one here.
+    QTest::newRow("behind the end of the options")
+        << QList<QByteArray>{"--", "--version"} << none << none << false;
+    QTest::newRow("the end comes after it")
+        << QList<QByteArray>{"--version", "--"} << none << none << true;
+    // Measured: this prints the version. The end marker is taken as the value
+    // of --source, so it never ends the options and --version is one.
+    QTest::newRow("the end taken as a value")
+        << QList<QByteArray>{"--source", "--", "--version"} << none << source
+        << true;
     QTest::newRow("options are lower case")
         << QList<QByteArray>{"--Version"} << none << none << false;
     QTest::newRow("an empty argument")

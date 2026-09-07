@@ -108,6 +108,104 @@ const QStringList &knownEnvironments() {
     return names;
 }
 
+// The sentences the options are described by, and the words their values go
+// by, each as a function rather than a string: a string built where the table
+// below stands would be built before the translators are installed, and would
+// stay English for the rest of the run.
+QString listDescription() {
+    return QCoreApplication::translate(
+        "main", "Print the shortcuts as text instead of showing the overlay.");
+}
+
+QString keysDescription() {
+    return QCoreApplication::translate(
+        "main", "Print the held modifiers as they change, for checking that "
+                "the keyboard service is reachable.");
+}
+
+QString environmentDescription() {
+    return QCoreApplication::translate("main", "Force the environment: %1.")
+        .arg(knownEnvironments().join(QStringLiteral(", ")));
+}
+
+QString environmentValueName() {
+    return QCoreApplication::translate("main", "name");
+}
+
+QString sourceDescription() {
+    return QCoreApplication::translate(
+        "main",
+        "Read the shortcuts from this file instead of the one the session "
+        "uses.");
+}
+
+QString sourceValueName() {
+    return QCoreApplication::translate("main", "path");
+}
+
+// One option of this program.
+struct ProgramOption {
+    const char *name;
+    // What the value goes by in --help, or nullptr when the option takes none.
+    // Which of the two it is answers both questions there are about a value:
+    // whether --help shows one, and whether the next argument belongs to this
+    // option rather than standing on its own.
+    QString (*valueName)();
+    QString (*description)();
+    // True when the option prints and stops, and therefore needs no display.
+    bool answeredAsText;
+};
+
+// The options this program has, in the order --help lists them.
+//
+// One table because it is read from three sides: the parser is built from it,
+// the check that runs before the application object asks which options are
+// answered without a display, and the same check asks which are followed by a
+// value it has to step over. An option added to the parser alone would be a
+// value nobody knows about, and a line carrying it would build a plain
+// application object for a run that goes on to put the panel on the screen.
+constexpr ProgramOption kOptions[] = {
+    {kOptionList, nullptr, listDescription, true},
+    {kOptionKeys, nullptr, keysDescription, true},
+    {kOptionEnvironment, environmentValueName, environmentDescription, false},
+    {kOptionSource, sourceValueName, sourceDescription, false},
+};
+
+// The names of the options that print and stop, and of those that are followed
+// by a value. Both read out of the table, so neither can fall behind it.
+QStringList textOnlyOptions() {
+    QStringList names;
+    for (const ProgramOption &option : kOptions) {
+        if (option.answeredAsText) {
+            names.append(QLatin1String(option.name));
+        }
+    }
+    return names;
+}
+
+QStringList optionsTakingValue() {
+    QStringList names;
+    for (const ProgramOption &option : kOptions) {
+        if (option.valueName != nullptr) {
+            names.append(QLatin1String(option.name));
+        }
+    }
+    return names;
+}
+
+// Called once the translators are in, so every sentence arrives in the
+// language of the session.
+void addOptions(QCommandLineParser &parser) {
+    for (const ProgramOption &option : kOptions) {
+        QCommandLineOption added(QLatin1String(option.name),
+                                 option.description());
+        if (option.valueName != nullptr) {
+            added.setValueName(option.valueName());
+        }
+        parser.addOption(added);
+    }
+}
+
 // Detects the running environment. Empty string when nothing matches: then it
 // is reported instead of guessed.
 QString detectEnvironment() {
@@ -426,15 +524,15 @@ int main(int argc, char **argv) {
     // list and the key report stay usable over SSH: a QGuiApplication aborts
     // where there is no display, and neither of them needs one.
     //
-    // The other two are named as well, because each is followed by a value the
-    // check has to step over: a file called "-v" handed to --source is a file,
-    // and reading it as a request for the version would build a plain
-    // application object and then go on to put the panel on the screen with
-    // it. All four are named here and added to the parser below, so the two
-    // places are read together.
-    const bool textOnly = wantsTextOnly(
-        argc, argv, {QLatin1String(kOptionList), QLatin1String(kOptionKeys)},
-        {QLatin1String(kOptionEnvironment), QLatin1String(kOptionSource)});
+    // The ones followed by a value are named as well, because the check has to
+    // step over what follows them: a file called "-v" handed to --source is a
+    // file, and reading it as a request for the version would build a plain
+    // application object and then go on to put the panel on the screen with it.
+    //
+    // Both lists come out of the one table the parser is built from, so an
+    // option cannot reach the parser without reaching this line as well.
+    const bool textOnly =
+        wantsTextOnly(argc, argv, textOnlyOptions(), optionsTakingValue());
 
     std::unique_ptr<QCoreApplication> app;
     if (textOnly) {
@@ -449,44 +547,19 @@ int main(int argc, char **argv) {
     QCommandLineParser parser;
     prepareParser(parser, applicationDescription());
 
-    const QCommandLineOption optionList(
-        QLatin1String(kOptionList),
-        QCoreApplication::translate(
-            "main",
-            "Print the shortcuts as text instead of showing the overlay."));
-    const QCommandLineOption optionEnvironment(
-        QLatin1String(kOptionEnvironment),
-        QCoreApplication::translate("main", "Force the environment: %1.")
-            .arg(knownEnvironments().join(QStringLiteral(", "))),
-        QCoreApplication::translate("main", "name"));
-    const QCommandLineOption optionSource(
-        QLatin1String(kOptionSource),
-        QCoreApplication::translate(
-            "main", "Read the shortcuts from this file instead of the one the "
-                    "session uses."),
-        QCoreApplication::translate("main", "path"));
-    const QCommandLineOption optionKeys(
-        QLatin1String(kOptionKeys),
-        QCoreApplication::translate(
-            "main",
-            "Print the held modifiers as they change, for checking that "
-            "the keyboard service is reachable."));
-
-    parser.addOption(optionList);
-    parser.addOption(optionKeys);
-    parser.addOption(optionEnvironment);
-    parser.addOption(optionSource);
+    addOptions(parser);
     parser.process(*app);
 
     QTextStream out(stdout);
     QTextStream err(stderr);
 
-    if (parser.isSet(optionKeys)) {
+    if (parser.isSet(QLatin1String(kOptionKeys))) {
         return runKeyWatch(out, err);
     }
 
-    const QString environment = parser.isSet(optionEnvironment)
-                                    ? parser.value(optionEnvironment).toLower()
+    const QLatin1String environmentOption(kOptionEnvironment);
+    const QString environment = parser.isSet(environmentOption)
+                                    ? parser.value(environmentOption).toLower()
                                     : detectEnvironment();
     if (environment.isEmpty()) {
         err << QCoreApplication::translate(
@@ -506,7 +579,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    auto source = makeSource(environment, parser.value(optionSource));
+    auto source =
+        makeSource(environment, parser.value(QLatin1String(kOptionSource)));
     if (!source) {
 #ifndef BINDPEEK_WITH_KDE
         // Said apart from the sentence below, which would be a lie here: the
@@ -529,7 +603,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (!parser.isSet(optionList)) {
+    if (!parser.isSet(QLatin1String(kOptionList))) {
         return runOverlay(std::move(source), err);
     }
 

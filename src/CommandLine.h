@@ -55,24 +55,29 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // What arrives here, and what it answers. The two lists are written as the
 // caller names them, so "list" is alsoText and "source" takes a value:
 //
-//   argv                        also    value     answer  why
-//   (none)                      -       -         false   nothing to show
-//   --version                   -       -         true    informational
-//   -v                          -       -         true    the short spelling
-//   --help / -h / --help-all    -       -         true    informational
-//   --list                      -       -         false   not named
-//   --list                      list    -         true    named by the caller
-//   --source /x --version       -       source    true    stands on its own
-//   --source --version          -       source    false   the value of --source
-//   --environment -h            -       environ.  false   the value again
-//   --source=--version          -       source    false   joined, so a value
-//   --source --version          -       -         true    unnamed, so an option
-//   --source /x -v              -       source    true    one value, not the
-//                                                         rest of the line
-//   --source                    -       source    false   a value never came
-//   -version                    -       -         false   Qt takes it no more
-//   --Version                   -       -         false   options are lowercase
-//   ""                          -       -         false   an empty argument
+//   argv                      also   value    answer  why
+//   (none)                    -      -        false   nothing to show
+//   --version                 -      -        true    informational
+//   -v                        -      -        true    the short spelling
+//   --help / -h / --help-all  -      -        true    informational
+//   -vh / -hv                 -      -        true    a run of short options
+//   -version                  -      -        true    a run holding -v
+//   -xyz                      -      -        false   a run holding neither
+//   --list                    -      -        false   not named
+//   --list                    list   -        true    named by the caller
+//   --source /x --version     -      source   true    stands on its own
+//   --source --version        -      source   false   the value of --source
+//   --environment -h          -      env.     false   the value again
+//   --source=--version        -      source   false   joined, so a value
+//   --source --version        -      -        true    unnamed, so an option
+//   --source /x -v            -      source   true    one value, not the rest
+//   --source                  -      source   false   a value never came
+//   -- --version              -      -        false   behind the end
+//   --version --              -      -        true    the end comes after
+//   --source -- --version     -      source   true    the end taken as a value
+//   -5v                       -      -        false   a digit, so not a run
+//   --Version                 -      -        false   options are lowercase
+//   ""                        -      -        false   an empty argument
 bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText = {},
                    const QStringList &takingValue = {});
 
