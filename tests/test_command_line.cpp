@@ -300,14 +300,10 @@ void TestCommandLine::saysTextWhereverTheParserAnswers() {
 void TestCommandLine::leavesQtsOwnOptionsToQt_data() {
     QTest::addColumn<QByteArray>("option");
 
-    // What QGuiApplication and QApplication cut out of the line before the
-    // parser sees any of it, in both spellings. Answering one of these as text
-    // builds a plain application object, which cuts out nothing, and the
-    // parser then refuses an option that was never meant for it.
-    for (const char *option :
-         {"platform", "platformpluginpath", "platformtheme", "plugin",
-          "qwindowgeometry", "qwindowicon", "qwindowtitle", "reverse",
-          "session", "style", "stylesheet", "widgetcount", "qmljsdebugger"}) {
+    // Read from the one list rather than written out again here. A copy is
+    // how testability came to be missing from one of two places that named
+    // the same thing.
+    for (const char *option : kOptionsQtTakes) {
         QTest::newRow(option) << QByteArray(option);
     }
 }

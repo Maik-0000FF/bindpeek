@@ -171,45 +171,14 @@ constexpr ProgramOption kOptions[] = {
     {kOptionSource, sourceValueName, sourceDescription, false},
 };
 
-// The options Qt takes for itself, which the GUI application object cuts out
-// of the command line before any parser sees it.
-//
-// None of the names above may be one of these. What happens if one is depends
-// on the entry and on how the option was written, and none of the outcomes is
-// wanted: either this program's option is never set and nothing is said about
-// it, or Qt's is refused instead of acted on. By then the two are the same
-// word and nothing can tell them apart, so the table is held against this list
-// below, while it is being built rather than while it is running.
-//
-// A list of somebody else's names ages, and this one is allowed to: it decides
-// nothing, it only refuses a name. Falling behind Qt costs an assurance, never
-// a working option.
-constexpr const char *kQtOptions[] = {
-    "platform",      "platformpluginpath",
-    "platformtheme", "plugin",
-    "qmljsdebugger", "qwindowgeometry",
-    "qwindowicon",   "qwindowtitle",
-    "reverse",       "session",
-    "style",         "stylesheet",
-    "widgetcount",
-};
-
-// Whether two names are the same, at build time. std::strcmp is not required
-// to be usable there, and the comparison is four names against thirteen.
-constexpr bool sameName(const char *one, const char *other) {
-    while (*one != '\0' && *one == *other) {
-        ++one;
-        ++other;
-    }
-    return *one == *other;
-}
-
+// No option of this program may carry a name Qt takes for itself, which is
+// asked here rather than left to whoever adds the next one: the list and the
+// reason for it are in CommandLine.h, and a table that breaks the rule does
+// not compile.
 constexpr bool noOptionIsQtsOwn() {
     for (const ProgramOption &option : kOptions) {
-        for (const char *taken : kQtOptions) {
-            if (sameName(option.name, taken)) {
-                return false;
-            }
+        if (isOptionQtTakes(option.name)) {
+            return false;
         }
     }
     return true;

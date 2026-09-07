@@ -157,6 +157,13 @@ int main(int argc, char **argv) {
     // there, so nothing below runs for either. What it also does is refuse an
     // argument that is no option of this program, which without a parser would
     // have opened the window as though it had been understood.
+    //
+    // This program has none of its own. A first one added here must not carry
+    // a name Qt takes for itself, kOptionsQtTakes in CommandLine.h: this one
+    // builds a QApplication, which takes the widest set of them, and would
+    // swallow such an option before the parser ever saw it. The panel holds
+    // its table against that list while it is built; there is nothing to hold
+    // here until an option exists to hold.
     QCommandLineParser parser;
     prepareParser(parser, settingsDescription());
     parser.process(*app);

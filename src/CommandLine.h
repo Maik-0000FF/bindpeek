@@ -22,6 +22,56 @@ namespace bindpeek {
 // descriptors, and answers the same two options in its own main with the same
 // two values from the build.
 
+// The option names Qt takes for itself.
+//
+// An application object with a screen cuts these out of the command line
+// before any parser sees it, in both spellings, so an option of this package
+// carrying one of these names is never the one that is acted on. Which of the
+// two loses is not worth working out: the answer moves with the spelling, with
+// the application class, and with what else stands on the line, and none of
+// the outcomes is one anybody asked for.
+//
+// The union of what the two classes take, because the two programs share this
+// list: stylesheet and widgetcount belong to the settings window, the rest to
+// both. A name is refused here for either of them.
+//
+// Held against a program's own options while that program is built, which is
+// what src/main.cpp does with it, and read by the test rather than copied
+// there. A list of somebody else's names ages, and this one is allowed to: it
+// decides nothing and only refuses a name, so falling behind Qt costs an
+// assurance, never a working option.
+inline constexpr const char *kOptionsQtTakes[] = {
+    "platform",      "platformpluginpath",
+    "platformtheme", "plugin",
+    "qmljsdebugger", "qwindowgeometry",
+    "qwindowicon",   "qwindowtitle",
+    "reverse",       "session",
+    "style",         "stylesheet",
+    "testability",   "widgetcount",
+};
+
+// Whether two option names are the same, usable while the program is built.
+// std::strcmp is not required to be, and this is a handful of names against a
+// handful more.
+constexpr bool sameOptionName(const char *one, const char *other) {
+    while (*one != '\0' && *one == *other) {
+        ++one;
+        ++other;
+    }
+    return *one == *other;
+}
+
+// Whether the name is one of Qt's, for the assurance a program makes about its
+// own table of options.
+constexpr bool isOptionQtTakes(const char *name) {
+    for (const char *taken : kOptionsQtTakes) {
+        if (sameOptionName(name, taken)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Tells the application object what this binary is called and which version it
 // was built as, both from the build. Qt answers --version with exactly these
 // two, so it has to be said before the parser runs.
@@ -73,11 +123,9 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // in order to ask a program its version.
 //
 // Which leaves one rule for whoever adds an option to a program: it must not
-// be given a name Qt already uses, style, session, reverse, platform and the
-// rest of them. Named in alsoText, such an option would answer yes here, the
-// plain application object would be built, and Qt's own would be refused
-// instead of acted on. Nothing here can catch that, because the two are the
-// same word by then; the place to see it is the table the option is added to.
+// be given a name Qt already uses. Those are listed at the top of this file,
+// and a program that keeps a table of its own options holds it against them
+// while it is built, which is what the panel does.
 //
 // What arrives here, and what it answers. The lists are written as the panel
 // names them, so "list" is text and "source" takes a value:
