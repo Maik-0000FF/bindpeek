@@ -158,21 +158,6 @@ struct ProgramOption {
 
 // The options this program has, in the order --help lists them.
 //
-// A name Qt already uses is not available here: style, session, reverse,
-// platform and the rest are cut out of the command line by the GUI application
-// object. Which of the two options loses depends on the entry, and the quiet
-// way round is the likelier one.
-//
-// An entry that carries on to a window is the quiet one. Qt has taken the
-// argument out of the line long before the parser looks, so the option is
-// never set, no value arrives, nothing is said, and --help goes on offering
-// it. An entry that prints and stops loses the other way: the plain
-// application object cuts nothing out, the parser sees the argument and
-// answers it, and Qt's own option is refused instead of acted on.
-//
-// Nothing catches either automatically, because by then the two are the same
-// word. The place to see it is this table.
-//
 // One table because it is read from three sides: the parser is built from it,
 // the check that runs before the application object asks which options are
 // answered without a display, and the same check asks which are followed by a
@@ -185,6 +170,53 @@ constexpr ProgramOption kOptions[] = {
     {kOptionEnvironment, environmentValueName, environmentDescription, false},
     {kOptionSource, sourceValueName, sourceDescription, false},
 };
+
+// The options Qt takes for itself, which the GUI application object cuts out
+// of the command line before any parser sees it.
+//
+// None of the names above may be one of these. What happens if one is depends
+// on the entry and on how the option was written, and none of the outcomes is
+// wanted: either this program's option is never set and nothing is said about
+// it, or Qt's is refused instead of acted on. By then the two are the same
+// word and nothing can tell them apart, so the table is held against this list
+// below, while it is being built rather than while it is running.
+//
+// A list of somebody else's names ages, and this one is allowed to: it decides
+// nothing, it only refuses a name. Falling behind Qt costs an assurance, never
+// a working option.
+constexpr const char *kQtOptions[] = {
+    "platform",      "platformpluginpath",
+    "platformtheme", "plugin",
+    "qmljsdebugger", "qwindowgeometry",
+    "qwindowicon",   "qwindowtitle",
+    "reverse",       "session",
+    "style",         "stylesheet",
+    "widgetcount",
+};
+
+// Whether two names are the same, at build time. std::strcmp is not required
+// to be usable there, and the comparison is four names against thirteen.
+constexpr bool sameName(const char *one, const char *other) {
+    while (*one != '\0' && *one == *other) {
+        ++one;
+        ++other;
+    }
+    return *one == *other;
+}
+
+constexpr bool noOptionIsQtsOwn() {
+    for (const ProgramOption &option : kOptions) {
+        for (const char *taken : kQtOptions) {
+            if (sameName(option.name, taken)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static_assert(noOptionIsQtsOwn(),
+              "an option of this program carries a name Qt takes for itself");
 
 // The names of the options that print and stop, and of those that are followed
 // by a value. Both read out of the table, so neither can fall behind it.
