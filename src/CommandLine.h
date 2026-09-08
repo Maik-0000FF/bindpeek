@@ -22,6 +22,11 @@ namespace bindpeek {
 // descriptors, and answers the same two options in its own main with the same
 // two values from the build.
 
+// The one option name of Qt's that is followed by its value, spelled once here
+// and read from this line by the list below and by the check that steps over
+// what stands behind it, so the two cannot drift apart.
+inline constexpr const char *kOptionQtTakesWithValue = "qmljsdebugger";
+
 // The option names Qt takes for itself.
 //
 // An application object with a screen cuts these out of the command line
@@ -38,8 +43,10 @@ namespace bindpeek {
 // carries a name of its own: wantsTextOnly has to step over that argument, or
 // an option standing there is read as one this run will act on while Qt has
 // already taken it away. What the classes with a screen take together with the
-// argument behind them is not said here, because measuring it needs a display
-// and this check never runs under one.
+// argument behind them is not said here, because measuring it needs a display.
+// It is not that those never matter: the check runs at every start, before any
+// application object exists, and one of Qt's own standing beside an
+// informational option is what the paragraph at wantsTextOnly is about.
 //
 // The union of what the classes take, because the programs share this list:
 // stylesheet, widgetcount, qdevel and qdebug belong to the settings window,
@@ -59,10 +66,6 @@ namespace bindpeek {
 // Held against a program's own options while that program is built, which is
 // what src/main.cpp does with it, and read by the test rather than copied
 // there.
-// The one of them that is followed by its value, spelled once and read from
-// here by both lists, so the two cannot drift apart.
-inline constexpr const char *kOptionQtTakesWithValue = "qmljsdebugger";
-
 inline constexpr const char *kOptionsQtTakes[] = {
     "geometry",
     "icon",
@@ -164,8 +167,9 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // request for the listing, the plain application object is built for it, and
 // the parser is then handed a line Qt has already emptied: nothing is set, and
 // the run walks on into the panel with an application object that has no
-// screen. Measured, on these five shapes, and the last three are answered as
-// they read:
+// screen. Measured, on these five shapes. The two carrying a value of their
+// own are answered as they read, the last is refused, and the first two are
+// the ones the step exists for:
 //
 //   --qmljsdebugger --version     Qt takes both, so there is no question left
 //   -qmljsdebugger --version      the same in one dash
