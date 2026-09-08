@@ -169,8 +169,10 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // the run walks on into the panel with an application object that has no
 // screen.
 //
-// Six shapes, each measured against the built programs, and what each run
-// does:
+// Six shapes and what each run does. The first five are measured against the
+// built programs. The last cannot be seen on them without a display, because
+// that shape builds the object with a screen and the run ends there; its
+// refusal is measured on qtpaths6, which carries no screen of its own:
 //
 //   --qmljsdebugger --version    Qt takes both, so nothing text-only is left
 //                                and the run takes the path that shows the
