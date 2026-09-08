@@ -179,7 +179,7 @@ void Devices::openDevice(const std::string &path) {
     // Before anything is read, so that nothing of the masked kinds is ever in
     // this process at all.
     if (!setEventMask(fd)) {
-        std::fprintf(stderr, "bindpeek-watch: cannot mask %s: %s\n",
+        std::fprintf(stderr, BINDPEEK_PROGRAM_NAME ": cannot mask %s: %s\n",
                      path.c_str(), std::strerror(errno));
         ::close(fd);
         return;
@@ -274,14 +274,14 @@ bool Devices::start() {
     // fail and has to be made again when the permissions arrive.
     m_inotify = ::inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
     if (m_inotify < 0) {
-        std::fprintf(stderr, "bindpeek-watch: cannot watch %s: %s\n", kInputDir,
-                     std::strerror(errno));
+        std::fprintf(stderr, BINDPEEK_PROGRAM_NAME ": cannot watch %s: %s\n",
+                     kInputDir, std::strerror(errno));
         return false;
     }
     if (::inotify_add_watch(m_inotify, kInputDir,
                             IN_CREATE | IN_ATTRIB | IN_DELETE) < 0) {
-        std::fprintf(stderr, "bindpeek-watch: cannot watch %s: %s\n", kInputDir,
-                     std::strerror(errno));
+        std::fprintf(stderr, BINDPEEK_PROGRAM_NAME ": cannot watch %s: %s\n",
+                     kInputDir, std::strerror(errno));
         // Given back rather than left lying about, so that a failed start
         // leaves this exactly as it was before it and says so.
         ::close(m_inotify);
@@ -458,8 +458,8 @@ void Devices::resync() {
             // a machine which has none of it has no second seat either. Going
             // on dropping every key in silence would be the worse answer.
             std::fprintf(stderr,
-                         "bindpeek-watch: udev says nothing about %s, reading "
-                         "it as %s\n",
+                         BINDPEEK_PROGRAM_NAME
+                         ": udev says nothing about %s, reading it as %s\n",
                          device.path.c_str(), kDefaultSeat);
             device.seat = kDefaultSeat;
             device.seatSettled = true;

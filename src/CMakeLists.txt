@@ -69,6 +69,10 @@ add_executable(bindpeek
   # For the one sentence that describes the program: --help and the about
   # dialog have to say the same thing.
   AppInfo.cpp
+  # Compiled into each program rather than into the shared library above: it
+  # reads the name of the binary from the build, and a library is built once
+  # and would carry whichever name came first.
+  CommandLine.cpp
   Appearance.cpp
   LayerPlacement.cpp
   SystemScheme.cpp
@@ -130,8 +134,10 @@ target_link_libraries(bindpeek-editor PRIVATE
 )
 
 # Appearance is shared with the overlay so the preview and the real panel are
-# driven by the same code.
-target_sources(bindpeek-editor PRIVATE Appearance.cpp AppInfo.cpp SystemScheme.cpp)
+# driven by the same code, and the command line so that the two programs answer
+# --help and --version alike.
+target_sources(bindpeek-editor PRIVATE Appearance.cpp AppInfo.cpp
+                                       CommandLine.cpp SystemScheme.cpp)
 
 # No BASE here: the aliases then follow the paths as written, which gives
 # /qml/editor/Editor.qml and /qml/Theme.qml. Editor.qml reaches its shared
@@ -242,3 +248,26 @@ install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/${BINDPEEK_WATCH_SERVICE_UNIT}
   DESTINATION lib/systemd/system
 )
+
+# --- What each program is called ---------------------------------------------
+#
+# The name a binary answers by: what --version prints, and what the keyboard
+# service writes in front of every line it sends to the journal. Taken from the
+# target itself, so no source file spells it out and a program that is renamed
+# cannot go on announcing the old name.
+#
+# Per target rather than for the whole build, because the three differ. That is
+# also why anything reading it is compiled into the programs and not into a
+# shared library: a library is built once and would carry one of the names for
+# all of them.
+#
+# Not the name of the product. That one is the same for all three, is what the
+# about dialog shows, and lives in AppInfo.
+# Read off the file the target builds rather than off the target's own name,
+# which is what the tests do as well: the two agree today because no target
+# renames its output, and reading the same thing everywhere is what keeps them
+# agreeing if one ever does.
+foreach(program bindpeek bindpeek-editor bindpeek-watch)
+  target_compile_definitions(${program}
+    PRIVATE BINDPEEK_PROGRAM_NAME="$<TARGET_FILE_BASE_NAME:${program}>")
+endforeach()
