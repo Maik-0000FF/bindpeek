@@ -173,12 +173,14 @@ void TestCommandLine::readsTheLine_data() {
     QTest::newRow("the value stands between")
         << QList<QByteArray>{taking, "port:1", "--version"} << none << none
         << true;
-    // Nothing stands behind it, so Qt takes nothing and refuses the name.
-    // Measured: qtpaths6 answers "Unknown option 'qmljsdebugger'". The step
-    // runs off the end of the line here, which ends the loop with the answer
-    // the shape already had.
+    // Standing behind an informational one it is never reached: the answer is
+    // already given and the function has returned.
     QTest::newRow("-v is read before it")
         << QList<QByteArray>{"-v", taking} << none << none << true;
+    // Standing alone it has nothing behind it, so Qt takes nothing and refuses
+    // the name. Measured: qtpaths6 answers "Unknown option 'qmljsdebugger'".
+    // The step runs off the end of the line, which ends the loop with the
+    // answer the shape already had.
     QTest::newRow("nothing behind it to take")
         << QList<QByteArray>{taking} << none << none << false;
     QTest::newRow("named by the caller")
@@ -207,6 +209,13 @@ void TestCommandLine::readsTheLine_data() {
         << false;
     QTest::newRow("joined, so a value")
         << QList<QByteArray>{"--source=--version"} << none << source << false;
+    // The caller's step is taken first, so the option behind the pair is read
+    // as one and the answer is text. Qt then takes the other pair out of the
+    // line and leaves --source without a value: measured, the run ends on Qt's
+    // own line about the missing value, which is printed without a display.
+    QTest::newRow("the caller's step comes first")
+        << QList<QByteArray>{"--source", taking, "--version"} << none << source
+        << true;
     // The step over a value is one argument, not everything after it.
     QTest::newRow("only the one value is stepped over")
         << QList<QByteArray>{"--source", "/x", "-v"} << none << source << true;

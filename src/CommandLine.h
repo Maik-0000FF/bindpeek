@@ -209,6 +209,16 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 //   --source /x --version     -      source   true    stands on its own
 //   --source --version        -      source   false   the value of --source
 //   --source=--version        -      source   false   joined, so a value
+//   --source --qmljsdebugger  -      source   true    the caller's step comes
+//     --version                                       first, and Qt then takes
+//                                                     the other pair and
+//                                                     leaves --source without
+//                                                     a value: measured, the
+//                                                     run ends on Qt's own
+//                                                     line about the missing
+//                                                     value, which the plain
+//                                                     application object
+//                                                     prints without a display
 //   --source /x -v            -      source   true    one value, not the rest
 //   --source                  -      source   false   the value never came
 //   -- --version              -      -        false   behind the end
