@@ -153,6 +153,26 @@ void TestCommandLine::readsTheLine_data() {
         << QList<QByteArray>{"-xyz"} << none << none << false;
     QTest::newRow("a digit in the run")
         << QList<QByteArray>{"-5v"} << none << none << false;
+    // Qt takes this one and the argument behind it out of the line before any
+    // parser sees it, so what stood there is gone and the run is not text.
+    // Spelled from the one constant rather than written out again, for the
+    // reason the list below is read rather than copied.
+    const QByteArray taking = QByteArray("--") + kOptionQtTakesWithValue;
+    const QByteArray takingShort = QByteArray("-") + kOptionQtTakesWithValue;
+    QTest::newRow("Qt takes both")
+        << QList<QByteArray>{taking, "--version"} << none << none << false;
+    QTest::newRow("the same in one dash")
+        << QList<QByteArray>{takingShort, "--version"} << none << none << false;
+    QTest::newRow("the caller's own option is taken as well")
+        << QList<QByteArray>{taking, "--list"} << list << none << false;
+    // A value joined to it, or standing between as its own argument, leaves
+    // the option behind it where it is, and those lines are answered.
+    QTest::newRow("joined, so the option behind it stands")
+        << QList<QByteArray>{taking + "=port:1", "--version"} << none << none
+        << true;
+    QTest::newRow("the value stands between")
+        << QList<QByteArray>{taking, "port:1", "--version"} << none << none
+        << true;
     QTest::newRow("named by the caller")
         << QList<QByteArray>{"--list"} << list << none << true;
     QTest::newRow("not named")

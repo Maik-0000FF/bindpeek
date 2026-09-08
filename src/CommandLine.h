@@ -33,7 +33,11 @@ namespace bindpeek {
 //
 // Not only the object with a screen, either. Measured: a bare QCoreApplication
 // takes -qmljsdebugger and its value as well, so that name is swallowed even
-// on a run that was answered as text and built no window.
+// on a run that was answered as text and built no window. It is the one name
+// here that takes the argument behind it, which is why it carries a name of
+// its own: wantsTextOnly has to step over that argument, or an option standing
+// there is read as one this run will act on while Qt has already taken it
+// away.
 //
 // The union of what the classes take, because the programs share this list:
 // stylesheet, widgetcount, qdevel and qdebug belong to the settings window,
@@ -53,16 +57,29 @@ namespace bindpeek {
 // Held against a program's own options while that program is built, which is
 // what src/main.cpp does with it, and read by the test rather than copied
 // there.
+// The one of them that is followed by its value, spelled once and read from
+// here by both lists, so the two cannot drift apart.
+inline constexpr const char *kOptionQtTakesWithValue = "qmljsdebugger";
+
 inline constexpr const char *kOptionsQtTakes[] = {
-    "geometry",      "icon",
-    "platform",      "platformpluginpath",
-    "platformtheme", "plugin",
-    "qdebug",        "qdevel",
-    "qmljsdebugger", "qwindowgeometry",
-    "qwindowicon",   "qwindowtitle",
-    "reverse",       "session",
-    "style",         "stylesheet",
-    "testability",   "title",
+    "geometry",
+    "icon",
+    "platform",
+    "platformpluginpath",
+    "platformtheme",
+    "plugin",
+    "qdebug",
+    "qdevel",
+    kOptionQtTakesWithValue,
+    "qwindowgeometry",
+    "qwindowicon",
+    "qwindowtitle",
+    "reverse",
+    "session",
+    "style",
+    "stylesheet",
+    "testability",
+    "title",
     "widgetcount",
 };
 
@@ -134,11 +151,23 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // And one of Qt's own standing beside an informational one is refused rather
 // than acted on: "-style Fusion --version" answers "Unknown options: s, t, y,
 // l, e." because the version wins, the plain application object is built, and
-// that one cuts out almost nothing. Almost, because -qmljsdebugger goes even
-// there, so that one name is swallowed on this path rather than refused.
-// Closing either would mean acting on Qt's list of names rather than only
-// refusing them, for a line nobody writes: a stylesheet is not set in order to
-// ask a program its version.
+// that one cuts out almost nothing. Closing that would mean acting on Qt's
+// list of names rather than only refusing them, for a line nobody writes: a
+// stylesheet is not set in order to ask a program its version.
+//
+// Almost nothing, because -qmljsdebugger goes even there, and it takes the
+// argument behind it with it. That one argument is stepped over here, in both
+// spellings, and only when no value is joined to it. Without the step, a line
+// like "--qmljsdebugger --list" is read as a request for the listing, the
+// plain application object is built for it, and the parser is then handed a
+// line Qt has already emptied: nothing is set, and the run walks on into the
+// panel with an application object that has no screen. Measured, on all four
+// shapes, and the last two are answered as they read:
+//
+//   --qmljsdebugger --version     Qt takes both, so there is no question left
+//   -qmljsdebugger --version      the same in one dash
+//   --qmljsdebugger=port:1 --v…   the value is joined, so --version stands
+//   --qmljsdebugger port:1 --v…   the value stands between, so it stands too
 //
 // Which leaves one rule for whoever adds an option to a program: it must not
 // be given a name Qt already uses. Those are listed at the top of this file,
@@ -155,6 +184,10 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 //   -v / -h / -vh / -hv       -      -        true    a run of those letters
 //   -xyz / -5v                -      -        false   a run of others
 //   -platform / --platform    -      -        false   Qt's own, left to Qt
+//   --qmljsdebugger --version -      -        false   Qt takes both
+//   -qmljsdebugger --version  -      -        false   the same in one dash
+//   --qmljsdebugger=p -v      -      -        true    joined, so -v stands
+//   --qmljsdebugger p -v      -      -        true    the value stands between
 //   --list                    list   -        true    named by the caller
 //   --Version / --nope        -      -        false   unknown, so left to Qt
 //   -source                   -      -        false   one dash, so a run

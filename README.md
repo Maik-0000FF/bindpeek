@@ -150,8 +150,11 @@ Other options:
 
 <!-- environments:end -->
 
-`bindpeek-editor` and `bindpeek-watch` take no options of their own, and answer
-`--help` and `--version` the same way.
+`bindpeek-editor` and `bindpeek-watch` take no options of their own.
+`bindpeek-editor` answers `--help` and `--version` through the same parser as
+the panel, so `--help-all` and a run like `-hv` are answered as well.
+`bindpeek-watch` carries no Qt and answers exactly `--help`, `-h`, `--version`
+and `-v`.
 
 Everything else is set in the settings window, or by editing
 `~/.config/bindpeek/bindpeek.conf`, which the program writes on first start with
