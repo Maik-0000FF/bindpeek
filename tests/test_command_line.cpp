@@ -153,6 +153,36 @@ void TestCommandLine::readsTheLine_data() {
         << QList<QByteArray>{"-xyz"} << none << none << false;
     QTest::newRow("a digit in the run")
         << QList<QByteArray>{"-5v"} << none << none << false;
+    // Qt takes this one and the argument behind it out of the line before any
+    // parser sees it, so what stood there is gone and the run is not text.
+    // Spelled from the one constant rather than written out again, for the
+    // reason the list below is read rather than copied.
+    const QByteArray taking = QByteArray("--") + kOptionQtTakesWithValue;
+    const QByteArray takingShort = QByteArray("-") + kOptionQtTakesWithValue;
+    QTest::newRow("Qt takes both")
+        << QList<QByteArray>{taking, "--version"} << none << none << false;
+    QTest::newRow("the same in one dash")
+        << QList<QByteArray>{takingShort, "--version"} << none << none << false;
+    QTest::newRow("the caller's own option is taken as well")
+        << QList<QByteArray>{taking, "--list"} << list << none << false;
+    // A value joined to it, or standing between as its own argument, leaves
+    // the option behind it where it is, and those lines are answered.
+    QTest::newRow("joined, so the option behind it stands")
+        << QList<QByteArray>{taking + "=port:1", "--version"} << none << none
+        << true;
+    QTest::newRow("the value stands between")
+        << QList<QByteArray>{taking, "port:1", "--version"} << none << none
+        << true;
+    // Standing behind an informational one it is never reached: the answer is
+    // already given and the function has returned.
+    QTest::newRow("-v is read before it")
+        << QList<QByteArray>{"-v", taking} << none << none << true;
+    // Standing alone it has nothing behind it, so Qt takes nothing and refuses
+    // the name. Measured: qtpaths6 answers "Unknown option 'qmljsdebugger'".
+    // The step runs off the end of the line, which ends the loop with the
+    // answer the shape already had.
+    QTest::newRow("nothing behind it to take")
+        << QList<QByteArray>{taking} << none << none << false;
     QTest::newRow("named by the caller")
         << QList<QByteArray>{"--list"} << list << none << true;
     QTest::newRow("not named")
@@ -179,6 +209,13 @@ void TestCommandLine::readsTheLine_data() {
         << false;
     QTest::newRow("joined, so a value")
         << QList<QByteArray>{"--source=--version"} << none << source << false;
+    // The caller's step is taken first, so the option behind the pair is read
+    // as one and the answer is text. Qt then takes the other pair out of the
+    // line and leaves --source without a value: measured, the run ends on Qt's
+    // own line about the missing value, which is printed without a display.
+    QTest::newRow("the caller's step comes first")
+        << QList<QByteArray>{"--source", taking, "--version"} << none << source
+        << true;
     // The step over a value is one argument, not everything after it.
     QTest::newRow("only the one value is stepped over")
         << QList<QByteArray>{"--source", "/x", "-v"} << none << source << true;
@@ -197,6 +234,13 @@ void TestCommandLine::readsTheLine_data() {
     QTest::newRow("the end taken as a value")
         << QList<QByteArray>{"--source", "--", "--version"} << none << source
         << true;
+    // The same for the one Qt takes with a value, and the reason the step over
+    // it stands before the end of the options is read: Qt takes the end marker
+    // as that value, so the options never end and --version is one. Measured:
+    // this prints the version. Reading the end first would answer false and
+    // send a run that prints a line into the panel.
+    QTest::newRow("Qt takes the end as its value")
+        << QList<QByteArray>{taking, "--", "--version"} << none << none << true;
     QTest::newRow("a lone dash")
         << QList<QByteArray>{"-"} << none << none << false;
     QTest::newRow("an empty argument")

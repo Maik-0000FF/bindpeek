@@ -155,8 +155,12 @@ int main(int argc, char **argv) {
     //
     // process() prints the answer to --help and --version and ends the program
     // there, so nothing below runs for either. What it also does is refuse an
-    // argument that is no option of this program, which without a parser would
-    // have opened the window as though it had been understood.
+    // argument written like an option that is no option of this program, which
+    // without a parser would have opened the window as though it had been
+    // understood. An argument with no dash in front of it is a positional one
+    // and this program declares none, so the parser takes it in silence and
+    // the window opens: measured, and it is Qt's behaviour for every parser
+    // that asks for no positional argument.
     //
     // This program has none of its own. A first one added here must not carry
     // a name Qt takes for itself, kOptionsQtTakes in CommandLine.h: this one
