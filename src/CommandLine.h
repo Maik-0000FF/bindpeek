@@ -214,6 +214,11 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 //   -- --version              -      -        false   behind the end
 //   --version --              -      -        true    the end comes after
 //   --source -- --version     -      source   true    the end taken as value
+//   --qmljsdebugger -- --v…   -      -        true    Qt takes the end as its
+//                                                     value, so the option
+//                                                     behind it is one and the
+//                                                     step has to come before
+//                                                     the end is read
 //   -                         -      -        false   no option, a lone dash
 //   ""                        -      -        false   an empty argument
 bool wantsTextOnly(int argc, char **argv, const QStringList &alsoText = {},

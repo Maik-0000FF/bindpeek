@@ -225,6 +225,13 @@ void TestCommandLine::readsTheLine_data() {
     QTest::newRow("the end taken as a value")
         << QList<QByteArray>{"--source", "--", "--version"} << none << source
         << true;
+    // The same for the one Qt takes with a value, and the reason the step over
+    // it stands before the end of the options is read: Qt takes the end marker
+    // as that value, so the options never end and --version is one. Measured:
+    // this prints the version. Reading the end first would answer false and
+    // send a run that prints a line into the panel.
+    QTest::newRow("Qt takes the end as its value")
+        << QList<QByteArray>{taking, "--", "--version"} << none << none << true;
     QTest::newRow("a lone dash")
         << QList<QByteArray>{"-"} << none << none << false;
     QTest::newRow("an empty argument")
