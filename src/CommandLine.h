@@ -167,19 +167,30 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // request for the listing, the plain application object is built for it, and
 // the parser is then handed a line Qt has already emptied: nothing is set, and
 // the run walks on into the panel with an application object that has no
-// screen. Measured, on these five shapes. The two carrying a value of their
-// own are answered as they read, the last is refused, and the first two are
-// the ones the step exists for:
+// screen.
 //
-//   --qmljsdebugger --version     Qt takes both, so there is no question left
-//   -qmljsdebugger --version      the same in one dash
-//   --qmljsdebugger=port:1 --v…   the value is joined, so --version stands
-//   --qmljsdebugger port:1 --v…   the value stands between, so it stands too
-//   --version --qmljsdebugger     nothing stands behind it, so Qt refuses it
+// Six shapes, each measured against the built programs, and what each run
+// does:
 //
-// The last one is why the step is written as a step and not as a refusal:
-// stepping past the end of the line ends the loop, which is the right answer
-// for a name Qt is about to refuse anyway.
+//   --qmljsdebugger --version    Qt takes both, so nothing text-only is left
+//                                and the run takes the path that shows the
+//                                panel
+//   -qmljsdebugger --version     the same in one dash
+//   --qmljsdebugger=port:1 --v…  the value is joined, so --version stands and
+//                                the version is printed
+//   --qmljsdebugger port:1 --v…  the value stands between, so --version stands
+//                                as well and the version is printed
+//   --version --qmljsdebugger    answered at --version before the step is
+//                                reached, and the name behind it is one Qt
+//                                refuses, so the run ends on that refusal
+//   --qmljsdebugger              nothing stands behind it, so Qt takes nothing
+//                                and the name is one it refuses: measured on
+//                                qtpaths6, which answers "Unknown option
+//                                'qmljsdebugger'"
+//
+// The last shape is why the step is written as a step and not as a refusal of
+// its own: it walks off the end of the line and ends the loop, which is the
+// answer that shape has anyway.
 //
 // Which leaves one rule for whoever adds an option to a program: it must not
 // be given a name Qt already uses. Those are listed at the top of this file,
