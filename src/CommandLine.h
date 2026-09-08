@@ -33,11 +33,13 @@ namespace bindpeek {
 //
 // Not only the object with a screen, either. Measured: a bare QCoreApplication
 // takes -qmljsdebugger and its value as well, so that name is swallowed even
-// on a run that was answered as text and built no window. It is the one name
-// here that takes the argument behind it, which is why it carries a name of
-// its own: wantsTextOnly has to step over that argument, or an option standing
-// there is read as one this run will act on while Qt has already taken it
-// away.
+// on a run that was answered as text and built no window. It is the only name
+// here measured to do that on the path without a screen, which is why it
+// carries a name of its own: wantsTextOnly has to step over that argument, or
+// an option standing there is read as one this run will act on while Qt has
+// already taken it away. What the classes with a screen take together with the
+// argument behind them is not said here, because measuring it needs a display
+// and this check never runs under one.
 //
 // The union of what the classes take, because the programs share this list:
 // stylesheet, widgetcount, qdevel and qdebug belong to the settings window,
@@ -156,18 +158,24 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 // stylesheet is not set in order to ask a program its version.
 //
 // Almost nothing, because -qmljsdebugger goes even there, and it takes the
-// argument behind it with it. That one argument is stepped over here, in both
-// spellings, and only when no value is joined to it. Without the step, a line
-// like "--qmljsdebugger --list" is read as a request for the listing, the
-// plain application object is built for it, and the parser is then handed a
-// line Qt has already emptied: nothing is set, and the run walks on into the
-// panel with an application object that has no screen. Measured, on all four
-// shapes, and the last two are answered as they read:
+// argument behind it with it whenever one stands there. That one argument is
+// stepped over here, in both spellings, and only when no value is joined to
+// it. Without the step, a line like "--qmljsdebugger --list" is read as a
+// request for the listing, the plain application object is built for it, and
+// the parser is then handed a line Qt has already emptied: nothing is set, and
+// the run walks on into the panel with an application object that has no
+// screen. Measured, on these five shapes, and the last three are answered as
+// they read:
 //
 //   --qmljsdebugger --version     Qt takes both, so there is no question left
 //   -qmljsdebugger --version      the same in one dash
 //   --qmljsdebugger=port:1 --v…   the value is joined, so --version stands
 //   --qmljsdebugger port:1 --v…   the value stands between, so it stands too
+//   --version --qmljsdebugger     nothing stands behind it, so Qt refuses it
+//
+// The last one is why the step is written as a step and not as a refusal:
+// stepping past the end of the line ends the loop, which is the right answer
+// for a name Qt is about to refuse anyway.
 //
 // Which leaves one rule for whoever adds an option to a program: it must not
 // be given a name Qt already uses. Those are listed at the top of this file,
@@ -188,6 +196,8 @@ void prepareParser(QCommandLineParser &parser, const QString &description);
 //   -qmljsdebugger --version  -      -        false   the same in one dash
 //   --qmljsdebugger=p -v      -      -        true    joined, so -v stands
 //   --qmljsdebugger p -v      -      -        true    the value stands between
+//   -v --qmljsdebugger        -      -        true    -v is read before it
+//   --qmljsdebugger           -      -        false   nothing behind it to take
 //   --list                    list   -        true    named by the caller
 //   --Version / --nope        -      -        false   unknown, so left to Qt
 //   -source                   -      -        false   one dash, so a run

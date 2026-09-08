@@ -173,6 +173,14 @@ void TestCommandLine::readsTheLine_data() {
     QTest::newRow("the value stands between")
         << QList<QByteArray>{taking, "port:1", "--version"} << none << none
         << true;
+    // Nothing stands behind it, so Qt takes nothing and refuses the name.
+    // Measured: qtpaths6 answers "Unknown option 'qmljsdebugger'". The step
+    // runs off the end of the line here, which ends the loop with the answer
+    // the shape already had.
+    QTest::newRow("-v is read before it")
+        << QList<QByteArray>{"-v", taking} << none << none << true;
+    QTest::newRow("nothing behind it to take")
+        << QList<QByteArray>{taking} << none << none << false;
     QTest::newRow("named by the caller")
         << QList<QByteArray>{"--list"} << list << none << true;
     QTest::newRow("not named")
