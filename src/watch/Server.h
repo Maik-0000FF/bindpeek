@@ -15,6 +15,47 @@
 
 namespace bindpeek::watch {
 
+// How many connections one person may hold at once. A panel is one, and a
+// second is the moment during a restart when the old one has not let go yet.
+// Counted per user rather than over everybody, so that one account cannot use
+// up the room another one needs.
+//
+// Written here rather than beside the counting, because a measurement of the
+// limit has to know where it is, and a number written down twice is a number
+// that drifts.
+inline constexpr std::size_t kMaxClientsPerUser = 4;
+
+// Who is on the other end of an accepted connection.
+//
+// Half of the door below, named here rather than left inside the source
+// because it is the half that can be measured as it stands: the kernel answers
+// it about any connected socket, with no session and no seat anywhere in it.
+bool peerUid(int fd, uid_t *uid);
+
+// Which seat that person is at right now, with a session in the foreground.
+// False when that is none of them, which is everybody who is not sitting at
+// this machine.
+//
+// The name is the answer and not only the yes: it says which keyboards this
+// person may be told about, and the ones of the other seat are not among them.
+bool activeSeatOf(uid_t uid, std::string *seat);
+
+// The two questions asked at the door.
+//
+// Both are answered by the machine the service is running on: who holds the
+// other end of a connection, and where that person is sitting at this moment.
+// Neither can be arranged in a measurement, which has no logind to ask and no
+// seat to sit at, so they are handed in rather than reached for, and the
+// measurement answers them itself.
+//
+// Plain function pointers, because that is the whole of what is needed. Each
+// stands at the real answer to begin with, so a door written out in part is
+// still a door that shuts: the one thing this must never be is half a check.
+struct Door {
+    bool (*whoIs)(int fd, uid_t *uid) = peerUid;
+    bool (*whereIs)(uid_t uid, std::string *seat) = activeSeatOf;
+};
+
 // The socket side: who is listening, and what they are told.
 //
 // Nothing is ever read from a client. There is no request, no command and no
@@ -26,7 +67,9 @@ namespace bindpeek::watch {
 // switched away from long after it connected.
 class Server {
 public:
-    Server() = default;
+    // The door it asks at. Left alone it is the real one; a measurement hands
+    // in its own answers, and there is no other reason to pass anything here.
+    explicit Server(Door door = {});
     ~Server();
 
     Server(const Server &) = delete;
@@ -39,6 +82,12 @@ public:
     // permissions its umask gives it, and that is exactly the decision that
     // belongs in the unit.
     bool start();
+
+    // The same, for a listening socket that is already open: it is checked for
+    // being the kind this speaks and made non-blocking. start is this with the
+    // socket the service manager passed, and a measurement hands in one it
+    // made itself, which is the only way in where there is no service manager.
+    bool adopt(int fd);
 
     void appendPollFds(std::vector<pollfd> &out) const;
 
@@ -98,7 +147,13 @@ private:
     void drop(std::size_t at);
     // Returns false when the client is gone or unreachable.
     bool sendTo(int fd, const Report &report);
+    // How many connections this person already holds, the ones accepted this
+    // round counted with the ones let in earlier. Counted together or a burst
+    // inside one round would walk past the limit while none of them is in the
+    // list proper yet.
+    std::size_t heldBy(uid_t uid) const;
 
+    Door m_door;
     int m_listen = -1;
     std::vector<Client> m_clients;
 
