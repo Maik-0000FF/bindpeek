@@ -234,6 +234,32 @@ private:
     bool m_ok = false;
 };
 
+// A descriptor that gives itself back.
+//
+// The cases below leave the moment something they assert is not so, and a case
+// that leaves in the middle would otherwise take a descriptor with it, into
+// every case that runs after it in the same process. Written once rather than
+// as a close before each way out, because the way out that is added later is
+// the one the close would be missing from.
+class Held {
+public:
+    explicit Held(int fd) : m_fd(fd) {}
+
+    ~Held() {
+        if (m_fd >= 0) {
+            ::close(m_fd);
+        }
+    }
+
+    Held(const Held &) = delete;
+    Held &operator=(const Held &) = delete;
+
+    int fd() const { return m_fd; }
+
+private:
+    int m_fd;
+};
+
 // What a connection was told, if anything. The three answers a case asks about
 // are a record, nothing yet, and the door shut.
 enum class Told { Nothing, Record, Shut };
@@ -306,6 +332,7 @@ private slots:
     void what_they_are_let_in_on_is_their_own_seat();
     void one_seat_hears_nothing_of_the_other_over_the_socket();
     void the_fifth_connection_of_one_person_is_shut_out();
+    void the_limit_counts_the_ones_already_let_in();
     void the_limit_is_counted_per_person();
     void leaving_the_seat_ends_the_connection();
     void losing_the_session_ends_the_connection();
@@ -684,13 +711,12 @@ void TestWatch::a_lost_keyboard_takes_its_keys_from_its_seat() {
 void TestWatch::the_kernel_names_the_peer_of_a_connection() {
     int pair[2] = {-1, -1};
     QVERIFY(::socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) == 0);
+    const Held here(pair[0]);
+    const Held there(pair[1]);
 
     uid_t uid = 0;
-    QVERIFY(peerUid(pair[0], &uid));
+    QVERIFY(peerUid(here.fd(), &uid));
     QCOMPARE(uid, ::getuid());
-
-    ::close(pair[0]);
-    ::close(pair[1]);
 }
 
 // And when it cannot be asked, nobody is named. The answer has to be a no
@@ -699,13 +725,12 @@ void TestWatch::the_kernel_names_the_peer_of_a_connection() {
 void TestWatch::a_descriptor_that_is_no_connection_names_nobody() {
     int ends[2] = {-1, -1};
     QVERIFY(::pipe(ends) == 0);
+    const Held reading(ends[0]);
+    const Held writing(ends[1]);
 
     uid_t uid = kSomebody;
-    QVERIFY(!peerUid(ends[0], &uid));
+    QVERIFY(!peerUid(reading.fd(), &uid));
     QCOMPARE(uid, kSomebody);
-
-    ::close(ends[0]);
-    ::close(ends[1]);
 }
 
 // A listening socket of the wrong kind is refused, and refused whole: nothing
@@ -718,33 +743,27 @@ void TestWatch::a_socket_of_another_kind_is_not_adopted() {
     const std::string path = dir.filePath("stream").toStdString();
     QVERIFY(path.size() < sizeof(sockaddr_un::sun_path));
 
-    const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    const Held stream(::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
     // QFAIL rather than QVERIFY, because what follows is a system call that
     // wants a descriptor: this way the case leaves before it, in the reading
     // of the checker as well as in the running.
-    if (fd < 0) {
+    if (stream.fd() < 0) {
         QFAIL("cannot make a socket of the kind this case turns away");
     }
     sockaddr_un at{};
     at.sun_family = AF_UNIX;
     std::memcpy(at.sun_path, path.c_str(), path.size());
-    // Given back before leaving, or the twelve cases after this one would run
-    // with a descriptor this one never let go of.
-    if (::bind(fd, reinterpret_cast<sockaddr *>(&at), sizeof at) < 0 ||
-        ::listen(fd, kBacklog) < 0) {
-        ::close(fd);
-        QFAIL("cannot stand up a socket of the kind this case turns away");
-    }
+    QVERIFY(::bind(stream.fd(), reinterpret_cast<sockaddr *>(&at), sizeof at) ==
+            0);
+    QVERIFY(::listen(stream.fd(), kBacklog) == 0);
 
     Server server{answeredHere()};
-    QVERIFY(!server.adopt(fd));
+    QVERIFY(!server.adopt(stream.fd()));
 
     std::vector<pollfd> fds;
     server.appendPollFds(fds);
     QCOMPARE(fds.size(), std::size_t{1});
     QCOMPARE(fds[0].fd, -1);
-
-    ::close(fd);
 }
 
 // The socket is open to everyone, so anybody local can reach the accept. A
@@ -890,6 +909,35 @@ void TestWatch::the_fifth_connection_of_one_person_is_shut_out() {
     const Seats state;
     bench.server().admit(state);
     QCOMPARE(bench.server().clients(), kMaxClientsPerUser);
+}
+
+// The same limit, reached from the other side: these connections are in the
+// list proper when the next one knocks, and nothing is waiting.
+//
+// Beside the case above rather than folded into it, because the counting has
+// two halves and each of these reaches one of them. Fold them together and one
+// half is never asked: a person holding the limit in let-in connections could
+// open the whole limit again in the next round and end up with twice it.
+void TestWatch::the_limit_counts_the_ones_already_let_in() {
+    Bench bench(Answers{true, {kSomebody}, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    for (std::size_t at = 0; at < kMaxClientsPerUser; ++at) {
+        QVERIFY(bench.knock() >= 0);
+    }
+    bench.turn();
+    const Seats state;
+    bench.server().admit(state);
+    QCOMPARE(bench.server().clients(), kMaxClientsPerUser);
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+
+    const int overTheLimit = bench.knock();
+    QVERIFY(overTheLimit >= 0);
+    bench.turn();
+
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+    QCOMPARE(bench.server().clients(), kMaxClientsPerUser);
+    QVERIFY(heard(overTheLimit) == Told::Shut);
 }
 
 // And it is counted per person, so that one account cannot use up the room
