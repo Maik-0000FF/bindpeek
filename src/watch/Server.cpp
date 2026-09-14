@@ -17,17 +17,8 @@
 #include <systemd/sd-login.h>
 
 namespace bindpeek::watch {
-namespace {
 
-// How many connections one person may hold at once. A panel is one, and a
-// second is the moment during a restart when the old one has not let go yet.
-// Counted per user rather than over everybody, so that one account cannot use
-// up the room another one needs.
-constexpr std::size_t kMaxClientsPerUser = 4;
-
-// Which seat a user is at right now, with a session in the foreground. False
-// when that is none of them, which is everybody who is not sitting at this
-// machine.
+// Which seat a user is at right now, as the header says it.
 //
 // A positive test rather than a list of states to refuse. sd_uid_get_state
 // would answer "lingering" for an account that is not logged in at all but has
@@ -46,7 +37,7 @@ constexpr std::size_t kMaxClientsPerUser = 4;
 //
 // The name is the answer and not only the yes: it says which keyboards this
 // person may be told about, and the ones of the other seat are not among them.
-bool seatOf(uid_t uid, std::string *seat) {
+bool activeSeatOf(uid_t uid, std::string *seat) {
     char **seats = nullptr;
     const int count = sd_get_seats(&seats);
     if (count < 0) {
@@ -72,6 +63,9 @@ bool seatOf(uid_t uid, std::string *seat) {
 // who is not at this machine. The records carry the moment of every keystroke,
 // which is worth little on its own and more than nothing to somebody
 // collecting it.
+//
+// The kernel attached these credentials when the connection was made, so they
+// are the peer as it was then and cannot be handed over or talked out of.
 bool peerUid(int fd, uid_t *uid) {
     ucred peer{};
     socklen_t size = sizeof peer;
@@ -82,7 +76,7 @@ bool peerUid(int fd, uid_t *uid) {
     return true;
 }
 
-} // namespace
+Server::Server(Door door) : m_door(door) {}
 
 Server::~Server() {
     for (const Client &client : m_clients) {
@@ -107,9 +101,11 @@ bool Server::start() {
                      passed);
         return false;
     }
+    return adopt(SD_LISTEN_FDS_START);
+}
 
-    m_listen = SD_LISTEN_FDS_START;
-    if (sd_is_socket(m_listen, AF_UNIX, SOCK_SEQPACKET, 1) <= 0) {
+bool Server::adopt(int fd) {
+    if (sd_is_socket(fd, AF_UNIX, SOCK_SEQPACKET, 1) <= 0) {
         std::fprintf(stderr, BINDPEEK_PROGRAM_NAME
                      ": the socket handed over is not a listening AF_UNIX "
                      "SOCK_SEQPACKET socket\n");
@@ -125,13 +121,17 @@ bool Server::start() {
     //
     // SOCK_NONBLOCK in accept4 does not do this. That flag is put on the
     // connection that comes out, not on the socket being accepted from.
-    if (::fcntl(m_listen, F_SETFL, O_NONBLOCK) < 0) {
+    if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
         std::fprintf(stderr,
                      BINDPEEK_PROGRAM_NAME
                      ": cannot set the socket non-blocking: %s\n",
                      std::strerror(errno));
         return false;
     }
+
+    // Taken last, so that a socket which was refused is not one this holds:
+    // nothing is polled and nothing is accepted on a start that failed.
+    m_listen = fd;
     return true;
 }
 
@@ -195,11 +195,26 @@ void Server::dropStrangers() {
     for (std::size_t at = m_clients.size(); at > 0; --at) {
         const std::size_t index = at - 1;
         std::string seat;
-        if (!seatOf(m_clients[index].uid, &seat) ||
+        if (!m_door.whereIs(m_clients[index].uid, &seat) ||
             seat != m_clients[index].seat) {
             drop(index);
         }
     }
+}
+
+std::size_t Server::heldBy(uid_t uid) const {
+    std::size_t held = 0;
+    for (const Client &client : m_clients) {
+        if (client.uid == uid) {
+            ++held;
+        }
+    }
+    for (const Client &client : m_pending) {
+        if (client.uid == uid) {
+            ++held;
+        }
+    }
+    return held;
 }
 
 void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
@@ -226,26 +241,12 @@ void Server::dispatch(const std::vector<pollfd> &ready, std::size_t offset) {
 
         uid_t uid = 0;
         std::string seat;
-        if (!peerUid(fd, &uid) || !seatOf(uid, &seat)) {
+        if (!m_door.whoIs(fd, &uid) || !m_door.whereIs(uid, &seat)) {
             ::close(fd);
             continue;
         }
 
-        std::size_t held = 0;
-        for (const Client &client : m_clients) {
-            if (client.uid == uid) {
-                ++held;
-            }
-        }
-        // The ones accepted a moment ago count too, or a burst inside one
-        // round would walk past the limit while none of them is in the list
-        // yet.
-        for (const Client &client : m_pending) {
-            if (client.uid == uid) {
-                ++held;
-            }
-        }
-        if (held >= kMaxClientsPerUser) {
+        if (heldBy(uid) >= kMaxClientsPerUser) {
             ::close(fd);
             continue;
         }
