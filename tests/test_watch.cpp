@@ -5,6 +5,14 @@
 // across several keyboards at once, in what order they are reported, and what
 // the record on the wire looks like.
 //
+// And it measures the door: who is let in, who is turned away, who is dropped
+// again, and who hears which seat. That half runs over a real socket, made
+// here the way the unit makes it, because the thing worth measuring about it
+// is the behaviour of accept, poll and close rather than a calculation. What
+// cannot be made here is the answer logind gives: there is no session at a
+// seat in a test run, so the two questions asked at the door are handed in and
+// each case answers them itself.
+//
 // No device is opened and none is needed. That is the point of the split: the
 // part of the service worth measuring is handed key codes and hands back a
 // record, and the part that touches descriptors holds no state to measure.
@@ -18,14 +26,24 @@
 #include "Modifiers.h"
 #include "Protocol.h"
 #include "Seats.h"
+#include "Server.h"
 #include "WatchClient.h"
 
 #include <linux/input-event-codes.h>
 
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 #include <QObject>
+#include <QTemporaryDir>
 #include <QTest>
 
+#include <cstring>
 #include <initializer_list>
+#include <map>
+#include <string>
 #include <vector>
 
 using namespace bindpeek::watch;
@@ -58,6 +76,180 @@ std::size_t placeOf(const Seats &seats, const char *name) {
     return seats.count();
 }
 
+// Two people, told apart the way the service tells them apart. The numbers say
+// nothing and are not meant to: no account is looked up, because the door is
+// answered here rather than by the machine.
+constexpr uid_t kSomebody = 4200;
+constexpr uid_t kSomebodyElse = 4300;
+
+// What the door answers while a case runs. A door is a pair of plain function
+// pointers and a pointer has nowhere to keep anything, so the answers live
+// here and the two functions below read them.
+//
+// Set by each case before it knocks. Cleared by every case that starts a
+// bench, so nothing carries over from the one before.
+struct Answers {
+    // Whether the kernel can name the peer at all. False is a descriptor that
+    // is no connected socket, which is the one way the real question fails.
+    bool namesThePeer = true;
+    // Who the next connection turns out to belong to.
+    uid_t peer = kSomebody;
+    // Where each of them is sitting. Somebody who is in nobody's seat is not
+    // at this machine, and that is what an absent entry means.
+    std::map<uid_t, std::string> seats;
+};
+
+Answers g_answers;
+
+bool answerWhoIs(int /*fd*/, uid_t *uid) {
+    if (!g_answers.namesThePeer) {
+        return false;
+    }
+    *uid = g_answers.peer;
+    return true;
+}
+
+bool answerWhereIs(uid_t uid, std::string *seat) {
+    const auto found = g_answers.seats.find(uid);
+    if (found == g_answers.seats.end()) {
+        return false;
+    }
+    *seat = found->second;
+    return true;
+}
+
+Door answeredHere() { return Door{answerWhoIs, answerWhereIs}; }
+
+// How many connections a socket may hold waiting to be accepted. Above the
+// limit the service keeps, so that the case which walks past that limit is
+// measuring the service and not the backlog.
+constexpr int kBacklog = static_cast<int>(kMaxClientsPerUser) + 4;
+
+// The descriptors the service polls before the ones the server asks for: its
+// signals and its two timers. Written here so that every case reads the poll
+// answers back at an offset, which is where the arithmetic in dispatch goes
+// wrong if it goes wrong at all.
+constexpr std::size_t kAhead = 3;
+
+// A service with a socket of its own. The service manager is not here to pass
+// one, so it is made the way the unit makes it and handed over.
+//
+// Everything it opens is given back when it goes: the connections it knocked
+// with, and the listening socket, which the server deliberately does not close
+// because in the real run it belongs to the service manager.
+class Bench {
+public:
+    explicit Bench(Answers answers) {
+        g_answers = std::move(answers);
+        m_ok = m_dir.isValid() && stand();
+    }
+
+    ~Bench() {
+        for (const int fd : m_knocks) {
+            if (fd >= 0) {
+                ::close(fd);
+            }
+        }
+        if (m_listen >= 0) {
+            ::close(m_listen);
+        }
+    }
+
+    Bench(const Bench &) = delete;
+    Bench &operator=(const Bench &) = delete;
+
+    bool ok() const { return m_ok; }
+    Server &server() { return m_server; }
+
+    // A connection from outside, as a panel makes one. The descriptor stays
+    // ours: whether it was let in or shut is what most of the cases read.
+    int knock() {
+        const int fd = ::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+        if (fd < 0) {
+            return -1;
+        }
+        sockaddr_un at{};
+        at.sun_family = AF_UNIX;
+        std::memcpy(at.sun_path, m_path.c_str(), m_path.size());
+        if (::connect(fd, reinterpret_cast<sockaddr *>(&at), sizeof at) < 0) {
+            ::close(fd);
+            return -1;
+        }
+        m_knocks.push_back(fd);
+        return fd;
+    }
+
+    // One turn of the loop the service runs, with the answers read back where
+    // they were asked for.
+    void turn() {
+        std::vector<pollfd> fds(kAhead, pollfd{-1, 0, 0});
+        m_server.appendPollFds(fds);
+        // No waiting. A connection made on this machine is in the queue by the
+        // time connect has returned, and a descriptor that was closed has hung
+        // up by the time close has.
+        ::poll(fds.data(), fds.size(), 0);
+        m_server.dispatch(fds, kAhead);
+    }
+
+private:
+    bool stand() {
+        m_path = m_dir.filePath("watch").toStdString();
+        if (m_path.size() >= sizeof(sockaddr_un::sun_path)) {
+            return false;
+        }
+        m_listen = ::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+        if (m_listen < 0) {
+            return false;
+        }
+        sockaddr_un at{};
+        at.sun_family = AF_UNIX;
+        std::memcpy(at.sun_path, m_path.c_str(), m_path.size());
+        if (::bind(m_listen, reinterpret_cast<sockaddr *>(&at), sizeof at) <
+            0) {
+            return false;
+        }
+        if (::listen(m_listen, kBacklog) < 0) {
+            return false;
+        }
+        return m_server.adopt(m_listen);
+    }
+
+    QTemporaryDir m_dir;
+    std::string m_path;
+    int m_listen = -1;
+    std::vector<int> m_knocks;
+    Server m_server{answeredHere()};
+    bool m_ok = false;
+};
+
+// What a connection was told, if anything. The three answers a case asks about
+// are a record, nothing yet, and the door shut.
+enum class Told { Nothing, Record, Shut };
+
+Told heard(int fd, Report *record) {
+    // A connection that was never made was told nothing, which is the truth
+    // about it and the case has already failed on the knock that returned it.
+    // Written out because recv is a system call and the checker is right that
+    // it deserves a descriptor.
+    if (fd < 0) {
+        return Told::Nothing;
+    }
+    const ssize_t got = ::recv(fd, record, sizeof *record, MSG_DONTWAIT);
+    if (got == 0) {
+        return Told::Shut;
+    }
+    if (got < 0) {
+        return Told::Nothing;
+    }
+    return got == static_cast<ssize_t>(sizeof *record) ? Told::Record
+                                                       : Told::Nothing;
+}
+
+Told heard(int fd) {
+    Report ignored{};
+    return heard(fd, &ignored);
+}
+
 } // namespace
 
 class TestWatch : public QObject {
@@ -87,6 +279,20 @@ private slots:
     void news_is_what_has_not_gone_out();
     void a_seat_nobody_opened_holds_nothing();
     void a_lost_keyboard_takes_its_keys_from_its_seat();
+
+    void the_kernel_names_the_peer_of_a_connection();
+    void a_descriptor_that_is_no_connection_names_nobody();
+    void a_socket_of_another_kind_is_not_adopted();
+    void a_peer_the_door_cannot_name_is_shut_out();
+    void somebody_at_no_seat_is_shut_out();
+    void somebody_at_a_seat_waits_before_they_are_let_in();
+    void what_they_are_let_in_on_is_their_own_seat();
+    void one_seat_hears_nothing_of_the_other_over_the_socket();
+    void the_fifth_connection_of_one_person_is_shut_out();
+    void the_limit_is_counted_per_person();
+    void leaving_the_seat_ends_the_connection();
+    void losing_the_session_ends_the_connection();
+    void staying_put_keeps_the_connection();
 };
 
 // Every code the table answers to maps to a modifier, and both sides of the
@@ -453,6 +659,312 @@ void TestWatch::a_lost_keyboard_takes_its_keys_from_its_seat() {
     QVERIFY(reported(seats.snapshot(kOtherSeat)).empty());
     const std::vector<std::uint8_t> still{kSuper};
     QCOMPARE(reported(seats.snapshot(kDefaultSeat)), still);
+}
+
+// The half of the door that needs nothing arranged: the kernel attaches the
+// credentials when the connection is made, with no session and no seat
+// anywhere in it, so the real function is measured here rather than replaced.
+void TestWatch::the_kernel_names_the_peer_of_a_connection() {
+    int pair[2] = {-1, -1};
+    QVERIFY(::socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) == 0);
+
+    uid_t uid = 0;
+    QVERIFY(peerUid(pair[0], &uid));
+    QCOMPARE(uid, ::getuid());
+
+    ::close(pair[0]);
+    ::close(pair[1]);
+}
+
+// And when it cannot be asked, nobody is named. The answer has to be a no
+// rather than a leftover: the value it would have written is the one the
+// caller goes on to look up a seat for.
+void TestWatch::a_descriptor_that_is_no_connection_names_nobody() {
+    int ends[2] = {-1, -1};
+    QVERIFY(::pipe(ends) == 0);
+
+    uid_t uid = kSomebody;
+    QVERIFY(!peerUid(ends[0], &uid));
+    QCOMPARE(uid, kSomebody);
+
+    ::close(ends[0]);
+    ::close(ends[1]);
+}
+
+// A listening socket of the wrong kind is refused, and refused whole: nothing
+// is polled and nothing is accepted on a start that failed. The service speaks
+// in records the kernel draws the boundary around, and a stream socket would
+// hand it a byte count instead.
+void TestWatch::a_socket_of_another_kind_is_not_adopted() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const std::string path = dir.filePath("stream").toStdString();
+    QVERIFY(path.size() < sizeof(sockaddr_un::sun_path));
+
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    // QFAIL rather than QVERIFY, because what follows is a system call that
+    // wants a descriptor: this way the case leaves before it, in the reading
+    // of the checker as well as in the running.
+    if (fd < 0) {
+        QFAIL("cannot make a socket of the kind this case turns away");
+    }
+    sockaddr_un at{};
+    at.sun_family = AF_UNIX;
+    std::memcpy(at.sun_path, path.c_str(), path.size());
+    QVERIFY(::bind(fd, reinterpret_cast<sockaddr *>(&at), sizeof at) == 0);
+    QVERIFY(::listen(fd, kBacklog) == 0);
+
+    Server server{answeredHere()};
+    QVERIFY(!server.adopt(fd));
+
+    std::vector<pollfd> fds;
+    server.appendPollFds(fds);
+    QCOMPARE(fds.size(), std::size_t{1});
+    QCOMPARE(fds[0].fd, -1);
+
+    ::close(fd);
+}
+
+// The socket is open to everyone, so anybody local can reach the accept. A
+// connection the kernel will not name is shut there and then, before a seat is
+// looked up for a number nobody stands behind.
+void TestWatch::a_peer_the_door_cannot_name_is_shut_out() {
+    Bench bench(Answers{false, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+    QCOMPARE(bench.server().clients(), std::size_t{0});
+    QVERIFY(heard(panel) == Told::Shut);
+}
+
+// Somebody who is not sitting at this machine. A system account with a service
+// running, an account that has logged out, somebody at the other end of an
+// ssh connection: none of them is at a seat, and the records say when
+// somebody at a keyboard held a modifier and when they took a key.
+void TestWatch::somebody_at_no_seat_is_shut_out() {
+    Bench bench(Answers{true, kSomebody, {}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+    QCOMPARE(bench.server().clients(), std::size_t{0});
+    QVERIFY(heard(panel) == Told::Shut);
+}
+
+// Passing the check is not being let in. Between the two the caller opens the
+// keyboards, which it does for somebody who has passed and for nobody else, so
+// there is a round in which the connection stands and has been told nothing.
+void TestWatch::somebody_at_a_seat_waits_before_they_are_let_in() {
+    Bench bench(Answers{true, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+
+    QCOMPARE(bench.server().waiting(), std::size_t{1});
+    QCOMPARE(bench.server().clients(), std::size_t{0});
+    QVERIFY(heard(panel) == Told::Nothing);
+
+    const Seats state;
+    bench.server().admit(state);
+
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+    QCOMPARE(bench.server().clients(), std::size_t{1});
+    QVERIFY(heard(panel) == Told::Record);
+}
+
+// What the record on the way in says is the state of their own seat. A panel
+// starts with a modifier already down often enough to be the ordinary case,
+// and the modifier held at the other seat is not theirs to hear about.
+void TestWatch::what_they_are_let_in_on_is_their_own_seat() {
+    Bench bench(Answers{true, kSomebodyElse, {{kSomebodyElse, kOtherSeat}}});
+    QVERIFY(bench.ok());
+
+    Seats state;
+    state.press(kDefaultSeat, kBoard, KEY_LEFTCTRL);
+    state.press(kOtherSeat, kOther, KEY_LEFTMETA);
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+    bench.server().admit(state);
+
+    Report record{};
+    QVERIFY(heard(panel, &record) == Told::Record);
+    const std::vector<std::uint8_t> theirs{kSuper};
+    QCOMPARE(reported(record), theirs);
+}
+
+// The seat is carried on the connection, and the broadcast goes by it. Measured
+// over the socket rather than in the state alone: the state keeps the two
+// apart, and this is the line where that separation is either used or lost.
+void TestWatch::one_seat_hears_nothing_of_the_other_over_the_socket() {
+    Bench bench(
+        Answers{true,
+                kSomebody,
+                {{kSomebody, kDefaultSeat}, {kSomebodyElse, kOtherSeat}}});
+    QVERIFY(bench.ok());
+
+    const int here = bench.knock();
+    QVERIFY(here >= 0);
+    bench.turn();
+
+    g_answers.peer = kSomebodyElse;
+    const int there = bench.knock();
+    QVERIFY(there >= 0);
+    bench.turn();
+
+    Seats state;
+    bench.server().admit(state);
+    QCOMPARE(bench.server().clients(), std::size_t{2});
+    // The record each was let in on, taken out of the way so that what is read
+    // below is the broadcast and nothing else.
+    QVERIFY(heard(here) == Told::Record);
+    QVERIFY(heard(there) == Told::Record);
+
+    state.press(kDefaultSeat, kBoard, KEY_LEFTMETA);
+    bench.server().broadcast(kDefaultSeat, state.snapshot(kDefaultSeat));
+
+    Report record{};
+    QVERIFY(heard(here, &record) == Told::Record);
+    const std::vector<std::uint8_t> held{kSuper};
+    QCOMPARE(reported(record), held);
+    QVERIFY(heard(there) == Told::Nothing);
+}
+
+// A panel is one connection, and a second is the moment during a restart when
+// the old one has not let go yet. Past that the socket is being used for
+// something else, and the room is not there to be taken.
+//
+// All of them inside one round, which is the case the counting is written for:
+// none of them is in the list proper yet, and a limit that looked only there
+// would let every one of them through.
+void TestWatch::the_fifth_connection_of_one_person_is_shut_out() {
+    Bench bench(Answers{true, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    std::vector<int> panels;
+    for (std::size_t at = 0; at <= kMaxClientsPerUser; ++at) {
+        const int panel = bench.knock();
+        QVERIFY(panel >= 0);
+        panels.push_back(panel);
+    }
+    bench.turn();
+
+    QCOMPARE(bench.server().waiting(), kMaxClientsPerUser);
+    QVERIFY(heard(panels.back()) == Told::Shut);
+    for (std::size_t at = 0; at < kMaxClientsPerUser; ++at) {
+        QVERIFY(heard(panels[at]) == Told::Nothing);
+    }
+
+    const Seats state;
+    bench.server().admit(state);
+    QCOMPARE(bench.server().clients(), kMaxClientsPerUser);
+}
+
+// And it is counted per person, so that one account cannot use up the room
+// another one needs. The same socket, the same moment, somebody else: they are
+// let in on their own count.
+void TestWatch::the_limit_is_counted_per_person() {
+    Bench bench(
+        Answers{true,
+                kSomebody,
+                {{kSomebody, kDefaultSeat}, {kSomebodyElse, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    for (std::size_t at = 0; at < kMaxClientsPerUser; ++at) {
+        QVERIFY(bench.knock() >= 0);
+    }
+    bench.turn();
+    const Seats state;
+    bench.server().admit(state);
+    QCOMPARE(bench.server().clients(), kMaxClientsPerUser);
+
+    const int overTheLimit = bench.knock();
+    QVERIFY(overTheLimit >= 0);
+    bench.turn();
+    QVERIFY(heard(overTheLimit) == Told::Shut);
+    QCOMPARE(bench.server().waiting(), std::size_t{0});
+
+    g_answers.peer = kSomebodyElse;
+    const int other = bench.knock();
+    QVERIFY(other >= 0);
+    bench.turn();
+    QCOMPARE(bench.server().waiting(), std::size_t{1});
+
+    bench.server().admit(state);
+    QCOMPARE(bench.server().clients(), kMaxClientsPerUser + 1);
+    QVERIFY(heard(other) == Told::Record);
+}
+
+// The seat is read again while they stay, because a session can be switched
+// away from long after it connected. Somebody who is now at another seat is
+// not to be told what is held at this one.
+void TestWatch::leaving_the_seat_ends_the_connection() {
+    Bench bench(Answers{true, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+    const Seats state;
+    bench.server().admit(state);
+    QVERIFY(heard(panel) == Told::Record);
+
+    g_answers.seats[kSomebody] = kOtherSeat;
+    bench.server().dropStrangers();
+
+    QCOMPARE(bench.server().clients(), std::size_t{0});
+    QVERIFY(heard(panel) == Told::Shut);
+}
+
+// The same for a session that has gone: logged out, or switched away from with
+// nothing of theirs in the foreground. The records would otherwise keep going
+// to a screen nobody is looking at.
+void TestWatch::losing_the_session_ends_the_connection() {
+    Bench bench(Answers{true, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+    const Seats state;
+    bench.server().admit(state);
+    QVERIFY(heard(panel) == Told::Record);
+
+    g_answers.seats.clear();
+    bench.server().dropStrangers();
+
+    QCOMPARE(bench.server().clients(), std::size_t{0});
+    QVERIFY(heard(panel) == Told::Shut);
+}
+
+// And somebody who has not moved stays, told nothing by the checking itself.
+// The check runs on every correction beat, so a check that cost a connection
+// or a record would cost it a second and a half later as well.
+void TestWatch::staying_put_keeps_the_connection() {
+    Bench bench(Answers{true, kSomebody, {{kSomebody, kDefaultSeat}}});
+    QVERIFY(bench.ok());
+
+    const int panel = bench.knock();
+    QVERIFY(panel >= 0);
+    bench.turn();
+    const Seats state;
+    bench.server().admit(state);
+    QVERIFY(heard(panel) == Told::Record);
+
+    bench.server().dropStrangers();
+
+    QCOMPARE(bench.server().clients(), std::size_t{1});
+    QVERIFY(heard(panel) == Told::Nothing);
 }
 
 QTEST_APPLESS_MAIN(TestWatch)

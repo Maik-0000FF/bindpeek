@@ -196,12 +196,22 @@ add_test(NAME layer_placement COMMAND test_layer_placement)
 # The client is compiled in so that both ends of the record are measured in
 # one place: the service writes it and the panel reads it, and the reading is
 # the only checking code on the panel side of the socket.
+#
+# The socket side is compiled in as well, and with it the door it asks at: who
+# holds the other end of a connection and which seat they are sitting at. That
+# is the part where a mistake is not a panel that fails to appear but one
+# person hearing another's keyboard, so it is measured over a real socket, with
+# the two questions answered by the case instead of by logind.
 add_executable(test_watch
   test_watch.cpp
   ${BINDPEEK_SRC_DIR}/WatchClient.cpp
+  ${BINDPEEK_SRC_DIR}/watch/Server.cpp
 )
+# Libsystemd for the socket side: it asks the service manager for the listening
+# socket and logind for the seats. The cases here hand in their own answers to
+# the second, and the first is asked only on the path they do not take.
 target_link_libraries(test_watch PRIVATE bindpeek_watch_core bindpeek_sources
-                                         Qt6::Test)
+                                         PkgConfig::Libsystemd Qt6::Test)
 # The client is compiled in here as well, and names the panel for the same
 # reason as above.
 target_compile_definitions(test_watch
