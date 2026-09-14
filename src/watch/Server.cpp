@@ -17,11 +17,8 @@
 #include <systemd/sd-login.h>
 
 namespace bindpeek::watch {
-namespace {
 
-// Which seat a user is at right now, with a session in the foreground. False
-// when that is none of them, which is everybody who is not sitting at this
-// machine.
+// Which seat a user is at right now, as the header says it.
 //
 // A positive test rather than a list of states to refuse. sd_uid_get_state
 // would answer "lingering" for an account that is not logged in at all but has
@@ -40,7 +37,7 @@ namespace {
 //
 // The name is the answer and not only the yes: it says which keyboards this
 // person may be told about, and the ones of the other seat are not among them.
-bool seatOf(uid_t uid, std::string *seat) {
+bool activeSeatOf(uid_t uid, std::string *seat) {
     char **seats = nullptr;
     const int count = sd_get_seats(&seats);
     if (count < 0) {
@@ -62,8 +59,6 @@ bool seatOf(uid_t uid, std::string *seat) {
     return found;
 }
 
-} // namespace
-
 // Who is on the other end. Not to find out who they are: to turn away everyone
 // who is not at this machine. The records carry the moment of every keystroke,
 // which is worth little on its own and more than nothing to somebody
@@ -80,8 +75,6 @@ bool peerUid(int fd, uid_t *uid) {
     *uid = peer.uid;
     return true;
 }
-
-Door logindDoor() { return Door{peerUid, seatOf}; }
 
 Server::Server(Door door) : m_door(door) {}
 

@@ -25,6 +25,21 @@ namespace bindpeek::watch {
 // that drifts.
 inline constexpr std::size_t kMaxClientsPerUser = 4;
 
+// Who is on the other end of an accepted connection.
+//
+// Half of the door below, named here rather than left inside the source
+// because it is the half that can be measured as it stands: the kernel answers
+// it about any connected socket, with no session and no seat anywhere in it.
+bool peerUid(int fd, uid_t *uid);
+
+// Which seat that person is at right now, with a session in the foreground.
+// False when that is none of them, which is everybody who is not sitting at
+// this machine.
+//
+// The name is the answer and not only the yes: it says which keyboards this
+// person may be told about, and the ones of the other seat are not among them.
+bool activeSeatOf(uid_t uid, std::string *seat);
+
 // The two questions asked at the door.
 //
 // Both are answered by the machine the service is running on: who holds the
@@ -33,32 +48,13 @@ inline constexpr std::size_t kMaxClientsPerUser = 4;
 // seat to sit at, so they are handed in rather than reached for, and the
 // measurement answers them itself.
 //
-// Plain function pointers, because that is the whole of what is needed: the
-// service passes logindDoor and nothing else does.
+// Plain function pointers, because that is the whole of what is needed. Each
+// stands at the real answer to begin with, so a door written out in part is
+// still a door that shuts: the one thing this must never be is half a check.
 struct Door {
-    // Who is on the other end. False when the descriptor cannot say, and then
-    // nobody is served over it.
-    bool (*whoIs)(int fd, uid_t *uid);
-    // Which seat that person is at right now, with a session in the
-    // foreground. False when that is none of them, which is everybody who is
-    // not sitting at this machine.
-    //
-    // The name is the answer and not only the yes: it says which keyboards
-    // this person may be told about, and the ones of the other seat are not
-    // among them.
-    bool (*whereIs)(uid_t uid, std::string *seat);
+    bool (*whoIs)(int fd, uid_t *uid) = peerUid;
+    bool (*whereIs)(uid_t uid, std::string *seat) = activeSeatOf;
 };
-
-// The door as the service really asks it: the credentials the kernel attached
-// to the connection for the one, logind for the other.
-Door logindDoor();
-
-// Who is on the other end of an accepted connection.
-//
-// The first half of that door, named here rather than left inside the source
-// because it is the half that can be measured as it stands: the kernel answers
-// it about any connected socket, with no session and no seat anywhere in it.
-bool peerUid(int fd, uid_t *uid);
 
 // The socket side: who is listening, and what they are told.
 //
@@ -73,7 +69,7 @@ class Server {
 public:
     // The door it asks at. Left alone it is the real one; a measurement hands
     // in its own answers, and there is no other reason to pass anything here.
-    explicit Server(Door door = logindDoor());
+    explicit Server(Door door = {});
     ~Server();
 
     Server(const Server &) = delete;
